@@ -6,4 +6,8 @@ public enum EfficiencyUpgradeType
     SnippetLibrary,
     LintBot,
     PomodoroTimer,
+    NoiseCancelingHeadphones,
+    InterviewNotebook,
+    AutoFormatter,
+    MacroPad,
 }

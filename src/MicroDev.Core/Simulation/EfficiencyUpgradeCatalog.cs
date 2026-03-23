@@ -40,6 +40,42 @@ public static class EfficiencyUpgradeCatalog
             SummaryEffect = "-0.5 focus cost per click.",
             FocusCostReduction = 0.5,
         },
+        new()
+        {
+            Type = EfficiencyUpgradeType.NoiseCancelingHeadphones,
+            Name = "Noise-Canceling Headphones",
+            FundsCost = 70,
+            Description = "Cuts the ambient chaos down to a dull hum so the day leaks less focus while you juggle everything else.",
+            SummaryEffect = "-0.01 passive focus drain per in-game minute.",
+            PassiveFocusDrainReduction = 0.01,
+        },
+        new()
+        {
+            Type = EfficiencyUpgradeType.InterviewNotebook,
+            Name = "Interview Notebook",
+            FundsCost = 80,
+            Description = "A living page of questions, follow-ups, and observations. Starting an application begins with real prep instead of pure adrenaline.",
+            SummaryEffect = "+1 interview prep when applications begin.",
+            PrepPointsOnApplicationStart = 1,
+        },
+        new()
+        {
+            Type = EfficiencyUpgradeType.AutoFormatter,
+            Name = "Auto Formatter",
+            FundsCost = 68,
+            Description = "A reliable formatting pass keeps the codebase readable and makes clean examples easier to surface on demand.",
+            SummaryEffect = "+0.15 quality gain per click.",
+            BonusQualityGain = 0.15,
+        },
+        new()
+        {
+            Type = EfficiencyUpgradeType.MacroPad,
+            Name = "Macro Pad",
+            FundsCost = 92,
+            Description = "Tiny repeatable shortcuts add up fast. Common editor actions stop taking a whole extra breath every time.",
+            SummaryEffect = "+1 line per click.",
+            BonusLinesPerClick = 1,
+        },
     ];
 
     public static IReadOnlyList<EfficiencyUpgradeDefinition> All => Definitions;

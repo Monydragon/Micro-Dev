@@ -4,7 +4,7 @@ using MicroDev.Core.Simulation;
 
 public static class PortfolioWorkspace
 {
-    private static readonly IReadOnlyList<PortfolioProgramDefinition> Programs =
+    private static readonly IReadOnlyList<PortfolioProgramDefinition> StarterPrograms =
     [
         new(
             "Task Queue",
@@ -295,25 +295,342 @@ public static class PortfolioWorkspace
             ]),
     ];
 
-    public static int ProgramCount => Programs.Count;
+    private static readonly IReadOnlyList<PortfolioProgramDefinition> BonusPrograms =
+    [
+        new(
+            "Input Buffer",
+            "InputBuffer.cs",
+            "Captures recent button presses to make actions more forgiving.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Input;",
+                "",
+                "public sealed class InputBuffer<T>",
+                "{",
+                "    private readonly Queue<(T Value, TimeSpan Age)> _entries = new();",
+                "",
+                "    public void Push(T value)",
+                "    {",
+                "        _entries.Enqueue((value, TimeSpan.Zero));",
+                "    }",
+                "",
+                "    public void Update(TimeSpan elapsed, TimeSpan maxAge)",
+                "    {",
+                "        var count = _entries.Count;",
+                "        for (var index = 0; index < count; index++)",
+                "        {",
+                "            var entry = _entries.Dequeue();",
+                "            entry.Age += elapsed;",
+                "            if (entry.Age <= maxAge)",
+                "            {",
+                "                _entries.Enqueue(entry);",
+                "            }",
+                "        }",
+                "    }",
+                "",
+                "    public bool TryConsume(out T value)",
+                "    {",
+                "        if (_entries.Count == 0)",
+                "        {",
+                "            value = default!;",
+                "            return false;",
+                "        }",
+                "",
+                "        value = _entries.Dequeue().Value;",
+                "        return true;",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Tween Sequence",
+            "TweenSequence.cs",
+            "Chains timed value transitions for UI animation beats.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Animation;",
+                "",
+                "public sealed class TweenSequence",
+                "{",
+                "    private readonly Queue<Func<float, float>> _steps = new();",
+                "",
+                "    public void Add(Func<float, float> easing)",
+                "    {",
+                "        _steps.Enqueue(easing);",
+                "    }",
+                "",
+                "    public float Evaluate(float progress)",
+                "    {",
+                "        if (_steps.Count == 0)",
+                "        {",
+                "            return progress;",
+                "        }",
+                "",
+                "        var clamped = Math.Clamp(progress, 0f, 1f);",
+                "        return _steps.Peek()(clamped);",
+                "    }",
+                "",
+                "    public void Advance()",
+                "    {",
+                "        if (_steps.Count > 0)",
+                "        {",
+                "            _steps.Dequeue();",
+                "        }",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Sprite Batch Scope",
+            "SpriteBatchScope.cs",
+            "Wraps sprite-batch begin/end into a disposable render helper.",
+            [
+                "using System;",
+                "using Microsoft.Xna.Framework.Graphics;",
+                "",
+                "namespace Portfolio.Rendering;",
+                "",
+                "public readonly struct SpriteBatchScope : IDisposable",
+                "{",
+                "    private readonly SpriteBatch _spriteBatch;",
+                "",
+                "    public SpriteBatchScope(SpriteBatch spriteBatch)",
+                "    {",
+                "        _spriteBatch = spriteBatch;",
+                "        _spriteBatch.Begin();",
+                "    }",
+                "",
+                "    public void Dispose()",
+                "    {",
+                "        _spriteBatch.End();",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Audio Bus",
+            "AudioBus.cs",
+            "Separates music and effects gain into named channels.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Audio;",
+                "",
+                "public sealed class AudioBus",
+                "{",
+                "    private readonly Dictionary<string, float> _gains = new();",
+                "",
+                "    public void SetGain(string busName, float gain)",
+                "    {",
+                "        _gains[busName] = gain;",
+                "    }",
+                "",
+                "    public float GetGain(string busName)",
+                "    {",
+                "        return _gains.TryGetValue(busName, out var gain)",
+                "            ? gain",
+                "            : 1f;",
+                "    }",
+                "",
+                "    public float Mix(string busName, float sample)",
+                "    {",
+                "        return sample * GetGain(busName);",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Achievement Tracker",
+            "AchievementTracker.cs",
+            "Unlocks lightweight goals and prevents duplicate popups.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Progression;",
+                "",
+                "public sealed class AchievementTracker",
+                "{",
+                "    private readonly HashSet<string> _unlocked = new();",
+                "",
+                "    public bool Unlock(string achievementId)",
+                "    {",
+                "        return _unlocked.Add(achievementId);",
+                "    }",
+                "",
+                "    public bool IsUnlocked(string achievementId)",
+                "    {",
+                "        return _unlocked.Contains(achievementId);",
+                "    }",
+                "",
+                "    public IReadOnlyCollection<string> Snapshot()",
+                "    {",
+                "        return _unlocked;",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Status Timeline",
+            "StatusTimeline.cs",
+            "Tracks temporary gameplay effects over a shared timeline.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Gameplay;",
+                "",
+                "public sealed class StatusTimeline",
+                "{",
+                "    private readonly List<(string Id, TimeSpan Remaining)> _entries = [];",
+                "",
+                "    public void Add(string statusId, TimeSpan duration)",
+                "    {",
+                "        _entries.Add((statusId, duration));",
+                "    }",
+                "",
+                "    public void Update(TimeSpan elapsed)",
+                "    {",
+                "        for (var index = _entries.Count - 1; index >= 0; index--)",
+                "        {",
+                "            var entry = _entries[index];",
+                "            entry.Remaining -= elapsed;",
+                "            if (entry.Remaining <= TimeSpan.Zero)",
+                "            {",
+                "                _entries.RemoveAt(index);",
+                "                continue;",
+                "            }",
+                "",
+                "            _entries[index] = entry;",
+                "        }",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Scene Router",
+            "SceneRouter.cs",
+            "Moves between named scenes without leaking navigation rules everywhere.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Navigation;",
+                "",
+                "public sealed class SceneRouter",
+                "{",
+                "    private readonly Dictionary<string, Action> _routes = new();",
+                "",
+                "    public void Map(string sceneId, Action enter)",
+                "    {",
+                "        _routes[sceneId] = enter;",
+                "    }",
+                "",
+                "    public bool TryGo(string sceneId)",
+                "    {",
+                "        if (!_routes.TryGetValue(sceneId, out var enter))",
+                "        {",
+                "            return false;",
+                "        }",
+                "",
+                "        enter();",
+                "        return true;",
+                "    }",
+                "}",
+            ]),
+        new(
+            "Projectile Pool",
+            "ProjectilePool.cs",
+            "Reuses projectile instances instead of allocating them every frame.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                "namespace Portfolio.Gameplay;",
+                "",
+                "public sealed class ProjectilePool",
+                "{",
+                "    private readonly Stack<Projectile> _free = new();",
+                "",
+                "    public Projectile Rent()",
+                "    {",
+                "        return _free.Count > 0",
+                "            ? _free.Pop()",
+                "            : new Projectile();",
+                "    }",
+                "",
+                "    public void Return(Projectile projectile)",
+                "    {",
+                "        projectile.Active = false;",
+                "        _free.Push(projectile);",
+                "    }",
+                "}",
+                "",
+                "public sealed class Projectile",
+                "{",
+                "    public bool Active { get; set; }",
+                "}",
+            ]),
+    ];
 
-    public static int TotalLinesOfCode => Programs.Sum(program => program.TotalLinesOfCode);
+    private static readonly IReadOnlyList<GeneratedProgramTheme> GeneratedThemes =
+    [
+        new("Quest", "Quests", "quest state and progression"),
+        new("Dialogue", "Dialogue", "dialogue branches and conversation data"),
+        new("Save", "SaveData", "save payloads and restore points"),
+        new("Inventory", "Inventory", "inventory entries and item counts"),
+        new("Audio", "Audio", "audio cues and routing metadata"),
+        new("Achievement", "Achievements", "achievement unlock data"),
+        new("Level", "Levels", "level metadata and staging state"),
+        new("Input", "Input", "input actions and recent command flow"),
+        new("Build", "Builds", "build steps and artifact metadata"),
+        new("Camera", "Cameras", "camera tuning and framing state"),
+        new("Tooltip", "Tooltips", "tooltip content and placement hints"),
+        new("Matchmaking", "Matchmaking", "matchmaking tickets and lobby state"),
+    ];
+
+    private static readonly IReadOnlyList<PortfolioProgramDefinition> CuratedProgramTemplates =
+        StarterPrograms.Concat(BonusPrograms).ToArray();
+    private static readonly IReadOnlyList<PortfolioProgramDefinition> GeneratedProgramTemplates = BuildGeneratedPrograms();
+    private static readonly IReadOnlyList<PortfolioProgramDefinition> ProgramPool =
+        CuratedProgramTemplates.Concat(GeneratedProgramTemplates).ToArray();
+    private static readonly Dictionary<int, IReadOnlyList<PortfolioProgramDefinition>> ProgramPoolBySeed = [];
+
+    public static int ProgramCount => ProgramPool.Count;
+
+    public static int GetProgramCount(RunState state)
+    {
+        if (state.Difficulty == GameDifficulty.Endless)
+        {
+            return GetRunProgramPool(state).Count;
+        }
+
+        return Math.Clamp(state.Difficulty switch
+        {
+            GameDifficulty.Easy => 8,
+            GameDifficulty.Hard => 16,
+            _ => 12,
+        }, 1, GetRunProgramPool(state).Count);
+    }
+
+    public static bool HasFiniteProgramCount(RunState state)
+    {
+        return state.Difficulty != GameDifficulty.Endless;
+    }
 
     public static PortfolioProgramDefinition GetCurrentProgram(RunState state)
     {
-        var index = Math.Clamp(state.CurrentProgramIndex, 0, Programs.Count - 1);
-        return Programs[index];
+        return GetProgramAt(state, state.CurrentProgramIndex);
     }
 
     public static int GetCompletedProgramCount(RunState state)
     {
-        if (state.CurrentProgramIndex >= Programs.Count - 1 &&
-            state.CurrentProgramVisibleLineCount >= Programs[^1].CodeLines.Count)
+        var currentProgram = GetCurrentProgram(state);
+        var completed = state.CurrentProgramIndex;
+        if (state.CurrentProgramVisibleLineCount >= currentProgram.CodeLines.Count)
         {
-            return Programs.Count;
+            completed++;
         }
 
-        return Math.Clamp(state.CurrentProgramIndex, 0, Programs.Count);
+        return HasFiniteProgramCount(state)
+            ? Math.Clamp(completed, 0, GetProgramCount(state))
+            : Math.Max(0, completed);
     }
 
     public static IReadOnlyList<string> GetVisibleLines(RunState state)
@@ -335,7 +652,8 @@ public static class PortfolioWorkspace
 
             if (state.CurrentProgramVisibleLineCount >= program.CodeLines.Count)
             {
-                if (state.CurrentProgramIndex >= Programs.Count - 1)
+                if (HasFiniteProgramCount(state) &&
+                    state.CurrentProgramIndex >= GetProgramCount(state) - 1)
                 {
                     break;
                 }
@@ -361,12 +679,15 @@ public static class PortfolioWorkspace
             }
 
             completedFileName ??= program.FileName;
-            if (state.CurrentProgramIndex < Programs.Count - 1)
+            if (HasFiniteProgramCount(state) &&
+                state.CurrentProgramIndex >= GetProgramCount(state) - 1)
             {
-                state.CurrentProgramIndex++;
-                state.CurrentProgramVisibleLineCount = 0;
-                startedFileName ??= GetCurrentProgram(state).FileName;
+                continue;
             }
+
+            state.CurrentProgramIndex++;
+            state.CurrentProgramVisibleLineCount = 0;
+            startedFileName ??= GetCurrentProgram(state).FileName;
         }
 
         return new PortfolioWriteResult(linesAdded, completedFileName, startedFileName);
@@ -378,9 +699,10 @@ public static class PortfolioWorkspace
         state.CurrentProgramIndex = 0;
         state.CurrentProgramVisibleLineCount = 0;
 
-        for (var programIndex = 0; programIndex < Programs.Count; programIndex++)
+        var programIndex = 0;
+        while (true)
         {
-            var program = Programs[programIndex];
+            var program = GetProgramAt(state, programIndex);
             var visibleLineCount = 0;
 
             for (var lineIndex = 0; lineIndex < program.CodeLines.Count; lineIndex++)
@@ -406,9 +728,428 @@ public static class PortfolioWorkspace
                     return;
                 }
             }
+
+            if (HasFiniteProgramCount(state) &&
+                programIndex >= GetProgramCount(state) - 1)
+            {
+                state.CurrentProgramIndex = programIndex;
+                state.CurrentProgramVisibleLineCount = program.CodeLines.Count;
+                return;
+            }
+
+            programIndex++;
+        }
+    }
+
+    private static PortfolioProgramDefinition GetProgramAt(RunState state, int programIndex)
+    {
+        var programPool = GetRunProgramPool(state);
+        var templateCount = GetProgramCount(state);
+        var clampedIndex = Math.Max(0, programIndex);
+
+        if (HasFiniteProgramCount(state))
+        {
+            return programPool[Math.Clamp(clampedIndex, 0, templateCount - 1)];
         }
 
-        state.CurrentProgramIndex = Programs.Count - 1;
-        state.CurrentProgramVisibleLineCount = Programs[^1].CodeLines.Count;
+        var template = programPool[clampedIndex % templateCount];
+        var cycle = clampedIndex / templateCount;
+        if (cycle <= 0)
+        {
+            return template;
+        }
+
+        var cycleNumber = cycle + 1;
+        var suffix = $".Pass{cycleNumber}";
+        var fileName = template.FileName.EndsWith(".cs", StringComparison.Ordinal)
+            ? template.FileName[..^3] + suffix + ".cs"
+            : template.FileName + suffix;
+
+        return new PortfolioProgramDefinition(
+            $"{template.ProjectName} Iteration {cycleNumber}",
+            fileName,
+            $"{template.Description} Endless mode keeps the portfolio feed moving with another real pass.",
+            template.CodeLines);
     }
+
+    private static IReadOnlyList<PortfolioProgramDefinition> GetRunProgramPool(RunState state)
+    {
+        var seed = state.RunSeed == 0 ? 17 : state.RunSeed;
+        if (ProgramPoolBySeed.TryGetValue(seed, out var programPool))
+        {
+            return programPool;
+        }
+
+        var shuffled = ProgramPool.ToList();
+        Shuffle(shuffled, seed);
+        programPool = shuffled;
+        ProgramPoolBySeed[seed] = programPool;
+        return programPool;
+    }
+
+    private static IReadOnlyList<PortfolioProgramDefinition> BuildGeneratedPrograms()
+    {
+        var programs = new List<PortfolioProgramDefinition>();
+
+        foreach (var theme in GeneratedThemes)
+        {
+            programs.Add(CreateRegistryProgram(theme));
+            programs.Add(CreatePlannerProgram(theme));
+            programs.Add(CreateFormatterProgram(theme));
+            programs.Add(CreateTimelineProgram(theme));
+            programs.Add(CreateSelectorProgram(theme));
+            programs.Add(CreateBufferProgram(theme));
+            programs.Add(CreateLayoutProgram(theme));
+            programs.Add(CreateStatsProgram(theme));
+            programs.Add(CreateIndexProgram(theme));
+            programs.Add(CreateRouterProgram(theme));
+        }
+
+        return programs;
+    }
+
+    private static PortfolioProgramDefinition CreateRegistryProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}Registry";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Registry",
+            $"{className}.cs",
+            $"Caches {theme.DomainDescription} by id so the runtime can answer lookups without reopening source data every frame.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly Dictionary<string, string> _entries = new();",
+                "",
+                "    public void Remember(string id, string value)",
+                "    {",
+                "        _entries[id] = value;",
+                "    }",
+                "",
+                "    public bool TryGet(string id, out string value)",
+                "    {",
+                "        return _entries.TryGetValue(id, out value);",
+                "    }",
+                "",
+                "    public IEnumerable<string> Keys => _entries.Keys;",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreatePlannerProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}Planner";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Planner",
+            $"{className}.cs",
+            $"Queues small work items for {theme.DomainDescription} so the runtime can consume them in a predictable order.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly Queue<(string Id, int Cost)> _items = new();",
+                "",
+                "    public void Enqueue(string id, int cost)",
+                "    {",
+                "        _items.Enqueue((id, cost));",
+                "    }",
+                "",
+                "    public bool TryDequeue(out (string Id, int Cost) item)",
+                "    {",
+                "        if (_items.Count == 0)",
+                "        {",
+                "            item = default;",
+                "            return false;",
+                "        }",
+                "",
+                "        item = _items.Dequeue();",
+                "        return true;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateFormatterProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}Formatter";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Formatter",
+            $"{className}.cs",
+            $"Formats {theme.DomainDescription} into a readable summary for logs, tools, and quick debugging.",
+            [
+                "using System.Collections.Generic;",
+                "using System.Text;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public static class {className}",
+                "{",
+                "    public static string Format(IReadOnlyList<string> lines)",
+                "    {",
+                "        var builder = new StringBuilder();",
+                "",
+                "        for (var index = 0; index < lines.Count; index++)",
+                "        {",
+                "            builder.Append(index + 1);",
+                "            builder.Append(\": \");",
+                "            builder.AppendLine(lines[index].Trim());",
+                "        }",
+                "",
+                "        return builder.ToString().TrimEnd();",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateTimelineProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}Timeline";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Timeline",
+            $"{className}.cs",
+            $"Tracks temporary {theme.DomainDescription} over time and removes entries that have already expired.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly List<(string Id, TimeSpan Remaining)> _entries = [];",
+                "",
+                "    public void Add(string id, TimeSpan duration)",
+                "    {",
+                "        _entries.Add((id, duration));",
+                "    }",
+                "",
+                "    public void Update(TimeSpan elapsed)",
+                "    {",
+                "        for (var index = _entries.Count - 1; index >= 0; index--)",
+                "        {",
+                "            var entry = _entries[index];",
+                "            entry.Remaining -= elapsed;",
+                "            if (entry.Remaining <= TimeSpan.Zero)",
+                "            {",
+                "                _entries.RemoveAt(index);",
+                "                continue;",
+                "            }",
+                "",
+                "            _entries[index] = entry;",
+                "        }",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateSelectorProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}Selector";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Selector",
+            $"{className}.cs",
+            $"Cycles through candidate {theme.DomainDescription} while keeping the next pick stable and easy to reason about.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private int _nextIndex;",
+                "",
+                "    public string? PickNext(IReadOnlyList<string> values)",
+                "    {",
+                "        if (values.Count == 0)",
+                "        {",
+                "            return null;",
+                "        }",
+                "",
+                "        var value = values[_nextIndex % values.Count];",
+                "        _nextIndex++;",
+                "        return value;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateBufferProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}Buffer";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Buffer",
+            $"{className}.cs",
+            $"Keeps the most recent {theme.DomainDescription} events under a fixed cap so the newest information stays hot.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly Queue<string> _entries = new();",
+                "",
+                "    public void Push(string value, int capacity)",
+                "    {",
+                "        _entries.Enqueue(value);",
+                "        while (_entries.Count > capacity)",
+                "        {",
+                "            _entries.Dequeue();",
+                "        }",
+                "    }",
+                "",
+                "    public string[] Snapshot()",
+                "    {",
+                "        return _entries.ToArray();",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateLayoutProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}LayoutStrip";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Layout Strip",
+            $"{className}.cs",
+            $"Spaces small panels for {theme.DomainDescription} across a row without scattering the layout math everywhere.",
+            [
+                "using Microsoft.Xna.Framework;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public static class {className}",
+                "{",
+                "    public static Rectangle[] Build(Rectangle area, int count, int gap)",
+                "    {",
+                "        var slots = new Rectangle[count];",
+                "        var width = (area.Width - ((count - 1) * gap)) / count;",
+                "",
+                "        for (var index = 0; index < count; index++)",
+                "        {",
+                "            var x = area.X + (index * (width + gap));",
+                "            slots[index] = new Rectangle(x, area.Y, width, area.Height);",
+                "        }",
+                "",
+                "        return slots;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateStatsProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}StatsLedger";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Stats Ledger",
+            $"{className}.cs",
+            $"Accumulates counters for {theme.DomainDescription} and exposes a simple read-only total by key.",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly Dictionary<string, int> _counts = new();",
+                "",
+                "    public void Add(string id, int amount)",
+                "    {",
+                "        _counts[id] = _counts.GetValueOrDefault(id) + amount;",
+                "    }",
+                "",
+                "    public int Get(string id)",
+                "    {",
+                "        return _counts.GetValueOrDefault(id);",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateIndexProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}RecentIndex";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Recent Index",
+            $"{className}.cs",
+            $"Tracks the most recent timestamp written for {theme.DomainDescription} so the latest entry stays easy to query.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly Dictionary<string, DateTime> _entries = new();",
+                "",
+                "    public void Touch(string id, DateTime utcNow)",
+                "    {",
+                "        _entries[id] = utcNow;",
+                "    }",
+                "",
+                "    public DateTime? TryGet(string id)",
+                "    {",
+                "        return _entries.TryGetValue(id, out var value) ? value : null;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static PortfolioProgramDefinition CreateRouterProgram(GeneratedProgramTheme theme)
+    {
+        var className = $"{theme.Name}ActionRouter";
+        return new PortfolioProgramDefinition(
+            $"{theme.Name} Action Router",
+            $"{className}.cs",
+            $"Maps named actions for {theme.DomainDescription} so screen code can trigger behavior without hardcoded switch blocks everywhere.",
+            [
+                "using System;",
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Portfolio.Generated.{theme.NamespaceSegment};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly Dictionary<string, Action> _routes = new();",
+                "",
+                "    public void Map(string id, Action action)",
+                "    {",
+                "        _routes[id] = action;",
+                "    }",
+                "",
+                "    public bool TryRun(string id)",
+                "    {",
+                "        if (!_routes.TryGetValue(id, out var action))",
+                "        {",
+                "            return false;",
+                "        }",
+                "",
+                "        action();",
+                "        return true;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static void Shuffle<T>(IList<T> values, int seed)
+    {
+        var random = new Random(seed);
+        for (var index = values.Count - 1; index > 0; index--)
+        {
+            var swapIndex = random.Next(index + 1);
+            (values[index], values[swapIndex]) = (values[swapIndex], values[index]);
+        }
+    }
+
+    private sealed record GeneratedProgramTheme(
+        string Name,
+        string NamespaceSegment,
+        string DomainDescription);
 }

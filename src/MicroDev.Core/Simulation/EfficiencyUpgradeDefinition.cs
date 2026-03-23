@@ -17,4 +17,8 @@ public sealed class EfficiencyUpgradeDefinition
     public double FocusCostReduction { get; init; }
 
     public double BonusQualityGain { get; init; }
+
+    public double PassiveFocusDrainReduction { get; init; }
+
+    public int PrepPointsOnApplicationStart { get; init; }
 }

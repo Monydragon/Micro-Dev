@@ -21,6 +21,7 @@ public sealed class MicroDevGame : Game
     private readonly GameSettings _settings = new();
     private readonly GameAudio _audio = new();
     private MouseState _previousMouseState;
+    private KeyboardState _previousKeyboardState;
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private SpriteFont _font = null!;
@@ -43,15 +44,15 @@ public sealed class MicroDevGame : Game
 
     protected override void Initialize()
     {
-        _graphics.ApplyChanges();
         base.Initialize();
+        ApplyRuntimeSettings();
     }
 
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _virtualCanvas.EnsureResources(GraphicsDevice);
-        _audio.Enabled = _settings.SoundEffectsEnabled;
+        ApplyRuntimeSettings();
 
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
@@ -63,7 +64,10 @@ public sealed class MicroDevGame : Game
     protected override void Update(GameTime gameTime)
     {
         var keyboardState = Keyboard.GetState();
-        if (keyboardState.IsKeyDown(Keys.Escape))
+        var escapePressed = keyboardState.IsKeyDown(Keys.Escape) &&
+                            !_previousKeyboardState.IsKeyDown(Keys.Escape);
+        if (escapePressed &&
+            _screenManager.CurrentScreen is MainMenuScreen)
         {
             Exit();
             return;
@@ -75,7 +79,9 @@ public sealed class MicroDevGame : Game
         var currentMouseState = Mouse.GetState();
         var input = InputSnapshot.Create(currentMouseState, _previousMouseState, _virtualCanvas);
         _screenManager.Update(gameTime, input);
+        UpdateAudio(gameTime);
         _previousMouseState = currentMouseState;
+        _previousKeyboardState = keyboardState;
 
         base.Update(gameTime);
     }
@@ -121,6 +127,7 @@ public sealed class MicroDevGame : Game
             _font,
             _pixel,
             _audio,
+            _settings,
             new Point(VirtualWidth, VirtualHeight),
             StartRun,
             ShowOptions,
@@ -135,12 +142,13 @@ public sealed class MicroDevGame : Game
             _audio,
             _settings,
             new Point(VirtualWidth, VirtualHeight),
-            ShowMainMenu));
+            ShowMainMenu,
+            ApplyRuntimeSettings));
     }
 
     private void StartRun()
     {
-        var simulation = new SimulationEngine(SimulationConfig.Default);
+        var simulation = new SimulationEngine(SimulationConfig.ForDifficulty(_settings.SelectedDifficulty));
         var incidentScheduler = new IncidentScheduler();
         _screenManager.SetScreen(new WorkspaceScreen(
             _font,
@@ -148,6 +156,55 @@ public sealed class MicroDevGame : Game
             simulation,
             incidentScheduler,
             _audio,
-            new Point(VirtualWidth, VirtualHeight)));
+            new Point(VirtualWidth, VirtualHeight),
+            ShowWorkspaceOptions));
+    }
+
+    private void UpdateAudio(GameTime gameTime)
+    {
+        var mode = BackgroundMusicMode.None;
+        var sanityRatio = 1f;
+
+        switch (_screenManager.CurrentScreen)
+        {
+            case WorkspaceScreen workspaceScreen:
+                mode = BackgroundMusicMode.Workspace;
+                sanityRatio = workspaceScreen.GetSanityRatio();
+                break;
+            case MainMenuScreen:
+            case OptionsScreen:
+                mode = BackgroundMusicMode.Menu;
+                break;
+        }
+
+        _audio.UpdateMusic(gameTime.ElapsedGameTime.TotalSeconds, mode, sanityRatio);
+    }
+
+    private void ShowWorkspaceOptions(WorkspaceScreen workspace)
+    {
+        _screenManager.SetScreen(new OptionsScreen(
+            _font,
+            _pixel,
+            _audio,
+            _settings,
+            new Point(VirtualWidth, VirtualHeight),
+            () => _screenManager.SetScreen(workspace),
+            ApplyRuntimeSettings));
+    }
+
+    private void ApplyRuntimeSettings()
+    {
+        _audio.Enabled = _settings.SoundEffectsEnabled;
+        _audio.MusicEnabled = _settings.MusicEnabled;
+        _audio.MasterVolume = _settings.MasterVolume;
+        _audio.SoundEffectsVolume = _settings.SoundEffectsVolume;
+        _audio.MusicVolume = _settings.MusicVolume;
+
+        _graphics.PreferredBackBufferWidth = _settings.PreferredResolution.X;
+        _graphics.PreferredBackBufferHeight = _settings.PreferredResolution.Y;
+        _graphics.HardwareModeSwitch = _settings.WindowMode == WindowModeSetting.Fullscreen;
+        _graphics.IsFullScreen = _settings.WindowMode != WindowModeSetting.Windowed;
+        Window.AllowUserResizing = _settings.WindowMode == WindowModeSetting.Windowed;
+        _graphics.ApplyChanges();
     }
 }

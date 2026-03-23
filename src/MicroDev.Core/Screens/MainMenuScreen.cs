@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using MicroDev.Core.Audio;
 using MicroDev.Core.Input;
+using MicroDev.Core.Simulation;
 using MicroDev.Core.UI;
 
 namespace MicroDev.Core.Screens;
@@ -14,6 +15,7 @@ public sealed class MainMenuScreen : IScreen
     private readonly SpriteFont _font;
     private readonly Texture2D _pixel;
     private readonly GameAudio _audio;
+    private readonly GameSettings _settings;
     private readonly Point _virtualResolution;
     private readonly Action _startGame;
     private readonly Action _showOptions;
@@ -21,11 +23,16 @@ public sealed class MainMenuScreen : IScreen
     private readonly UiButton _startButton = new("Start");
     private readonly UiButton _optionsButton = new("Options");
     private readonly UiButton _exitButton = new("Exit");
+    private readonly UiButton _easyButton = new("Easy");
+    private readonly UiButton _normalButton = new("Normal");
+    private readonly UiButton _hardButton = new("Hard");
+    private readonly UiButton _endlessButton = new("Endless");
 
     public MainMenuScreen(
         SpriteFont font,
         Texture2D pixel,
         GameAudio audio,
+        GameSettings settings,
         Point virtualResolution,
         Action startGame,
         Action showOptions,
@@ -34,6 +41,7 @@ public sealed class MainMenuScreen : IScreen
         _font = font;
         _pixel = pixel;
         _audio = audio;
+        _settings = settings;
         _virtualResolution = virtualResolution;
         _startGame = startGame;
         _showOptions = showOptions;
@@ -42,6 +50,10 @@ public sealed class MainMenuScreen : IScreen
         _startButton.TextScale = 0.92f;
         _optionsButton.TextScale = 0.86f;
         _exitButton.TextScale = 0.86f;
+        _easyButton.TextScale = 0.74f;
+        _normalButton.TextScale = 0.74f;
+        _hardButton.TextScale = 0.74f;
+        _endlessButton.TextScale = 0.74f;
     }
 
     public void Update(GameTime gameTime, InputSnapshot input)
@@ -66,6 +78,15 @@ public sealed class MainMenuScreen : IScreen
         {
             _audio.PlayButtonClick();
             _exitGame();
+            return;
+        }
+
+        if (UpdateDifficultyButton(_easyButton, GameDifficulty.Easy, input) ||
+            UpdateDifficultyButton(_normalButton, GameDifficulty.Normal, input) ||
+            UpdateDifficultyButton(_hardButton, GameDifficulty.Hard, input) ||
+            UpdateDifficultyButton(_endlessButton, GameDifficulty.Endless, input))
+        {
+            return;
         }
     }
 
@@ -112,7 +133,7 @@ public sealed class MainMenuScreen : IScreen
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Tooltips, food variety, freelance gig choices, and a cleaner front-end menu flow.",
+            "Live display/audio settings, the new banking desktop app, and a richer lo-fi desk loop on top of the expanded career run.",
             new Vector2(_detailBounds.X + 24, _detailBounds.Y + 198),
             _detailBounds.Width - 48,
             UiTheme.Success,
@@ -128,13 +149,34 @@ public sealed class MainMenuScreen : IScreen
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Rent still lands at midnight. Food and sleep protect focus, upgrades buy back efficiency, and every finished file pushes the portfolio toward a real application.",
+            "Rent still lands at midnight. Food and sleep protect focus, upgrades buy back efficiency, and every finished file pushes the portfolio toward a real application loop.",
             new Vector2(_footerBounds.X + 24, _footerBounds.Y + 58),
-            _footerBounds.Width - 48,
+            760,
             UiTheme.TextMuted,
             0.78f,
             3f,
             4);
+
+        UiLabel.Draw(spriteBatch, _font, "Difficulty", new Vector2(_footerBounds.X + 846, _footerBounds.Y + 20), UiTheme.Accent, 0.82f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            GetDifficultySummary(_settings.SelectedDifficulty),
+            new Vector2(_footerBounds.X + 846, _footerBounds.Y + 54),
+            480,
+            UiTheme.TextMuted,
+            0.72f,
+            2f,
+            3);
+
+        _easyButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Easy;
+        _normalButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Normal;
+        _hardButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Hard;
+        _endlessButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Endless;
+        _easyButton.Draw(spriteBatch, _pixel, _font);
+        _normalButton.Draw(spriteBatch, _pixel, _font);
+        _hardButton.Draw(spriteBatch, _pixel, _font);
+        _endlessButton.Draw(spriteBatch, _pixel, _font);
     }
 
     private void DrawBackdrop(SpriteBatch spriteBatch)
@@ -152,5 +194,32 @@ public sealed class MainMenuScreen : IScreen
         _startButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 120, 188, 52);
         _optionsButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 186, 188, 46);
         _exitButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 242, 188, 46);
+        _easyButton.Bounds = new Rectangle(_footerBounds.X + 846, _footerBounds.Y + 116, 102, 36);
+        _normalButton.Bounds = new Rectangle(_footerBounds.X + 958, _footerBounds.Y + 116, 118, 36);
+        _hardButton.Bounds = new Rectangle(_footerBounds.X + 1086, _footerBounds.Y + 116, 102, 36);
+        _endlessButton.Bounds = new Rectangle(_footerBounds.X + 1198, _footerBounds.Y + 116, 128, 36);
+    }
+
+    private bool UpdateDifficultyButton(UiButton button, GameDifficulty difficulty, InputSnapshot input)
+    {
+        if (!button.Update(input))
+        {
+            return false;
+        }
+
+        _settings.SelectedDifficulty = difficulty;
+        _audio.PlayButtonClick();
+        return true;
+    }
+
+    private static string GetDifficultySummary(GameDifficulty difficulty)
+    {
+        return difficulty switch
+        {
+            GameDifficulty.Easy => "8 curated files, easier thresholds, calmer desk events, and guaranteed recruiter shots so every run gets chances to convert.",
+            GameDifficulty.Hard => "Longer portfolio route, tighter bills, stricter recruiters, and a busier desk with more random disruptions.",
+            GameDifficulty.Endless => "The portfolio feed never ends. Accepted applications pay out, random desk events keep rolling, and the run never hard-stops on a win.",
+            _ => "A balanced run with a larger portfolio queue, recurring job listings, and a steady stream of random desk events.",
+        };
     }
 }

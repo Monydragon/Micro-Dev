@@ -6,5 +6,13 @@ public enum IncidentType
     CatInterruption,
     TechDebtBug,
     JobListing,
+    DeepWorkWindow,
+    ContextSwitch,
+    CoffeeBounce,
+    MentorNudge,
+    ExpenseSpike,
+    RubberDuckInsight,
+    MicroSale,
+    DoomscrollSpiral,
     FirstCoinDilemma,
 }

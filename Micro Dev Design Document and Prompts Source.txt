@@ -66,3 +66,30 @@ Fix the main menu display you can see the issue from the screenshot. then contin
 
 [prompt 7]
 fix the green box from rendering its an empty drawn box that needs to be removed from the main menu. after that continue on the next iteration based on the game design document.
+
+[prompt 8]
+fix the overflow and UI for the freelance job board. then work on next iteration from the game design document.
+
+[prompt 9]
+fix rendering for delivery app, then add more chances at win condition. I do not want to run out of files when playing it stops at 8 files I want to add a difficulty selector, Easy, Normal, Hard, Endless. I want to have easy keep the 8 files but guarantee job applications and I want to make the job application process more than just clicking a button there should be a little event where the player has to code for the job and be able to have a mock coding interview. then work on adding music to the game, lo-fi loop
+
+[prompt 10]
+I want to fix the upgrade UI display there is some overlap, then I want to focus on adding BGM and more options resolution dropdown, add full screen/borderless screen options, master volume, sfx volume, bgm volume and be able to easily change the options in game there should be an options button accessible. after these changes continue implementing the game design document next steps.
+
+[prompt 11]
+I want to fix the overlap issues as shown for options, I also want to make the game feel unique each play-through if it's possible I want to have more and procedural generated. I want the game to feel unique. also doing the application code challenge (shown) it does not allow me to finish the generation I don't want to block out my actions I should still be able to do my actions when the interview comes up I want to get a job offer if the interview was a success. I want more scripts and randomly selected. if possible I want to add around 100 different scripts that are randomly chosen, also endless is broken it crashes on select when starting.
+
+[prompt 12]
+I am facing a crash when trying to do an interview, also the code editor the name of the file should not overlap see image. also need to make the game feel more engaging, more unlocks more modifiers more random events. I want to make the game feel like micromanaging is the solution to get an interview.
+
+[prompt 13]
+I am getting a crash when I do the interview null, Let's fix that and then go over the game design document again and make sure the features are implemented. 
+
+[prompt 14]
+As you can see from the images fix the UI issues, also the code editor the files should show and not overlap. let's enhance the game. let's continue implementing the rest of the game design features that are missing
+
+[prompt 15]
+Small change the text overlaps please correct that for the upgrades
+
+[prompt 16]
+I want to make the interview questions easier for common players more high level concepts more simple common programming knowledge like for example data types and such like what is a bool or a string or int and stuff less specific also you need to get all the interview questions right in order to get the job. I want to make the gameplay feel unique I want more random events to occur based on difficulty less events for easy and more for hard. I also want to make a pass and make sure the UI is not overlapping from the image you will see on the desk dashboard you see focus overlapping which needs to add a little space there. also the alerts section should gracefully handle and display multiple easily if needed so there is no overlap.

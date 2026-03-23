@@ -2,6 +2,10 @@ namespace MicroDev.Core.Simulation;
 
 public sealed class RunState
 {
+    public GameDifficulty Difficulty { get; set; } = GameDifficulty.Normal;
+
+    public int RunSeed { get; set; }
+
     public int Day { get; set; }
 
     public double TimeOfDayMinutes { get; set; }
@@ -18,9 +22,27 @@ public sealed class RunState
 
     public double CodeQuality { get; set; }
 
+    public int GameplayResumeProof { get; set; }
+
+    public int UiResumeProof { get; set; }
+
+    public int ToolingResumeProof { get; set; }
+
     public double SluggishMinutesRemaining { get; set; }
 
+    public double DeepWorkMinutesRemaining { get; set; }
+
+    public double ContextSwitchMinutesRemaining { get; set; }
+
     public int SuccessfulApplications { get; set; }
+
+    public int GeneratedJobListingCount { get; set; }
+
+    public int GeneratedModifierIncidentCount { get; set; }
+
+    public double NextGuaranteedJobDeskMinute { get; set; }
+
+    public double NextModifierDeskMinute { get; set; }
 
     public bool HasFirstCoin { get; set; }
 
@@ -46,6 +68,8 @@ public sealed class RunState
 
     public ActiveJobListing? ActiveJobListing { get; set; }
 
+    public ActiveJobApplication? ActiveJobApplication { get; set; }
+
     public List<string> EventLog { get; } = [];
 
     public List<QueuedIncident> QueuedIncidents { get; } = [];
@@ -69,6 +93,8 @@ public sealed class RunState
     {
         var clone = new RunState
         {
+            Difficulty = Difficulty,
+            RunSeed = RunSeed,
             Day = Day,
             TimeOfDayMinutes = TimeOfDayMinutes,
             DeskMinutesElapsed = DeskMinutesElapsed,
@@ -77,8 +103,17 @@ public sealed class RunState
             Sanity = Sanity,
             LinesOfCode = LinesOfCode,
             CodeQuality = CodeQuality,
+            GameplayResumeProof = GameplayResumeProof,
+            UiResumeProof = UiResumeProof,
+            ToolingResumeProof = ToolingResumeProof,
             SluggishMinutesRemaining = SluggishMinutesRemaining,
+            DeepWorkMinutesRemaining = DeepWorkMinutesRemaining,
+            ContextSwitchMinutesRemaining = ContextSwitchMinutesRemaining,
             SuccessfulApplications = SuccessfulApplications,
+            GeneratedJobListingCount = GeneratedJobListingCount,
+            GeneratedModifierIncidentCount = GeneratedModifierIncidentCount,
+            NextGuaranteedJobDeskMinute = NextGuaranteedJobDeskMinute,
+            NextModifierDeskMinute = NextModifierDeskMinute,
             HasFirstCoin = HasFirstCoin,
             FirstCoinDecisionPending = FirstCoinDecisionPending,
             FirstCoinRescueDeficit = FirstCoinRescueDeficit,
@@ -91,6 +126,7 @@ public sealed class RunState
             ActiveCatInterruption = ActiveCatInterruption?.Clone(),
             ActiveTechDebtBug = ActiveTechDebtBug?.Clone(),
             ActiveJobListing = ActiveJobListing?.Clone(),
+            ActiveJobApplication = ActiveJobApplication?.Clone(),
         };
 
         clone.EventLog.AddRange(EventLog);
@@ -102,6 +138,8 @@ public sealed class RunState
 
     public void ResetFrom(RunState other)
     {
+        Difficulty = other.Difficulty;
+        RunSeed = other.RunSeed;
         Day = other.Day;
         TimeOfDayMinutes = other.TimeOfDayMinutes;
         DeskMinutesElapsed = other.DeskMinutesElapsed;
@@ -110,8 +148,17 @@ public sealed class RunState
         Sanity = other.Sanity;
         LinesOfCode = other.LinesOfCode;
         CodeQuality = other.CodeQuality;
+        GameplayResumeProof = other.GameplayResumeProof;
+        UiResumeProof = other.UiResumeProof;
+        ToolingResumeProof = other.ToolingResumeProof;
         SluggishMinutesRemaining = other.SluggishMinutesRemaining;
+        DeepWorkMinutesRemaining = other.DeepWorkMinutesRemaining;
+        ContextSwitchMinutesRemaining = other.ContextSwitchMinutesRemaining;
         SuccessfulApplications = other.SuccessfulApplications;
+        GeneratedJobListingCount = other.GeneratedJobListingCount;
+        GeneratedModifierIncidentCount = other.GeneratedModifierIncidentCount;
+        NextGuaranteedJobDeskMinute = other.NextGuaranteedJobDeskMinute;
+        NextModifierDeskMinute = other.NextModifierDeskMinute;
         HasFirstCoin = other.HasFirstCoin;
         FirstCoinDecisionPending = other.FirstCoinDecisionPending;
         FirstCoinRescueDeficit = other.FirstCoinRescueDeficit;
@@ -124,6 +171,7 @@ public sealed class RunState
         ActiveCatInterruption = other.ActiveCatInterruption?.Clone();
         ActiveTechDebtBug = other.ActiveTechDebtBug?.Clone();
         ActiveJobListing = other.ActiveJobListing?.Clone();
+        ActiveJobApplication = other.ActiveJobApplication?.Clone();
 
         EventLog.Clear();
         EventLog.AddRange(other.EventLog);

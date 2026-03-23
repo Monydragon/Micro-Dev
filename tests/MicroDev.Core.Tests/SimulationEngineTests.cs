@@ -88,11 +88,32 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
+    public void PlaceFoodOrder_PartialCustomization_ReducesButDoesNotRemoveSluggishPenalty()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 40;
+
+        var ordered = _engine.PlaceFoodOrder(
+            state,
+            FoodChoice.Burger,
+            [FoodOrderModifier.NoCheese],
+            reviewReceipt: false);
+
+        Assert.True(ordered);
+        Assert.Equal(63, state.Funds, 3);
+        Assert.Equal(60, state.Focus, 3);
+        Assert.Equal(135, state.SluggishMinutesRemaining, 3);
+    }
+
+    [Fact]
     public void CreateNewRun_StartsOnBlankFirstPortfolioFile()
     {
         var state = _engine.CreateNewRun();
+        var currentProgram = PortfolioWorkspace.GetCurrentProgram(state);
 
-        Assert.Equal("TaskQueue.cs", PortfolioWorkspace.GetCurrentProgram(state).FileName);
+        Assert.True(state.RunSeed > 0);
+        Assert.EndsWith(".cs", currentProgram.FileName);
+        Assert.True(currentProgram.TotalLinesOfCode > 0);
         Assert.Equal(0, state.CurrentProgramIndex);
         Assert.Equal(0, state.CurrentProgramVisibleLineCount);
         Assert.Empty(PortfolioWorkspace.GetVisibleLines(state));
@@ -110,7 +131,7 @@ public sealed class SimulationEngineTests
         Assert.Equal(1, state.LinesOfCode);
         Assert.Equal(68, state.Focus, 3);
         Assert.NotEmpty(visibleLines);
-        Assert.Contains("using System;", visibleLines);
+        Assert.Contains(visibleLines, line => line.StartsWith("using ", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -131,6 +152,7 @@ public sealed class SimulationEngineTests
     public void WriteCode_AdvancesIntoNextPortfolioFile()
     {
         var state = _engine.CreateNewRun();
+        var firstFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
         state.Focus = 200;
         var safety = 0;
 
@@ -141,13 +163,14 @@ public sealed class SimulationEngineTests
         }
 
         Assert.True(safety < 60);
-        Assert.Equal("DialogueFormatter.cs", PortfolioWorkspace.GetCurrentProgram(state).FileName);
+        var secondFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
+        Assert.NotEqual(firstFileName, secondFileName);
         Assert.Equal(0, state.CurrentProgramVisibleLineCount);
-        Assert.Equal("TaskQueue.cs", state.RecentCompletedFileName);
+        Assert.Equal(firstFileName, state.RecentCompletedFileName);
         Assert.True(state.FileCompletionCelebrationMinutesRemaining > 0);
 
         Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
-        Assert.Contains("using System.Collections.Generic;", PortfolioWorkspace.GetVisibleLines(state));
+        Assert.NotEmpty(PortfolioWorkspace.GetVisibleLines(state));
     }
 
     [Fact]
@@ -197,16 +220,42 @@ public sealed class SimulationEngineTests
     {
         var state = _engine.CreateNewRun();
 
-        var firstWave = _scheduler.Update(state, 130);
-        var secondWave = _scheduler.Update(state, 120);
-        var thirdWave = _scheduler.Update(state, 200);
+        var firstWave = _scheduler.Update(state, 130, _engine.Config);
+        var secondWave = _scheduler.Update(state, 120, _engine.Config);
+        var thirdWave = _scheduler.Update(state, 200, _engine.Config);
 
-        Assert.Single(firstWave);
-        Assert.Equal("bug-1", firstWave[0].Id);
-        Assert.Single(secondWave);
-        Assert.Equal("cat-1", secondWave[0].Id);
-        Assert.Single(thirdWave);
-        Assert.Equal("job-1", thirdWave[0].Id);
+        Assert.Contains(firstWave, incident => incident.Id == "bug-1");
+        Assert.Contains(secondWave, incident => incident.Id == "cat-1");
+        Assert.Contains(secondWave, incident => incident.Id.StartsWith("mod-", StringComparison.Ordinal));
+        Assert.Contains(thirdWave, incident => incident.Id == "job-1");
+    }
+
+    [Fact]
+    public void HardDifficulty_QueuesMoreModifierIncidentsThanEasy()
+    {
+        var easyEngine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.Easy));
+        var hardEngine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.Hard));
+        var easyState = easyEngine.CreateNewRun();
+        var hardState = hardEngine.CreateNewRun();
+
+        var easyIncidents = _scheduler.Update(easyState, 700, easyEngine.Config);
+        var hardIncidents = _scheduler.Update(hardState, 700, hardEngine.Config);
+
+        var easyModifierCount = easyIncidents.Count(incident => incident.Id.StartsWith("mod-", StringComparison.Ordinal));
+        var hardModifierCount = hardIncidents.Count(incident => incident.Id.StartsWith("mod-", StringComparison.Ordinal));
+
+        Assert.True(hardModifierCount > easyModifierCount);
+    }
+
+    [Fact]
+    public void EasyDifficulty_GeneratesGuaranteedJobOpportunities()
+    {
+        var engine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.Easy));
+        var state = engine.CreateNewRun();
+
+        var incidents = _scheduler.Update(state, 181, engine.Config);
+
+        Assert.Contains(incidents, incident => incident.Type == IncidentType.JobListing);
     }
 
     [Fact]
@@ -255,7 +304,7 @@ public sealed class SimulationEngineTests
         Assert.Null(state.ActiveCatInterruption);
         Assert.Equal(0, state.CurrentProgramIndex);
         Assert.Equal(5, state.LinesOfCode);
-        Assert.Contains("namespace Portfolio.Timeboxing;", PortfolioWorkspace.GetVisibleLines(state));
+        Assert.Contains(PortfolioWorkspace.GetVisibleLines(state), line => line.Contains("namespace ", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -275,36 +324,203 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
-    public void ApplyForJob_WinsRunWhenPortfolioAndQualityMeetThresholds()
+    public void ApplyForJob_StartsChallengeAndConsumesResumeLines()
     {
         var state = _engine.CreateNewRun();
         state.LinesOfCode = 120;
         state.CodeQuality = 80;
         _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
 
         var applied = _engine.ApplyAction(state, PlayerAction.ApplyForJob);
 
         Assert.True(applied);
-        Assert.Equal(RunStatus.Won, state.Status);
-        Assert.Equal(1, state.SuccessfulApplications);
         Assert.Null(state.ActiveJobListing);
-        Assert.Contains("callback", state.OutcomeMessage);
+        Assert.NotNull(state.ActiveJobApplication);
+        Assert.Equal(85, state.LinesOfCode);
     }
 
     [Fact]
-    public void ApplyForJob_RejectedWhenRequirementsAreNotMet()
+    public void ApplyForJob_RequiresListingThresholdsBeforeTheInterviewLoop()
     {
         var state = _engine.CreateNewRun();
         state.LinesOfCode = 90;
-        state.CodeQuality = 50;
+        state.CodeQuality = 80;
         _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
 
         var applied = _engine.ApplyAction(state, PlayerAction.ApplyForJob);
 
-        Assert.True(applied);
+        Assert.False(applied);
+        Assert.NotNull(state.ActiveJobListing);
+        Assert.Null(state.ActiveJobApplication);
+    }
+
+    [Fact]
+    public void ActiveJobApplication_StillAllowsRecoveryActions()
+    {
+        var state = _engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Funds = 120;
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.ApplyForJob));
+        Assert.NotNull(state.ActiveJobApplication);
+        Assert.True(_engine.CanApplyAction(state, PlayerAction.Sleep));
+        Assert.True(_engine.CanPlaceFoodOrder(state, FoodChoice.Burger));
+
+        var slept = _engine.ApplyAction(state, PlayerAction.Sleep);
+        var ordered = _engine.PlaceFoodOrder(state, FoodChoice.Burger, doubleCheckOrder: true);
+
+        Assert.True(slept);
+        Assert.True(ordered);
+    }
+
+    [Fact]
+    public void InterviewPrep_RevealsTakeHomeLinesAtApplicationStart()
+    {
+        var state = _engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Funds = 200;
+        Assert.True(_engine.PurchaseUpgrade(state, EfficiencyUpgradeType.InterviewNotebook));
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.ApplyForJob));
+
+        Assert.NotNull(state.ActiveJobApplication);
+        Assert.True(state.ActiveJobApplication.VisibleLineCount > 0);
+    }
+
+    [Fact]
+    public void InterviewRequiresPerfectAnswers_EvenWithPrep()
+    {
+        var state = _engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Focus = 200;
+        state.Funds = 200;
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.ApplyForJob));
+        _engine.QueueIncidents(state, [new QueuedIncident("bug-1", IncidentType.TechDebtBug, "Bug!")]);
+        Assert.True(_engine.ApplyAction(state, PlayerAction.SquashBug));
+        Assert.True(_engine.PlaceFoodOrder(state, FoodChoice.Burrito, doubleCheckOrder: true));
+
+        while (state.ActiveJobApplication is not null && !state.ActiveJobApplication.TakeHomeComplete)
+        {
+            Assert.True(_engine.WorkOnJobApplication(state));
+        }
+
+        Assert.NotNull(state.ActiveJobApplication);
+        Assert.True(state.ActiveJobApplication.PrepPoints >= 2);
+
+        var answeredCorrectly = false;
+        while (state.ActiveJobApplication is not null)
+        {
+            var question = state.ActiveJobApplication.Questions[state.ActiveJobApplication.CurrentQuestionIndex];
+            var answer = answeredCorrectly
+                ? (question.CorrectOptionIndex + 1) % question.Options.Count
+                : question.CorrectOptionIndex;
+            answeredCorrectly = true;
+            Assert.True(_engine.AnswerInterviewQuestion(state, answer));
+        }
+
         Assert.Equal(RunStatus.InProgress, state.Status);
-        Assert.Null(state.ActiveJobListing);
-        Assert.Equal(55, state.LinesOfCode);
+        Assert.Equal(0, state.SuccessfulApplications);
+        Assert.Null(state.OutcomeMessage);
+    }
+
+    [Fact]
+    public void ModifierIncidents_ChangeWritingStats()
+    {
+        var state = _engine.CreateNewRun();
+        var baseLines = _engine.GetCurrentWriteLinesPerClick(state);
+        var baseFocusCost = _engine.GetCurrentWriteFocusCost(state);
+
+        _engine.QueueIncidents(state, [new QueuedIncident("flow-1", IncidentType.DeepWorkWindow, "Deep work.")]);
+
+        Assert.True(_engine.IsDeepWorkActive(state));
+        Assert.True(_engine.GetCurrentWriteLinesPerClick(state) > baseLines);
+
+        _engine.QueueIncidents(state, [new QueuedIncident("chaos-1", IncidentType.ContextSwitch, "Chaos.")]);
+
+        Assert.True(_engine.IsContextSwitchActive(state));
+        Assert.True(_engine.GetCurrentWriteFocusCost(state) > baseFocusCost);
+    }
+
+    [Fact]
+    public void JobApplicationChallenge_WinsRunWhenInterviewGoesWell()
+    {
+        var state = _engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Focus = 200;
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        var applied = _engine.ApplyAction(state, PlayerAction.ApplyForJob);
+        Assert.True(applied);
+        Assert.NotNull(state.ActiveJobApplication);
+
+        var safety = 0;
+        while (state.ActiveJobApplication is not null &&
+               !state.ActiveJobApplication.TakeHomeComplete &&
+               safety < 100)
+        {
+            Assert.True(_engine.WorkOnJobApplication(state));
+            safety++;
+        }
+
+        Assert.NotNull(state.ActiveJobApplication);
+        Assert.True(state.ActiveJobApplication.TakeHomeComplete);
+        while (state.ActiveJobApplication is not null)
+        {
+            var question = state.ActiveJobApplication.Questions[state.ActiveJobApplication.CurrentQuestionIndex];
+            Assert.True(_engine.AnswerInterviewQuestion(state, question.CorrectOptionIndex));
+        }
+
+        Assert.Equal(RunStatus.Won, state.Status);
+        Assert.Equal(1, state.SuccessfulApplications);
+        Assert.Null(state.ActiveJobApplication);
+        Assert.Contains("landed", state.OutcomeMessage);
+    }
+
+    [Fact]
+    public void JobApplicationChallenge_RejectionKeepsRunAlive()
+    {
+        var state = _engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Focus = 200;
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.ApplyForJob));
+
+        var safety = 0;
+        while (state.ActiveJobApplication is not null &&
+               !state.ActiveJobApplication.TakeHomeComplete &&
+               safety < 100)
+        {
+            Assert.True(_engine.WorkOnJobApplication(state));
+            safety++;
+        }
+
+        while (state.ActiveJobApplication is not null)
+        {
+            var question = state.ActiveJobApplication.Questions[state.ActiveJobApplication.CurrentQuestionIndex];
+            var wrongIndex = (question.CorrectOptionIndex + 1) % question.Options.Count;
+            Assert.True(_engine.AnswerInterviewQuestion(state, wrongIndex));
+        }
+
+        Assert.Equal(RunStatus.InProgress, state.Status);
+        Assert.Equal(0, state.SuccessfulApplications);
+        Assert.Null(state.ActiveJobApplication);
         Assert.Null(state.OutcomeMessage);
     }
 
@@ -386,5 +602,72 @@ public sealed class SimulationEngineTests
 
         Assert.Equal(RunStatus.BurnedOut, state.Status);
         Assert.Contains("tank", state.OutcomeMessage);
+    }
+
+    [Fact]
+    public void EndlessDifficulty_CanAdvanceBeyondTheFinitePortfolio()
+    {
+        var engine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.Endless));
+        var state = engine.CreateNewRun();
+        state.LinesOfCode = 10000;
+
+        PortfolioWorkspace.SynchronizeToLinesOfCode(state);
+
+        Assert.Equal(GameDifficulty.Endless, state.Difficulty);
+        Assert.True(state.CurrentProgramIndex >= PortfolioWorkspace.GetProgramCount(state));
+        Assert.Contains("Pass", PortfolioWorkspace.GetCurrentProgram(state).FileName);
+    }
+
+    [Fact]
+    public void EasyDifficulty_UsesEightPortfolioFiles()
+    {
+        var engine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.Easy));
+        var state = engine.CreateNewRun();
+
+        Assert.Equal(8, PortfolioWorkspace.GetProgramCount(state));
+    }
+
+    [Fact]
+    public void MentorNudge_AddsResumeProofForTheActiveListingTrack()
+    {
+        var state = _engine.CreateNewRun();
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        var track = state.ActiveJobListing!.ResumeTrack;
+
+        _engine.QueueIncidents(state, [new QueuedIncident("mentor-1", IncidentType.MentorNudge, "Mentor!")]);
+
+        Assert.Equal(1, GetResumeProof(state, track));
+    }
+
+    private static void GrantResumeProofForListing(RunState state)
+    {
+        var listing = Assert.IsType<ActiveJobListing>(state.ActiveJobListing);
+        SetResumeProof(state, listing.ResumeTrack, listing.RequiredResumeProof);
+    }
+
+    private static int GetResumeProof(RunState state, ResumeTrack track)
+    {
+        return track switch
+        {
+            ResumeTrack.UI => state.UiResumeProof,
+            ResumeTrack.Tooling => state.ToolingResumeProof,
+            _ => state.GameplayResumeProof,
+        };
+    }
+
+    private static void SetResumeProof(RunState state, ResumeTrack track, int amount)
+    {
+        switch (track)
+        {
+            case ResumeTrack.UI:
+                state.UiResumeProof = amount;
+                break;
+            case ResumeTrack.Tooling:
+                state.ToolingResumeProof = amount;
+                break;
+            default:
+                state.GameplayResumeProof = amount;
+                break;
+        }
     }
 }
