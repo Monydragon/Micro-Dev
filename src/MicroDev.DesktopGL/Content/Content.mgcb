@@ -16,3 +16,33 @@
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor
 /build:Fonts/Ui.spritefont
+
+#begin Fonts/Consolas.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/Consolas.spritefont
+
+#begin Fonts/CascadiaMono.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/CascadiaMono.spritefont
+
+#begin Fonts/CascadiaCode.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/CascadiaCode.spritefont
+
+#begin Fonts/CourierNew.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/CourierNew.spritefont
+
+#begin Fonts/LucidaConsole.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/LucidaConsole.spritefont
+
+#begin Fonts/Bahnschrift.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/Bahnschrift.spritefont

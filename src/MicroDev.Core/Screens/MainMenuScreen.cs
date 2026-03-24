@@ -7,12 +7,8 @@ using MicroDev.Core.UI;
 
 namespace MicroDev.Core.Screens;
 
-public sealed class MainMenuScreen : IScreen
+public sealed class MainMenuScreen : IScreen, IUiFontAware
 {
-    private readonly Rectangle _heroBounds = new(104, 96, 708, 430);
-    private readonly Rectangle _detailBounds = new(848, 130, 620, 292);
-    private readonly Rectangle _footerBounds = new(104, 556, 1364, 182);
-    private readonly SpriteFont _font;
     private readonly Texture2D _pixel;
     private readonly GameAudio _audio;
     private readonly GameSettings _settings;
@@ -20,14 +16,21 @@ public sealed class MainMenuScreen : IScreen
     private readonly Action _startGame;
     private readonly Action _showOptions;
     private readonly Action _exitGame;
-    private readonly UiButton _startButton = new("Start");
-    private readonly UiButton _optionsButton = new("Options");
+    private readonly UiButton _startButton = new("Start Run");
+    private readonly UiButton _optionsButton = new("Appearance + Audio");
     private readonly UiButton _exitButton = new("Exit");
     private readonly UiButton _easyButton = new("Easy");
     private readonly UiButton _normalButton = new("Normal");
     private readonly UiButton _hardButton = new("Hard");
     private readonly UiButton _continualLoopButton = new("Upgrade Loop");
     private readonly UiButton _endlessButton = new("Endless");
+
+    private SpriteFont _font;
+    private Rectangle _shellBounds;
+    private Rectangle _heroBounds;
+    private Rectangle _actionBounds;
+    private Rectangle _briefBounds;
+    private Rectangle _difficultyBounds;
 
     public MainMenuScreen(
         SpriteFont font,
@@ -48,19 +51,20 @@ public sealed class MainMenuScreen : IScreen
         _showOptions = showOptions;
         _exitGame = exitGame;
 
-        _startButton.TextScale = 0.92f;
-        _optionsButton.TextScale = 0.86f;
-        _exitButton.TextScale = 0.86f;
-        _easyButton.TextScale = 0.74f;
-        _normalButton.TextScale = 0.72f;
-        _hardButton.TextScale = 0.74f;
-        _continualLoopButton.TextScale = 0.62f;
-        _endlessButton.TextScale = 0.7f;
+        ConfigureButtons();
+        UpdateLayout();
+    }
+
+    public void ApplyFont(SpriteFont font)
+    {
+        _font = font;
     }
 
     public void Update(GameTime gameTime, InputSnapshot input)
     {
         UpdateLayout();
+        ConfigureButtons();
+        AdvanceButtonAnimations((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (_startButton.Update(input))
         {
@@ -95,132 +99,262 @@ public sealed class MainMenuScreen : IScreen
 
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
+        ConfigureButtons();
         DrawBackdrop(spriteBatch);
 
-        UiPanel.Draw(spriteBatch, _pixel, _heroBounds, UiTheme.PanelFill, UiTheme.EditorBorder, 3);
-        UiPanel.Draw(spriteBatch, _pixel, _detailBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
-        UiPanel.Draw(spriteBatch, _pixel, _footerBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _shellBounds, UiTheme.WithOpacity(UiTheme.PanelFill, 0.94f), UiTheme.PanelBorder, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_shellBounds.X + 1, _shellBounds.Y + 1, _shellBounds.Width - 2, 4), UiTheme.Accent);
 
-        spriteBatch.Draw(_pixel, new Rectangle(_heroBounds.X + 1, _heroBounds.Y + 1, _heroBounds.Width - 2, 5), UiTheme.Accent);
-        spriteBatch.Draw(_pixel, new Rectangle(_detailBounds.X + 1, _detailBounds.Y + 1, _detailBounds.Width - 2, 4), UiTheme.AccentDim);
+        UiPanel.Draw(spriteBatch, _pixel, _heroBounds, UiTheme.PanelRaised, UiTheme.EditorBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _actionBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _briefBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _difficultyBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
-        var buttonRailX = _heroBounds.Right - 280;
-        spriteBatch.Draw(_pixel, new Rectangle(buttonRailX - 28, _heroBounds.Y + 34, 2, _heroBounds.Height - 68), UiTheme.AccentDim * 0.8f);
+        DrawHeroPanel(spriteBatch);
+        DrawActionPanel(spriteBatch);
+        DrawBriefPanel(spriteBatch);
+        DrawDifficultyPanel(spriteBatch);
+    }
 
-        UiLabel.Draw(spriteBatch, _font, "Micro Dev", new Vector2(_heroBounds.X + 30, _heroBounds.Y + 34), UiTheme.TextPrimary, 1.96f);
-        UiLabel.Draw(spriteBatch, _font, "One more file. One more day. One real shot.", new Vector2(_heroBounds.X + 32, _heroBounds.Y + 96), UiTheme.Accent, 0.72f);
+    private void ConfigureButtons()
+    {
+        _startButton.TextScale = UiTypography.Button;
+        _optionsButton.TextScale = UiTypography.Button;
+        _exitButton.TextScale = UiTypography.Button;
+
+        foreach (var button in GetDifficultyButtons())
+        {
+            button.TextScale = UiTypography.Button;
+            button.TextAlignment = UiTextAlignment.Left;
+            button.HorizontalPadding = 14;
+        }
+
+        _startButton.AccentColor = UiTheme.Success;
+        _optionsButton.AccentColor = UiTheme.Accent;
+        _exitButton.AccentColor = UiTheme.Warning;
+        _easyButton.AccentColor = UiTheme.GetDifficultyAccent(GameDifficulty.Easy);
+        _normalButton.AccentColor = UiTheme.GetDifficultyAccent(GameDifficulty.Normal);
+        _hardButton.AccentColor = UiTheme.GetDifficultyAccent(GameDifficulty.Hard);
+        _continualLoopButton.AccentColor = UiTheme.GetDifficultyAccent(GameDifficulty.ContinualUpgradeLoop);
+        _endlessButton.AccentColor = UiTheme.GetDifficultyAccent(GameDifficulty.Endless);
+    }
+
+    private void AdvanceButtonAnimations(float elapsedSeconds)
+    {
+        _startButton.AdvanceAnimation(elapsedSeconds);
+        _optionsButton.AdvanceAnimation(elapsedSeconds);
+        _exitButton.AdvanceAnimation(elapsedSeconds);
+
+        foreach (var button in GetDifficultyButtons())
+        {
+            button.AdvanceAnimation(elapsedSeconds);
+        }
+    }
+
+    private void DrawBackdrop(SpriteBatch spriteBatch)
+    {
+        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y), UiTheme.DesktopBackground);
+        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 262), UiTheme.WithOpacity(UiTheme.DesktopGlow, 0.5f));
+        spriteBatch.Draw(_pixel, new Rectangle(78, 26, 448, 740), UiTheme.WithOpacity(UiTheme.AccentDim, 0.1f));
+        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 2), UiTheme.Accent);
+
+        for (var index = 0; index < 8; index++)
+        {
+            var y = 108 + (index * 86);
+            spriteBatch.Draw(_pixel, new Rectangle(0, y, _virtualResolution.X, 1), UiTheme.WithOpacity(UiTheme.AccentDim, 0.18f));
+        }
+    }
+
+    private void DrawHeroPanel(SpriteBatch spriteBatch)
+    {
+        var left = _heroBounds.X + 28;
+        var top = _heroBounds.Y + 28;
+        var bodyWidth = _heroBounds.Width - 56;
+
+        UiLabel.Draw(spriteBatch, _font, "Micro Dev", new Vector2(left, top), UiTheme.TextPrimary, UiTypography.Hero);
+        UiLabel.Draw(spriteBatch, _font, "Ship a portfolio before the week ships you.", new Vector2(left, top + 54), UiTheme.Accent, UiTypography.Section);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Build a real portfolio one file at a time, survive rent, and make the recruiter callback arrive before burnout does.",
-            new Vector2(_heroBounds.X + 32, _heroBounds.Y + 136),
-            348,
+            "The desktop shell is now anchored high on the screen so the whole menu reads like a workstation instead of a floating modal. Every control now follows the same typography scale, the same accent language, and the same input animation rhythm.",
+            new Vector2(left, top + 102),
+            bodyWidth - 52,
             UiTheme.TextMuted,
-            0.86f,
-            4f,
-            4);
-
-        UiLabel.Draw(spriteBatch, _font, "Current Build Loop", new Vector2(_detailBounds.X + 24, _detailBounds.Y + 26), UiTheme.Accent, 0.96f);
-        UiTextBlock.DrawWrapped(
-            spriteBatch,
-            _font,
-            "Type real C# portfolio files, react to bugs and recruiter pings, buy efficiency upgrades, and keep your focus stable enough to finish the week.",
-            new Vector2(_detailBounds.X + 24, _detailBounds.Y + 62),
-            _detailBounds.Width - 48,
-            UiTheme.TextPrimary,
-            0.8f,
+            UiTypography.Body,
             3f,
             4);
 
-        UiLabel.Draw(spriteBatch, _font, "This iteration adds", new Vector2(_detailBounds.X + 24, _detailBounds.Y + 170), UiTheme.TextMuted, 0.76f);
+        var stripY = _heroBounds.Y + 218;
+        var stripWidth = bodyWidth - 56;
+        UiPanel.Draw(spriteBatch, _pixel, new Rectangle(left, stripY, stripWidth, 128), UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+        spriteBatch.Draw(_pixel, new Rectangle(left + 1, stripY + 1, stripWidth - 2, 3), UiTheme.Success);
+
+        DrawFeatureLine(spriteBatch, "01", "Unified theme mode", "Dark and light palettes now drive the entire shell.", left + 18, stripY + 16, stripWidth - 36);
+        DrawFeatureLine(spriteBatch, "02", "Global font family", $"Current font: {UiFontCatalog.GetDisplayName(_settings.UiFont)}", left + 18, stripY + 54, stripWidth - 36);
+        DrawFeatureLine(spriteBatch, "03", "Digital transitions", "Buttons pulse with scanlines and screens fade between states.", left + 18, stripY + 92, stripWidth - 36);
+
+        UiLabel.Draw(spriteBatch, _font, "Run Snapshot", new Vector2(left, _heroBounds.Bottom - 126), UiTheme.TextPrimary, UiTypography.Section);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Live display/audio settings, the new banking desktop app, and a richer lo-fi desk loop on top of the expanded career run.",
-            new Vector2(_detailBounds.X + 24, _detailBounds.Y + 198),
-            _detailBounds.Width - 48,
-            UiTheme.Success,
-            0.78f,
+            "Type real C# snippets, survive rent, eat before focus collapses, answer recruiter loops, and keep enough sanity left to finish what you started.",
+            new Vector2(left, _heroBounds.Bottom - 94),
+            bodyWidth - 18,
+            UiTheme.TextMuted,
+            UiTypography.Body,
             3f,
             3);
+    }
+
+    private void DrawFeatureLine(SpriteBatch spriteBatch, string number, string heading, string body, int x, int y, int width)
+    {
+        UiLabel.Draw(spriteBatch, _font, number, new Vector2(x, y), UiTheme.Accent, UiTypography.Caption);
+        UiLabel.Draw(spriteBatch, _font, heading, new Vector2(x + 34, y), UiTheme.TextPrimary, UiTypography.Body);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            body,
+            new Vector2(x + 34, y + 18),
+            width - 34,
+            UiTheme.TextMuted,
+            UiTypography.Small,
+            2f,
+            2);
+    }
+
+    private void DrawActionPanel(SpriteBatch spriteBatch)
+    {
+        var left = _actionBounds.X + 24;
+        UiLabel.Draw(spriteBatch, _font, "Control Stack", new Vector2(left, _actionBounds.Y + 24), UiTheme.TextPrimary, UiTypography.Title);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Start the run, adjust appearance and audio live, or back out. Theme and font selection carry through the whole app.",
+            new Vector2(left, _actionBounds.Y + 62),
+            _actionBounds.Width - 48,
+            UiTheme.TextMuted,
+            UiTypography.Body,
+            3f,
+            4);
 
         _startButton.Draw(spriteBatch, _pixel, _font);
         _optionsButton.Draw(spriteBatch, _pixel, _font);
         _exitButton.Draw(spriteBatch, _pixel, _font);
 
-        UiLabel.Draw(spriteBatch, _font, "Week Survival Brief", new Vector2(_footerBounds.X + 24, _footerBounds.Y + 20), UiTheme.TextPrimary, 0.94f);
+        var noteBounds = new Rectangle(_actionBounds.X + 24, _actionBounds.Bottom - 136, _actionBounds.Width - 48, 96);
+        UiPanel.Draw(spriteBatch, _pixel, noteBounds, UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+        spriteBatch.Draw(_pixel, new Rectangle(noteBounds.X + 1, noteBounds.Y + 1, noteBounds.Width - 2, 3), UiTheme.Warning);
+        UiLabel.Draw(spriteBatch, _font, "Current Profile", new Vector2(noteBounds.X + 14, noteBounds.Y + 14), UiTheme.Warning, UiTypography.Caption);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Rent still lands at midnight. Food and sleep protect focus, upgrades buy back efficiency, and every finished file pushes the portfolio toward a real application loop.",
-            new Vector2(_footerBounds.X + 24, _footerBounds.Y + 58),
-            760,
+            $"{_settings.ThemeMode} mode  |  {UiFontCatalog.GetDisplayName(_settings.UiFont)}",
+            new Vector2(noteBounds.X + 14, noteBounds.Y + 38),
+            noteBounds.Width - 28,
+            UiTheme.TextPrimary,
+            UiTypography.Body,
+            2f,
+            1);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            $"{_settings.WindowMode}  |  {_settings.PreferredResolution.X} x {_settings.PreferredResolution.Y}",
+            new Vector2(noteBounds.X + 14, noteBounds.Y + 66),
+            noteBounds.Width - 28,
             UiTheme.TextMuted,
-            0.78f,
+            UiTypography.Caption,
+            2f,
+            1);
+    }
+
+    private void DrawBriefPanel(SpriteBatch spriteBatch)
+    {
+        var left = _briefBounds.X + 24;
+        UiLabel.Draw(spriteBatch, _font, "Build Brief", new Vector2(left, _briefBounds.Y + 20), UiTheme.TextPrimary, UiTypography.Section);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Rent still hits at midnight. Food protects focus, sleep saves sanity, upgrades buy speed back, and published releases can keep paying once they are live.",
+            new Vector2(left, _briefBounds.Y + 54),
+            _briefBounds.Width - 48,
+            UiTheme.TextMuted,
+            UiTypography.Body,
             3f,
             4);
 
-        UiLabel.Draw(spriteBatch, _font, "Difficulty", new Vector2(_footerBounds.X + 846, _footerBounds.Y + 20), UiTheme.Accent, 0.82f);
+        UiLabel.Draw(spriteBatch, _font, "Loop", new Vector2(left, _briefBounds.Bottom - 72), UiTheme.Accent, UiTypography.Caption);
+        UiLabel.Draw(spriteBatch, _font, "Code -> Recover -> Apply -> Upgrade -> Ship", new Vector2(left + 54, _briefBounds.Bottom - 72), UiTheme.TextPrimary, UiTypography.Body);
+        UiLabel.Draw(spriteBatch, _font, "Keep the desk stable long enough to convert the run into a job.", new Vector2(left, _briefBounds.Bottom - 40), UiTheme.TextMuted, UiTypography.Caption);
+    }
+
+    private void DrawDifficultyPanel(SpriteBatch spriteBatch)
+    {
+        var left = _difficultyBounds.X + 24;
+        var tabRailBounds = new Rectangle(left, _difficultyBounds.Y + 90, _difficultyBounds.Width - 48, 52);
+        var summaryTop = tabRailBounds.Bottom + 14;
+
+        UiLabel.Draw(spriteBatch, _font, "Difficulty", new Vector2(left, _difficultyBounds.Y + 20), UiTheme.TextPrimary, UiTypography.Section);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            GetDifficultySummary(_settings.SelectedDifficulty),
-            new Vector2(_footerBounds.X + 846, _footerBounds.Y + 54),
-            480,
+            "Each mode is color coded and left aligned so the labels and the summary block share one clean edge.",
+            new Vector2(left, _difficultyBounds.Y + 50),
+            _difficultyBounds.Width - 48,
             UiTheme.TextMuted,
-            0.72f,
+            UiTypography.Caption,
             2f,
-            3);
+            2);
+
+        UiPanel.Draw(spriteBatch, _pixel, tabRailBounds, UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+        spriteBatch.Draw(_pixel, new Rectangle(tabRailBounds.X + 1, tabRailBounds.Y + 1, tabRailBounds.Width - 2, 3), UiTheme.WithOpacity(UiTheme.AccentDim, 0.9f));
 
         _easyButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Easy;
         _normalButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Normal;
         _hardButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Hard;
         _continualLoopButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.ContinualUpgradeLoop;
         _endlessButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Endless;
-        _easyButton.Draw(spriteBatch, _pixel, _font);
-        _normalButton.Draw(spriteBatch, _pixel, _font);
-        _hardButton.Draw(spriteBatch, _pixel, _font);
-        _continualLoopButton.Draw(spriteBatch, _pixel, _font);
-        _endlessButton.Draw(spriteBatch, _pixel, _font);
-    }
 
-    private void DrawBackdrop(SpriteBatch spriteBatch)
-    {
-        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y), UiTheme.DesktopBackground);
-        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 220), UiTheme.DesktopGlow * 0.24f);
-        spriteBatch.Draw(_pixel, new Rectangle(88, 84, 600, 578), UiTheme.AccentDim * 0.10f);
-        spriteBatch.Draw(_pixel, new Rectangle(0, 252, _virtualResolution.X, 1), UiTheme.AccentDim * 0.22f);
-        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 2), UiTheme.Accent);
+        foreach (var button in GetDifficultyButtons())
+        {
+            button.Draw(spriteBatch, _pixel, _font);
+        }
+
+        var selectedAccent = UiTheme.GetDifficultyAccent(_settings.SelectedDifficulty);
+        UiPanel.Draw(spriteBatch, _pixel, new Rectangle(left, summaryTop, _difficultyBounds.Width - 48, 86), UiTheme.PanelFill, UiTheme.Mix(UiTheme.PanelBorder, selectedAccent, 0.4f), 2);
+        spriteBatch.Draw(_pixel, new Rectangle(left + 1, summaryTop + 1, _difficultyBounds.Width - 50, 3), selectedAccent);
+        UiLabel.Draw(spriteBatch, _font, GetDifficultyLabel(_settings.SelectedDifficulty), new Vector2(left + 14, summaryTop + 12), selectedAccent, UiTypography.Caption);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            GetDifficultySummary(_settings.SelectedDifficulty),
+            new Vector2(left + 14, summaryTop + 34),
+            _difficultyBounds.Width - 76,
+            UiTheme.TextMuted,
+            UiTypography.Body,
+            2f,
+            3);
     }
 
     private void UpdateLayout()
     {
-        var buttonX = _heroBounds.Right - 236;
-        _startButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 120, 188, 52);
-        _optionsButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 186, 188, 46);
-        _exitButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 242, 188, 46);
+        _shellBounds = new Rectangle(70, 28, _virtualResolution.X - 140, _virtualResolution.Y - 56);
+        _heroBounds = new Rectangle(_shellBounds.X + 24, _shellBounds.Y + 30, 892, 512);
+        _actionBounds = new Rectangle(_heroBounds.Right + 18, _shellBounds.Y + 30, _shellBounds.Right - _heroBounds.Right - 42, 512);
+        _briefBounds = new Rectangle(_heroBounds.X, _heroBounds.Bottom + 18, 628, 248);
+        _difficultyBounds = new Rectangle(_briefBounds.Right + 18, _heroBounds.Bottom + 18, _shellBounds.Right - _briefBounds.Right - 42, 248);
 
-        const int difficultyGap = 8;
-        const int difficultyY = 116;
-        var easyWidth = 84;
-        var normalWidth = 94;
-        var hardWidth = 84;
-        var continualWidth = 122;
-        var endlessWidth = 92;
-        var totalDifficultyWidth =
-            easyWidth +
-            normalWidth +
-            hardWidth +
-            continualWidth +
-            endlessWidth +
-            (difficultyGap * 4);
-        var difficultyStartX = _footerBounds.Right - 24 - totalDifficultyWidth;
+        _startButton.Bounds = new Rectangle(_actionBounds.X + 24, _actionBounds.Y + 132, _actionBounds.Width - 48, 52);
+        _optionsButton.Bounds = new Rectangle(_actionBounds.X + 24, _startButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
+        _exitButton.Bounds = new Rectangle(_actionBounds.X + 24, _optionsButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
 
-        _easyButton.Bounds = new Rectangle(difficultyStartX, _footerBounds.Y + difficultyY, easyWidth, 36);
-        _normalButton.Bounds = new Rectangle(_easyButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, normalWidth, 36);
-        _hardButton.Bounds = new Rectangle(_normalButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, hardWidth, 36);
-        _continualLoopButton.Bounds = new Rectangle(_hardButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, continualWidth, 36);
-        _endlessButton.Bounds = new Rectangle(_continualLoopButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, endlessWidth, 36);
+        const int gap = 8;
+        var difficultyY = _difficultyBounds.Y + 97;
+        var buttonX = _difficultyBounds.X + 32;
+        _easyButton.Bounds = new Rectangle(buttonX, difficultyY, 98, 38);
+        _normalButton.Bounds = new Rectangle(_easyButton.Bounds.Right + gap, difficultyY, 112, 38);
+        _hardButton.Bounds = new Rectangle(_normalButton.Bounds.Right + gap, difficultyY, 98, 38);
+        _continualLoopButton.Bounds = new Rectangle(_hardButton.Bounds.Right + gap, difficultyY, 152, 38);
+        _endlessButton.Bounds = new Rectangle(_continualLoopButton.Bounds.Right + gap, difficultyY, 114, 38);
     }
 
     private bool UpdateDifficultyButton(UiButton button, GameDifficulty difficulty, InputSnapshot input)
@@ -235,15 +369,36 @@ public sealed class MainMenuScreen : IScreen
         return true;
     }
 
+    private IEnumerable<UiButton> GetDifficultyButtons()
+    {
+        yield return _easyButton;
+        yield return _normalButton;
+        yield return _hardButton;
+        yield return _continualLoopButton;
+        yield return _endlessButton;
+    }
+
+    private static string GetDifficultyLabel(GameDifficulty difficulty)
+    {
+        return difficulty switch
+        {
+            GameDifficulty.Easy => "Easy Mode",
+            GameDifficulty.Hard => "Hard Mode",
+            GameDifficulty.ContinualUpgradeLoop => "Upgrade Loop",
+            GameDifficulty.Endless => "Endless Mode",
+            _ => "Normal Mode",
+        };
+    }
+
     private static string GetDifficultySummary(GameDifficulty difficulty)
     {
         return difficulty switch
         {
-            GameDifficulty.Easy => "8 curated files, easier thresholds, calmer desk events, and guaranteed recruiter shots so every run gets chances to convert.",
-            GameDifficulty.Hard => "Longer portfolio route, tighter bills, stricter recruiters, and a busier desk with more random disruptions.",
-            GameDifficulty.ContinualUpgradeLoop => "Keep the normal release batches, recurring shipped-app payouts, and the upgrade shop alive after successful applications so the run becomes a longer economic loop.",
-            GameDifficulty.Endless => "The portfolio feed never ends. Accepted applications pay out, random desk events keep rolling, and the run never hard-stops on a win.",
-            _ => "A balanced run with a larger portfolio queue, recurring job listings, and a steady stream of random desk events.",
+            GameDifficulty.Easy => "Shorter portfolio route, calmer desk events, and more forgiving recruiter pressure.",
+            GameDifficulty.Hard => "Longer queue, tighter bills, stricter recruiter gates, and a much busier desk.",
+            GameDifficulty.ContinualUpgradeLoop => "Keep the upgrade economy and recurring published-app income alive after success.",
+            GameDifficulty.Endless => "The queue never ends, recruiter loops keep rolling, and the desk becomes a permanent grind.",
+            _ => "The balanced default with steady incidents, recurring opportunities, and a full portfolio run.",
         };
     }
 }

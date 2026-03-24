@@ -23,12 +23,12 @@ public sealed class UiProgressBar
 
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, SpriteFont font)
     {
-        UiLabel.Draw(spriteBatch, font, Label, new Vector2(Bounds.X, Bounds.Y - 20), UiTheme.TextMuted, 0.8f);
+        UiLabel.Draw(spriteBatch, font, Label, new Vector2(Bounds.X, Bounds.Y - 20), UiTheme.TextMuted, UiTypography.Button);
 
         var valueText = $"{Value:0}/{MaxValue:0}";
-        var size = font.MeasureString(valueText) * 0.8f;
+        var size = font.MeasureString(valueText) * UiTypography.Button;
         var valuePosition = new Vector2(Bounds.Right - size.X, Bounds.Y - 20);
-        spriteBatch.DrawString(font, valueText, valuePosition, UiTheme.TextPrimary, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
+        spriteBatch.DrawString(font, valueText, valuePosition, UiTheme.TextPrimary, 0f, Vector2.Zero, UiTypography.Button, SpriteEffects.None, 0f);
 
         UiPanel.Draw(spriteBatch, pixel, Bounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 

@@ -74,6 +74,53 @@ public static class UiTextBlock
         return trimmed + ellipsis;
     }
 
+    public static (string Text, float Scale) FitText(
+        SpriteFont font,
+        string text,
+        float maxWidth,
+        float preferredScale = 1f,
+        float minimumScale = UiTypography.Small)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return (string.Empty, preferredScale);
+        }
+
+        if (maxWidth <= 0f)
+        {
+            return (TrimToWidth(font, text, 1f, preferredScale), preferredScale);
+        }
+
+        var fittedScale = GetFittedScale(font, text, maxWidth, preferredScale, minimumScale);
+        var displayText = font.MeasureString(text).X * fittedScale <= maxWidth
+            ? text
+            : TrimToWidth(font, text, maxWidth, fittedScale);
+
+        return (displayText, fittedScale);
+    }
+
+    public static float GetFittedScale(
+        SpriteFont font,
+        string text,
+        float maxWidth,
+        float preferredScale = 1f,
+        float minimumScale = UiTypography.Small)
+    {
+        if (string.IsNullOrEmpty(text) || maxWidth <= 0f)
+        {
+            return preferredScale;
+        }
+
+        var fittedScale = preferredScale;
+        while (fittedScale > minimumScale &&
+               font.MeasureString(text).X * fittedScale > maxWidth)
+        {
+            fittedScale -= 0.02f;
+        }
+
+        return Math.Max(minimumScale, fittedScale);
+    }
+
     public static string WrapText(SpriteFont font, string text, float maxWidth, float scale = 1f)
     {
         if (string.IsNullOrWhiteSpace(text))
