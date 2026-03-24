@@ -22,6 +22,9 @@ public sealed class MicroDevGame : Game
     private readonly GameAudio _audio = new();
     private MouseState _previousMouseState;
     private KeyboardState _previousKeyboardState;
+    private Point _browserBackBufferSize = new(VirtualWidth, VirtualHeight);
+    private Point _browserInputViewportSize = new(VirtualWidth, VirtualHeight);
+    private BrowserViewportState? _pendingBrowserViewportState;
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private SpriteFont _font = null!;
@@ -36,8 +39,11 @@ public sealed class MicroDevGame : Game
 
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
-        Window.AllowUserResizing = true;
-        Window.Title = "Micro Dev";
+        if (!OperatingSystem.IsBrowser())
+        {
+            Window.AllowUserResizing = true;
+            Window.Title = "Micro Dev";
+        }
 
         _virtualCanvas = new VirtualCanvas(VirtualWidth, VirtualHeight);
     }
@@ -63,13 +69,15 @@ public sealed class MicroDevGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        ApplyPendingBrowserBackBufferSize();
+
         var keyboardState = Keyboard.GetState();
         var escapePressed = keyboardState.IsKeyDown(Keys.Escape) &&
                             !_previousKeyboardState.IsKeyDown(Keys.Escape);
         if (escapePressed &&
             _screenManager.CurrentScreen is MainMenuScreen)
         {
-            Exit();
+            RequestExit();
             return;
         }
 
@@ -88,6 +96,7 @@ public sealed class MicroDevGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        ApplyPendingBrowserBackBufferSize();
         _virtualCanvas.EnsureResources(GraphicsDevice);
         _virtualCanvas.UpdateDestination(GraphicsDevice.Viewport);
 
@@ -131,7 +140,7 @@ public sealed class MicroDevGame : Game
             new Point(VirtualWidth, VirtualHeight),
             StartRun,
             ShowOptions,
-            Exit));
+            RequestExit));
     }
 
     private void ShowOptions()
@@ -141,6 +150,7 @@ public sealed class MicroDevGame : Game
             _pixel,
             _audio,
             _settings,
+            OperatingSystem.IsBrowser(),
             new Point(VirtualWidth, VirtualHeight),
             ShowMainMenu,
             ApplyRuntimeSettings));
@@ -187,6 +197,7 @@ public sealed class MicroDevGame : Game
             _pixel,
             _audio,
             _settings,
+            OperatingSystem.IsBrowser(),
             new Point(VirtualWidth, VirtualHeight),
             () => _screenManager.SetScreen(workspace),
             ApplyRuntimeSettings));
@@ -200,11 +211,77 @@ public sealed class MicroDevGame : Game
         _audio.SoundEffectsVolume = _settings.SoundEffectsVolume;
         _audio.MusicVolume = _settings.MusicVolume;
 
-        _graphics.PreferredBackBufferWidth = _settings.PreferredResolution.X;
-        _graphics.PreferredBackBufferHeight = _settings.PreferredResolution.Y;
-        _graphics.HardwareModeSwitch = _settings.WindowMode == WindowModeSetting.Fullscreen;
-        _graphics.IsFullScreen = _settings.WindowMode != WindowModeSetting.Windowed;
-        Window.AllowUserResizing = _settings.WindowMode == WindowModeSetting.Windowed;
+        var backBufferSize = OperatingSystem.IsBrowser()
+            ? _browserBackBufferSize
+            : _settings.PreferredResolution;
+
+        _graphics.PreferredBackBufferWidth = backBufferSize.X;
+        _graphics.PreferredBackBufferHeight = backBufferSize.Y;
+        if (!OperatingSystem.IsBrowser())
+        {
+            _graphics.HardwareModeSwitch = _settings.WindowMode == WindowModeSetting.Fullscreen;
+            _graphics.IsFullScreen = _settings.WindowMode != WindowModeSetting.Windowed;
+            Window.AllowUserResizing = _settings.WindowMode == WindowModeSetting.Windowed;
+        }
+
         _graphics.ApplyChanges();
     }
+
+    private void RequestExit()
+    {
+        try
+        {
+            Exit();
+        }
+        catch (PlatformNotSupportedException) when (OperatingSystem.IsBrowser())
+        {
+        }
+    }
+
+    public void SetBrowserBackBufferSize(int width, int height)
+    {
+        SetBrowserViewport(width, height, width, height);
+    }
+
+    public void SetBrowserViewport(int renderWidth, int renderHeight, int inputWidth, int inputHeight)
+    {
+        if (!OperatingSystem.IsBrowser() ||
+            renderWidth <= 0 ||
+            renderHeight <= 0 ||
+            inputWidth <= 0 ||
+            inputHeight <= 0)
+        {
+            return;
+        }
+
+        _pendingBrowserViewportState = new BrowserViewportState(
+            new Point(renderWidth, renderHeight),
+            new Point(inputWidth, inputHeight));
+    }
+
+    private void ApplyPendingBrowserBackBufferSize()
+    {
+        if (!OperatingSystem.IsBrowser() || !_pendingBrowserViewportState.HasValue)
+        {
+            return;
+        }
+
+        var pendingState = _pendingBrowserViewportState.Value;
+        if (pendingState.RenderSize == _browserBackBufferSize &&
+            pendingState.InputViewportSize == _browserInputViewportSize)
+        {
+            _pendingBrowserViewportState = null;
+            return;
+        }
+
+        _browserBackBufferSize = pendingState.RenderSize;
+        _browserInputViewportSize = pendingState.InputViewportSize;
+        _pendingBrowserViewportState = null;
+        _virtualCanvas.SetInputScale(
+            _browserBackBufferSize.X / (float)_browserInputViewportSize.X,
+            _browserBackBufferSize.Y / (float)_browserInputViewportSize.Y);
+        ApplyRuntimeSettings();
+    }
+
+    private readonly record struct BrowserViewportState(Point RenderSize, Point InputViewportSize);
 }

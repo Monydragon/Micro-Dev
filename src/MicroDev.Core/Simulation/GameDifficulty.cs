@@ -6,4 +6,5 @@ public enum GameDifficulty
     Normal,
     Hard,
     Endless,
+    ContinualUpgradeLoop,
 }

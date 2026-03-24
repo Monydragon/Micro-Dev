@@ -16,6 +16,26 @@ public sealed class SimulationEngine
         ("Runtime Interface Engineer", "C# / .NET / UI"),
         ("Build Pipeline Developer", "C# / .NET / Tooling"),
     ];
+    private static readonly string[] MatchNames =
+    [
+        "Alex",
+        "Jordan",
+        "Sam",
+        "Morgan",
+        "Taylor",
+        "Riley",
+        "Casey",
+        "Avery",
+    ];
+    private static readonly string[] ShowTitles =
+    [
+        "Midnight Refactor",
+        "Space Diner",
+        "Patch Notes",
+        "Cozy Detectives",
+        "Neon Borough",
+        "After Hours Arcade",
+    ];
 
     public SimulationEngine(SimulationConfig config)
     {
@@ -44,18 +64,30 @@ public sealed class SimulationEngine
             FirstCoinDecisionPending = false,
             FirstCoinRescueDeficit = 0,
             LinesOfCode = Config.StartingLinesOfCode,
+            CurrentPortfolioLinesOfCode = Config.StartingLinesOfCode,
             CodeQuality = Config.StartingCodeQuality,
             SluggishMinutesRemaining = 0,
             DeepWorkMinutesRemaining = 0,
             ContextSwitchMinutesRemaining = 0,
+            MinutesSinceLastMeal = Config.StartingMinutesSinceLastMeal,
+            MinutesSinceLastSleep = Config.StartingMinutesSinceLastSleep,
             SuccessfulApplications = 0,
             CurrentProgramIndex = 0,
             CurrentProgramVisibleLineCount = 0,
+            PublishedAppCount = 0,
+            PublishedAppSaleCount = 0,
+            NextPublishedAppSaleDeskMinute = double.PositiveInfinity,
+            LastPublishedAppName = null,
             RecentCompletedFileName = null,
             FileCompletionCelebrationMinutesRemaining = 0,
             ActiveJobApplication = null,
             Status = RunStatus.InProgress,
         };
+
+        if (state.CurrentPortfolioLinesOfCode > 0)
+        {
+            PortfolioWorkspace.SynchronizeToLinesOfCode(state);
+        }
 
         AppendLog(state, "Another week begins. Rent hits at midnight and recruiters are watching.");
         AppendLog(state, $"Opened {PortfolioWorkspace.GetCurrentProgram(state).FileName} in a blank editor.");
@@ -73,7 +105,14 @@ public sealed class SimulationEngine
             return true;
         }
 
-        if (state.Status != RunStatus.InProgress || state.FirstCoinDecisionPending)
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is not null)
+        {
+            return false;
+        }
+
+        if (IsActionLockedBySleep(state, action))
         {
             return false;
         }
@@ -87,15 +126,37 @@ public sealed class SimulationEngine
             PlayerAction.PetCat => state.ActiveCatInterruption is not null,
             PlayerAction.SquashBug => state.ActiveTechDebtBug is not null && state.Focus >= Config.SquashBugFocusCost,
             PlayerAction.ApplyForJob => state.ActiveJobListing is not null && CanBeginJobApplication(state, state.ActiveJobListing),
+            PlayerAction.PublishApp => CanPublishCurrentApp(state),
             _ => false,
         };
     }
 
-    public bool CanPlaceFoodOrder(RunState state, FoodChoice choice)
+    public bool CanPlaceFoodOrder(RunState state, FoodChoice choice, bool expeditedDelivery = false)
     {
         return state.Status == RunStatus.InProgress &&
                !state.FirstCoinDecisionPending &&
-               state.Funds >= GetFoodCost(choice);
+               state.PendingLifeEvent is null &&
+               state.ActiveFoodDelivery is null &&
+               state.Funds >= GetFoodTotalCost(choice, expeditedDelivery);
+    }
+
+    public double GetFoodTotalCost(FoodChoice choice, bool expeditedDelivery = false)
+    {
+        return GetFoodCost(choice) + GetFoodTipAmount(expeditedDelivery);
+    }
+
+    public double GetFoodTipAmount(bool expeditedDelivery)
+    {
+        return expeditedDelivery
+            ? Config.ExpeditedFoodDeliveryTipAmount
+            : 0;
+    }
+
+    public double GetFoodDeliveryDuration(bool expeditedDelivery)
+    {
+        return expeditedDelivery
+            ? Config.ExpeditedFoodDeliveryDurationMinutes
+            : Config.FoodDeliveryDurationMinutes;
     }
 
     public FoodOptionDefinition GetFoodOption(FoodChoice choice)
@@ -243,13 +304,20 @@ public sealed class SimulationEngine
     public bool CanTakeFreelanceGig(RunState state, FreelanceGigType type)
     {
         return state.Status == RunStatus.InProgress &&
-               !state.FirstCoinDecisionPending;
+               !state.FirstCoinDecisionPending &&
+               state.PendingLifeEvent is null &&
+               !RequiresSleep(state);
     }
 
     public bool TakeFreelanceGig(RunState state, FreelanceGigType type)
     {
         if (!CanTakeFreelanceGig(state, type))
         {
+            if (RequiresSleep(state))
+            {
+                AppendLog(state, "No freelance heroics on two days without sleep. Crash first, then take the gig.");
+            }
+
             return false;
         }
 
@@ -281,6 +349,7 @@ public sealed class SimulationEngine
         }
 
         return !state.FirstCoinDecisionPending &&
+               state.PendingLifeEvent is null &&
                state.Funds >= EfficiencyUpgradeCatalog.Get(type).FundsCost;
     }
 
@@ -326,6 +395,21 @@ public sealed class SimulationEngine
         return state.ContextSwitchMinutesRemaining > BoundaryEpsilon;
     }
 
+    public int GetHungerStage(RunState state)
+    {
+        return GetHungerStage(state.MinutesSinceLastMeal);
+    }
+
+    public int GetSleepStage(RunState state)
+    {
+        return GetSleepStage(state.MinutesSinceLastSleep);
+    }
+
+    public bool RequiresSleep(RunState state)
+    {
+        return GetSleepStage(state) >= 4;
+    }
+
     public bool CanUseFirstCoin(RunState state)
     {
         return state.Status == RunStatus.InProgress &&
@@ -363,6 +447,67 @@ public sealed class SimulationEngine
         state.OutcomeMessage = "Rent came due, the first coin stayed framed, and the landlord still changed the locks.";
         AppendLog(state, "You let the coin stay framed. The eviction notice still came.");
         return true;
+    }
+
+    public bool HasPendingLifeEvent(RunState state)
+    {
+        return state.PendingLifeEvent is not null;
+    }
+
+    public bool CanResolveLifeEventOption(RunState state, int optionIndex)
+    {
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is null)
+        {
+            return false;
+        }
+
+        return state.PendingLifeEvent.Type switch
+        {
+            IncidentType.ComputerFreeze => optionIndex switch
+            {
+                0 => true,
+                1 => state.Funds >= Config.ComputerFreezeTechSupportFundsCost,
+                2 => state.Funds >= Config.ComputerFreezeRepairShopFundsCost,
+                _ => false,
+            },
+            IncidentType.StreamingBinge => optionIndex is >= 0 and <= 2,
+            IncidentType.OnlineMatch => optionIndex switch
+            {
+                0 => true,
+                1 => state.Funds >= Config.OnlineDateFundsCost,
+                2 => true,
+                _ => false,
+            },
+            _ => false,
+        };
+    }
+
+    public bool ResolveLifeEventOption(RunState state, int optionIndex)
+    {
+        if (!CanResolveLifeEventOption(state, optionIndex))
+        {
+            return false;
+        }
+
+        var lifeEvent = state.PendingLifeEvent!;
+        state.PendingLifeEvent = null;
+
+        switch (lifeEvent.Type)
+        {
+            case IncidentType.ComputerFreeze:
+                return ResolveComputerFreeze(state, lifeEvent, optionIndex);
+
+            case IncidentType.StreamingBinge:
+                return ResolveStreamingBinge(state, lifeEvent, optionIndex);
+
+            case IncidentType.OnlineMatch:
+                return ResolveOnlineMatch(state, lifeEvent, optionIndex);
+
+            default:
+                return false;
+        }
     }
 
     public int GetCurrentWriteLinesPerClick(RunState state)
@@ -405,6 +550,16 @@ public sealed class SimulationEngine
         return state.ActiveJobApplication is not null;
     }
 
+    public bool HasPublishedApps(RunState state)
+    {
+        return state.PublishedAppCount > 0;
+    }
+
+    public bool IsPortfolioPublishReady(RunState state)
+    {
+        return CanPublishCurrentApp(state);
+    }
+
     public IReadOnlyList<string> GetVisibleJobApplicationLines(RunState state)
     {
         if (state.ActiveJobApplication is null)
@@ -421,9 +576,11 @@ public sealed class SimulationEngine
     {
         return state.Status == RunStatus.InProgress &&
                !state.FirstCoinDecisionPending &&
+               state.PendingLifeEvent is null &&
                state.ActiveJobApplication is not null &&
                !state.ActiveJobApplication.TakeHomeComplete &&
                state.ActiveCatInterruption is null &&
+               !RequiresSleep(state) &&
                state.Focus > 0;
     }
 
@@ -434,6 +591,10 @@ public sealed class SimulationEngine
             if (state.ActiveCatInterruption is not null)
             {
                 AppendLog(state, "The cat is still on the keyboard. The take-home challenge has to wait.");
+            }
+            else if (RequiresSleep(state))
+            {
+                AppendLog(state, "You have been awake for two straight days. Sleep before touching the take-home again.");
             }
             else if (state.Focus <= 0)
             {
@@ -474,8 +635,10 @@ public sealed class SimulationEngine
     {
         if (state.Status != RunStatus.InProgress ||
             state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is not null ||
             state.ActiveJobApplication is null ||
             !state.ActiveJobApplication.TakeHomeComplete ||
+            RequiresSleep(state) ||
             state.ActiveJobApplication.InterviewComplete)
         {
             return false;
@@ -489,6 +652,11 @@ public sealed class SimulationEngine
     {
         if (!CanAnswerInterviewQuestion(state, optionIndex))
         {
+            if (RequiresSleep(state))
+            {
+                AppendLog(state, "No interview answers while the sleep debt is this bad. Sleep first.");
+            }
+
             return false;
         }
 
@@ -517,7 +685,10 @@ public sealed class SimulationEngine
 
     public void AdvanceRealTime(RunState state, double elapsedRealSeconds)
     {
-        if (state.Status != RunStatus.InProgress || state.FirstCoinDecisionPending || elapsedRealSeconds <= 0)
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is not null ||
+            elapsedRealSeconds <= 0)
         {
             return;
         }
@@ -545,7 +716,15 @@ public sealed class SimulationEngine
 
     public void AdvanceTime(RunState state, double elapsedInGameMinutes)
     {
-        if (state.Status != RunStatus.InProgress || state.FirstCoinDecisionPending || elapsedInGameMinutes <= 0)
+        AdvanceTime(state, elapsedInGameMinutes, isSleeping: false);
+    }
+
+    private void AdvanceTime(RunState state, double elapsedInGameMinutes, bool isSleeping)
+    {
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is not null ||
+            elapsedInGameMinutes <= 0)
         {
             return;
         }
@@ -556,15 +735,24 @@ public sealed class SimulationEngine
 
         while (remainingMinutes > BoundaryEpsilon && state.Status == RunStatus.InProgress)
         {
-            var step = GetStepMinutes(state, remainingMinutes);
+            var hungerStage = GetHungerStage(state);
+            var sleepStage = isSleeping ? 0 : GetSleepStage(state);
+            var step = GetStepMinutes(state, remainingMinutes, isSleeping);
 
-            ApplyPassiveFocusDrain(state, step);
+            if (!isSleeping)
+            {
+                ApplyPassiveFocusDrain(state, step);
+            }
+
             ApplyPassiveSanityRegeneration(state, step);
             ApplyTechDebtDecay(state, step);
+            ApplyNeedPenalties(state, step, hungerStage, sleepStage);
             AdvanceTimedEffects(state, step);
+            AdvanceNeedTimers(state, step, isSleeping);
 
             state.TimeOfDayMinutes += step;
             remainingMinutes -= step;
+            AppendNeedThresholdLogs(state, hungerStage, sleepStage, isSleeping);
 
             if (state.TimeOfDayMinutes >= SimulationConfig.MinutesPerDay - BoundaryEpsilon)
             {
@@ -596,7 +784,7 @@ public sealed class SimulationEngine
         }
     }
 
-    public bool PlaceFoodOrder(RunState state, FoodChoice choice, bool doubleCheckOrder)
+    public bool PlaceFoodOrder(RunState state, FoodChoice choice, bool doubleCheckOrder, bool expeditedDelivery = false)
     {
         var selectedModifiers = doubleCheckOrder
             ? GetFoodOrderModifiers(choice)
@@ -604,41 +792,56 @@ public sealed class SimulationEngine
                 .Select(static option => option.Modifier)
                 .ToArray()
             : Array.Empty<FoodOrderModifier>();
-        return PlaceFoodOrder(state, choice, selectedModifiers, doubleCheckOrder);
+        return PlaceFoodOrder(state, choice, selectedModifiers, doubleCheckOrder, expeditedDelivery);
     }
 
     public bool PlaceFoodOrder(
         RunState state,
         FoodChoice choice,
         IReadOnlyCollection<FoodOrderModifier> selectedModifiers,
-        bool reviewReceipt)
+        bool reviewReceipt,
+        bool expeditedDelivery = false)
     {
-        if (!CanPlaceFoodOrder(state, choice))
+        if (state.ActiveFoodDelivery is not null)
+        {
+            AppendLog(state, "A delivery order is already on the way. Wait for it to land before ordering again.");
+            return false;
+        }
+
+        if (!CanPlaceFoodOrder(state, choice, expeditedDelivery))
         {
             AppendLog(state, "Not enough funds to place that delivery order.");
             return false;
         }
 
         var option = GetFoodOption(choice);
-        state.Funds -= option.FundsCost;
-        state.Focus = Clamp(state.Focus + option.FocusGain, 0, Config.MaxFocus);
-        state.Sanity = Clamp(state.Sanity + option.SanityGain, 0, Config.MaxSanity);
-
+        var tipAmount = GetFoodTipAmount(expeditedDelivery);
+        var totalCost = GetFoodTotalCost(choice, expeditedDelivery);
         var sluggishPenalty = GetFoodOrderPenaltyMinutes(choice, selectedModifiers, reviewReceipt);
+        state.Funds -= totalCost;
+        state.ActiveFoodDelivery = new ActiveFoodDelivery
+        {
+            Choice = choice,
+            Expedited = expeditedDelivery,
+            ReviewReceipt = reviewReceipt,
+            TipAmount = tipAmount,
+            TotalFundsCost = totalCost,
+            RemainingInGameMinutes = GetFoodDeliveryDuration(expeditedDelivery),
+        };
+
+        foreach (var modifier in selectedModifiers.Where(static modifier => modifier != FoodOrderModifier.None))
+        {
+            state.ActiveFoodDelivery.SelectedModifiers.Add(modifier);
+        }
+
+        var deliveryLine = expeditedDelivery
+            ? $"{option.Name} ordered with a ${tipAmount:0} expedite tip. ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)}."
+            : $"{option.Name} ordered. ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)} before the food actually hits the desk.";
+        AppendLog(state, deliveryLine);
+
         if (sluggishPenalty <= BoundaryEpsilon)
         {
-            AppendLog(state, $"{option.Name} delivered exactly as planned. The careful order kept your momentum intact.");
             AwardInterviewPrep(state, 1, "Careful food planning kept the recruiter loop stable.");
-        }
-        else if (sluggishPenalty < option.SluggishMinutesWhenUnchecked)
-        {
-            state.SluggishMinutesRemaining = Math.Max(state.SluggishMinutesRemaining, sluggishPenalty);
-            AppendLog(state, $"{option.Name} mostly landed right. There is still a small food haze for {sluggishPenalty:0} in-game minutes.");
-        }
-        else
-        {
-            state.SluggishMinutesRemaining = Math.Max(state.SluggishMinutesRemaining, sluggishPenalty);
-            AppendLog(state, $"{option.Name} landed messy and left you sluggish for a while.");
         }
 
         return true;
@@ -652,7 +855,9 @@ public sealed class SimulationEngine
             return true;
         }
 
-        if (state.Status != RunStatus.InProgress || state.FirstCoinDecisionPending)
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is not null)
         {
             return false;
         }
@@ -664,7 +869,9 @@ public sealed class SimulationEngine
                 {
                     AppendLog(
                         state,
-                        state.ActiveCatInterruption is not null
+                        RequiresSleep(state)
+                            ? "You have been awake for two days. Sleep before you touch the keyboard again."
+                            : state.ActiveCatInterruption is not null
                             ? "The cat is on the keyboard. Pet it before you can type."
                             : "Too exhausted to write. Recover focus first.");
                     return false;
@@ -682,6 +889,7 @@ public sealed class SimulationEngine
                 }
 
                 state.LinesOfCode += writeResult.LinesAdded;
+                state.CurrentPortfolioLinesOfCode += writeResult.LinesAdded;
                 state.Focus = Clamp(state.Focus - GetWriteCodeFocusCost(state), 0, Config.MaxFocus);
                 state.CodeQuality = Clamp(state.CodeQuality + qualityGain, 0, Config.MaxCodeQuality);
 
@@ -717,7 +925,9 @@ public sealed class SimulationEngine
                 return TakeFreelanceGig(state, FreelanceGigType.QuickBugfix);
 
             case PlayerAction.Sleep:
-                AdvanceTime(state, Config.SleepDurationMinutes);
+                var previousSleepStage = GetSleepStage(state);
+                state.MinutesSinceLastSleep = 0;
+                AdvanceTime(state, Config.SleepDurationMinutes, isSleeping: true);
                 if (state.Status != RunStatus.InProgress)
                 {
                     return false;
@@ -727,7 +937,9 @@ public sealed class SimulationEngine
                 state.Sanity = Clamp(state.Sanity + Config.SleepSanityGain, 0, Config.MaxSanity);
                 AppendLog(
                     state,
-                    $"Slept for 8 hours: +{Config.SleepFocusGain:0} focus, +{Config.SleepSanityGain:0} sanity.");
+                    previousSleepStage >= 2
+                        ? $"Slept for 8 hours: focus refilled to full, sanity +{Config.SleepSanityGain:0}. The sleep debt finally broke."
+                        : $"Slept for 8 hours: focus refilled to full, sanity +{Config.SleepSanityGain:0}.");
                 AwardInterviewPrep(state, 1, "Resting before the interview made the next answers steadier.");
                 EvaluateLossState(state);
                 return true;
@@ -741,8 +953,12 @@ public sealed class SimulationEngine
                 state.ActiveCatInterruption!.PatsRemaining -= 1;
                 if (state.ActiveCatInterruption.PatsRemaining <= 0)
                 {
+                    var cat = state.ActiveCatInterruption;
                     state.ActiveCatInterruption = null;
-                    AppendLog(state, "The cat finally settles somewhere that is not your keyboard.");
+                    var chaosSummary = cat.PhantomBugCount > 0 || cat.GibberishLinesTyped > 0
+                        ? $" It already slipped in {cat.PhantomBugCount} phantom bug burst{(cat.PhantomBugCount == 1 ? string.Empty : "s")} and {cat.GibberishLinesTyped} gibberish line{(cat.GibberishLinesTyped == 1 ? string.Empty : "s")}."
+                        : string.Empty;
+                    AppendLog(state, $"The cat finally settles somewhere that is not your keyboard.{chaosSummary}");
                 }
 
                 return true;
@@ -750,7 +966,11 @@ public sealed class SimulationEngine
             case PlayerAction.SquashBug:
                 if (!CanApplyAction(state, action))
                 {
-                    AppendLog(state, "You need a live bug and enough focus to squash it.");
+                    AppendLog(
+                        state,
+                        RequiresSleep(state)
+                            ? "You are too sleep-deprived to debug safely. Sleep first."
+                            : "You need a live bug and enough focus to squash it.");
                     return false;
                 }
 
@@ -766,16 +986,234 @@ public sealed class SimulationEngine
             case PlayerAction.ApplyForJob:
                 if (!CanApplyAction(state, action))
                 {
-                    AppendLog(state, "You need an active listing, enough LoC, the listed quality bar, and matching resume proof for that stack.");
+                    AppendLog(
+                        state,
+                        RequiresSleep(state)
+                            ? "No recruiter flow while you are this sleep-deprived. Sleep first, then apply."
+                            : "You need an active listing, enough LoC, the listed quality bar, and matching resume proof for that stack.");
                     return false;
                 }
 
                 BeginJobApplication(state);
                 return true;
 
+            case PlayerAction.PublishApp:
+                if (!CanApplyAction(state, action))
+                {
+                    AppendLog(
+                        state,
+                        RequiresSleep(state)
+                            ? "Do not ship code on forty-eight hours awake. Sleep first."
+                            : "Finish the current portfolio batch before you publish.");
+                    return false;
+                }
+
+                PublishCurrentApp(state);
+                EvaluateLossState(state);
+                return true;
+
             default:
                 return false;
         }
+    }
+
+    private bool ResolveComputerFreeze(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
+    {
+        switch (optionIndex)
+        {
+            case 0:
+                AdvanceTime(state, Config.ComputerFreezeSelfRepairDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity - Config.ComputerFreezeSelfRepairSanityLoss, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.ComputerFreezeSelfRepairFocusLoss, 0, Config.MaxFocus);
+                AppendLog(
+                    state,
+                    $"You repaired the freeze yourself. Lost {FormatMinutesForLog(Config.ComputerFreezeSelfRepairDurationMinutes)}, -{Config.ComputerFreezeSelfRepairSanityLoss:0} sanity, and -{Config.ComputerFreezeSelfRepairFocusLoss:0} focus.");
+                break;
+
+            case 1:
+                state.Funds -= Config.ComputerFreezeTechSupportFundsCost;
+                AdvanceTime(state, Config.ComputerFreezeTechSupportDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity - Config.ComputerFreezeTechSupportSanityLoss, 0, Config.MaxSanity);
+                AppendLog(
+                    state,
+                    $"Tech support finally got you unstuck. -${Config.ComputerFreezeTechSupportFundsCost:0}, {FormatMinutesForLog(Config.ComputerFreezeTechSupportDurationMinutes)} lost, sanity -{Config.ComputerFreezeTechSupportSanityLoss:0}.");
+                break;
+
+            case 2:
+                state.Funds -= Config.ComputerFreezeRepairShopFundsCost;
+                AdvanceTime(state, Config.ComputerFreezeRepairShopDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity - Config.ComputerFreezeRepairShopSanityLoss, 0, Config.MaxSanity);
+                AppendLog(
+                    state,
+                    $"The repair shop revived the machine. -${Config.ComputerFreezeRepairShopFundsCost:0}, {FormatMinutesForLog(Config.ComputerFreezeRepairShopDurationMinutes)} gone, sanity -{Config.ComputerFreezeRepairShopSanityLoss:0}.");
+                break;
+
+            default:
+                return false;
+        }
+
+        EvaluateLossState(state);
+        return true;
+    }
+
+    private bool ResolveStreamingBinge(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
+    {
+        var showName = lifeEvent.SubjectName ?? "something you have seen before";
+        switch (optionIndex)
+        {
+            case 0:
+                AdvanceTime(state, Config.StreamingBingeDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity + Config.StreamingBingeSanityGain, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.StreamingBingeFocusLoss, 0, Config.MaxFocus);
+                AppendLog(
+                    state,
+                    $"You binged {showName}. Lost {FormatMinutesForLog(Config.StreamingBingeDurationMinutes)}, sanity +{Config.StreamingBingeSanityGain:0}, focus -{Config.StreamingBingeFocusLoss:0}.");
+                break;
+
+            case 1:
+                AdvanceTime(state, Config.StreamingEpisodeDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity + Config.StreamingEpisodeSanityGain, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.StreamingEpisodeFocusLoss, 0, Config.MaxFocus);
+                AppendLog(
+                    state,
+                    $"You watched one episode of {showName} and cut it off there. {FormatMinutesForLog(Config.StreamingEpisodeDurationMinutes)} passed, sanity +{Config.StreamingEpisodeSanityGain:0}, focus -{Config.StreamingEpisodeFocusLoss:0}.");
+                break;
+
+            case 2:
+                state.Sanity = Clamp(state.Sanity - Config.StreamingTurnOffSanityLoss, 0, Config.MaxSanity);
+                AppendLog(state, $"You killed autoplay before {showName} ate the night. Sanity -{Config.StreamingTurnOffSanityLoss:0} from the denial.");
+                break;
+
+            default:
+                return false;
+        }
+
+        EvaluateLossState(state);
+        return true;
+    }
+
+    private bool ResolveOnlineMatch(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
+    {
+        var matchName = lifeEvent.SubjectName ?? "someone unexpectedly steady";
+        switch (optionIndex)
+        {
+            case 0:
+                AdvanceTime(state, Config.OnlineMatchMessageDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity + Config.OnlineMatchMessageSanityGain, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.OnlineMatchMessageFocusLoss, 0, Config.MaxFocus);
+                state.RelationshipProgress += Config.OnlineMatchMessageRelationshipGain;
+                AppendLog(
+                    state,
+                    $"You sent {matchName} a real message instead of another throwaway opener. {FormatMinutesForLog(Config.OnlineMatchMessageDurationMinutes)} passed, sanity +{Config.OnlineMatchMessageSanityGain:0}, focus -{Config.OnlineMatchMessageFocusLoss:0}.");
+                break;
+
+            case 1:
+                state.Funds -= Config.OnlineDateFundsCost;
+                AdvanceTime(state, Config.OnlineDateDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity + Config.OnlineDateSanityGain, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.OnlineDateFocusLoss, 0, Config.MaxFocus);
+                state.RelationshipProgress += Config.OnlineDateRelationshipGain;
+                AppendLog(
+                    state,
+                    $"You actually went out with {matchName}. -${Config.OnlineDateFundsCost:0}, {FormatMinutesForLog(Config.OnlineDateDurationMinutes)} gone, sanity +{Config.OnlineDateSanityGain:0}, focus -{Config.OnlineDateFocusLoss:0}.");
+                break;
+
+            case 2:
+                state.Sanity = Clamp(state.Sanity - Config.OnlineMatchIgnoreSanityLoss, 0, Config.MaxSanity);
+                AppendLog(state, $"You let the match with {matchName} die in the queue. Sanity -{Config.OnlineMatchIgnoreSanityLoss:0}.");
+                break;
+
+            default:
+                return false;
+        }
+
+        if (!state.HasFoundLove &&
+            state.RelationshipProgress >= Config.RelationshipProgressNeededForLove)
+        {
+            state.HasFoundLove = true;
+            state.PartnerName = matchName;
+            state.Sanity = Clamp(state.Sanity + 8, 0, Config.MaxSanity);
+            AppendLog(state, $"Somewhere between the backlog and the late-night messages, you found something real with {matchName}. Passive sanity support is now part of the run.");
+        }
+
+        EvaluateLossState(state);
+        return true;
+    }
+
+    private void ResolveFoodDelivery(RunState state)
+    {
+        if (state.ActiveFoodDelivery is null ||
+            state.ActiveFoodDelivery.RemainingInGameMinutes > BoundaryEpsilon)
+        {
+            return;
+        }
+
+        var delivery = state.ActiveFoodDelivery;
+        state.ActiveFoodDelivery = null;
+
+        var option = GetFoodOption(delivery.Choice);
+        var previousHungerStage = GetHungerStage(state);
+        state.Focus = Clamp(state.Focus + option.FocusGain, 0, Config.MaxFocus);
+        state.Sanity = Clamp(state.Sanity + option.SanityGain, 0, Config.MaxSanity);
+        state.MinutesSinceLastMeal = 0;
+
+        var sluggishPenalty = GetFoodOrderPenaltyMinutes(delivery.Choice, delivery.SelectedModifiers, delivery.ReviewReceipt);
+        var hungerSuffix = previousHungerStage > 0
+            ? " Hunger finally stops chewing through the day."
+            : string.Empty;
+        var arrivalLead = delivery.Expedited
+            ? $"{option.Name} arrives fast thanks to the ${delivery.TipAmount:0} expedite tip."
+            : $"{option.Name} finally lands on the desk.";
+
+        if (sluggishPenalty <= BoundaryEpsilon)
+        {
+            AppendLog(state, $"{arrivalLead} The careful order kept your momentum intact.{hungerSuffix}");
+            return;
+        }
+
+        state.SluggishMinutesRemaining = Math.Max(state.SluggishMinutesRemaining, sluggishPenalty);
+        if (sluggishPenalty < option.SluggishMinutesWhenUnchecked)
+        {
+            AppendLog(state, $"{arrivalLead} There is still a small food haze for {sluggishPenalty:0} in-game minutes.{hungerSuffix}");
+            return;
+        }
+
+        AppendLog(state, $"{arrivalLead} It landed messy and left you sluggish for a while.{hungerSuffix}");
     }
 
     public void EvaluateLossState(RunState state)
@@ -797,7 +1235,6 @@ public sealed class SimulationEngine
     {
         var listing = state.ActiveJobListing!;
         state.LinesOfCode -= listing.ResumeCostLines;
-        PortfolioWorkspace.SynchronizeToLinesOfCode(state);
         state.ActiveJobListing = null;
         state.ActiveJobApplication = CreateJobApplication(listing, state);
 
@@ -822,7 +1259,7 @@ public sealed class SimulationEngine
                 state.Sanity = Clamp(state.Sanity + Config.SuccessfulApplicationSanityReward, 0, Config.MaxSanity);
                 AppendLog(
                     state,
-                    $"Offer landed: {application.ListingTitle}. Endless mode keeps rolling with +${Config.SuccessfulApplicationFundsReward:0} and +{Config.SuccessfulApplicationSanityReward:0} sanity.");
+                    $"Offer landed: {application.ListingTitle}. {GetContinuationModeLabel()} keeps rolling with +${Config.SuccessfulApplicationFundsReward:0} and +{Config.SuccessfulApplicationSanityReward:0} sanity.");
                 return;
             }
 
@@ -880,8 +1317,11 @@ public sealed class SimulationEngine
                         PatsRemaining = Config.CatPatsRequired,
                         RemainingInGameMinutes = Config.CatStayDurationMinutes,
                         LinesDeletionPenalty = Config.CatLinesDeletionPenalty,
+                        MinutesUntilNextTypingBurst = Config.CatTypingBurstIntervalMinutes,
+                        VisualSeed = CreateSeed(state.RunSeed, $"{incident.Id}:cat"),
                     };
                     AppendLog(state, incident.Description);
+                    AppendLog(state, "Paws hit the keys. The cat starts adding phantom bugs and pure screen gibberish until you clear it.");
                 }
                 break;
 
@@ -949,6 +1389,17 @@ public sealed class SimulationEngine
                     $"{incident.Description} Funds +${Config.MicroSaleFundsGain:0}, sanity +{Config.MicroSaleSanityGain:0}.");
                 break;
 
+            case IncidentType.PublishedAppSale:
+                var saleNumber = ParseTrailingNumber(incident.Id, "app-sale-");
+                var saleFunds = RollBoundedAmount(
+                    state.RunSeed,
+                    $"published-sale:{saleNumber}",
+                    Config.PublishedAppSaleFundsMin,
+                    Config.PublishedAppSaleFundsMax);
+                state.Funds += saleFunds;
+                AppendLog(state, $"{incident.Description} Funds +${saleFunds:0}.");
+                break;
+
             case IncidentType.DoomscrollSpiral:
                 state.Focus = Clamp(state.Focus - Config.DoomscrollFocusLoss, 0, Config.MaxFocus);
                 state.Sanity = Clamp(state.Sanity - Config.DoomscrollSanityLoss, 0, Config.MaxSanity);
@@ -956,7 +1407,63 @@ public sealed class SimulationEngine
                     state,
                     $"{incident.Description} Focus -{Config.DoomscrollFocusLoss:0}, sanity -{Config.DoomscrollSanityLoss:0}.");
                 break;
+
+            case IncidentType.ComputerFreeze:
+                if (state.PendingLifeEvent is null)
+                {
+                    state.PendingLifeEvent = new PendingLifeEvent
+                    {
+                        Type = incident.Type,
+                        Title = "Computer Freeze",
+                        Description = "The cursor is dead, the fans are screaming, and the whole night is now about getting the machine back.",
+                    };
+                    AppendLog(state, incident.Description);
+                }
+                break;
+
+            case IncidentType.StreamingBinge:
+                if (state.PendingLifeEvent is null)
+                {
+                    var showTitle = PickLifeFlavor(state.RunSeed, $"{incident.Id}:show", ShowTitles);
+                    state.PendingLifeEvent = new PendingLifeEvent
+                    {
+                        Type = incident.Type,
+                        Title = "Autoplay Temptation",
+                        Description = $"{showTitle} is already lined up and the next episode starts in seconds.",
+                        SubjectName = showTitle,
+                    };
+                    AppendLog(state, incident.Description);
+                }
+                break;
+
+            case IncidentType.OnlineMatch:
+                if (state.PendingLifeEvent is null && !state.HasFoundLove)
+                {
+                    var matchName = PickLifeFlavor(state.RunSeed, $"{incident.Id}:match", MatchNames);
+                    var compatibility = 60 + (CreateSeed(state.RunSeed, $"{incident.Id}:score") % 39);
+                    state.PendingLifeEvent = new PendingLifeEvent
+                    {
+                        Type = incident.Type,
+                        Title = "New Match",
+                        Description = $"{matchName} actually looks promising instead of just another blurry profile and half-baked bio.",
+                        SubjectName = matchName,
+                        SubjectScore = compatibility,
+                    };
+                    AppendLog(state, incident.Description);
+                }
+                break;
         }
+    }
+
+    private static string PickLifeFlavor(int runSeed, string key, IReadOnlyList<string> values)
+    {
+        if (values.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var index = CreateSeed(runSeed, key) % values.Count;
+        return values[index];
     }
 
     private ActiveJobListing CreateJobListing(RunState state, string incidentId)
@@ -1052,6 +1559,79 @@ public sealed class SimulationEngine
         };
     }
 
+    private string GetContinuationModeLabel()
+    {
+        return Config.EndlessPortfolio
+            ? "Endless mode"
+            : "Continual upgrade loop";
+    }
+
+    private int GetHungerStage(double minutesSinceLastMeal)
+    {
+        if (minutesSinceLastMeal >= Config.StarvingAfterMinutes)
+        {
+            return 3;
+        }
+
+        if (minutesSinceLastMeal >= Config.VeryHungryAfterMinutes)
+        {
+            return 2;
+        }
+
+        return minutesSinceLastMeal >= Config.HungryAfterMinutes ? 1 : 0;
+    }
+
+    private int GetSleepStage(double minutesSinceLastSleep)
+    {
+        if (minutesSinceLastSleep >= Config.SleepForcedAfterMinutes)
+        {
+            return 4;
+        }
+
+        if (minutesSinceLastSleep >= Config.SevereSleepDeprivationAfterMinutes)
+        {
+            return 3;
+        }
+
+        if (minutesSinceLastSleep >= Config.SleepDeprivationAfterMinutes)
+        {
+            return 2;
+        }
+
+        return minutesSinceLastSleep >= Config.SleepWarningAfterMinutes ? 1 : 0;
+    }
+
+    private double GetHungerSanityLossPerInGameMinute(int hungerStage)
+    {
+        return hungerStage switch
+        {
+            1 => Config.HungrySanityLossPerInGameMinute,
+            2 => Config.VeryHungrySanityLossPerInGameMinute,
+            >= 3 => Config.StarvingSanityLossPerInGameMinute,
+            _ => 0,
+        };
+    }
+
+    private double GetSleepSanityLossPerInGameMinute(int sleepStage)
+    {
+        return sleepStage switch
+        {
+            2 => Config.SleepDeprivationSanityLossPerInGameMinute,
+            >= 3 => Config.SevereSleepDeprivationSanityLossPerInGameMinute,
+            _ => 0,
+        };
+    }
+
+    private double GetSleepQualityLossPerInGameMinute(int sleepStage)
+    {
+        return sleepStage switch
+        {
+            2 => Config.SleepDeprivationQualityLossPerInGameMinute,
+            >= 3 => Config.SevereSleepDeprivationQualityLossPerInGameMinute,
+            _ => 0,
+        };
+    }
+
     private int GetWriteCodeLinesGain(RunState state)
     {
         var lines = Config.WriteCodeLinesGain;
@@ -1136,13 +1716,24 @@ public sealed class SimulationEngine
 
     private void ApplyPassiveSanityRegeneration(RunState state, double elapsedInGameMinutes)
     {
-        if (!state.HasFirstCoin)
+        var passiveRegenPerMinute = 0d;
+        if (state.HasFirstCoin)
+        {
+            passiveRegenPerMinute += Config.FirstCoinPassiveSanityRegenPerInGameMinute;
+        }
+
+        if (state.HasFoundLove)
+        {
+            passiveRegenPerMinute += Config.FoundLovePassiveSanityRegenPerInGameMinute;
+        }
+
+        if (passiveRegenPerMinute <= 0)
         {
             return;
         }
 
         state.Sanity = Clamp(
-            state.Sanity + (elapsedInGameMinutes * Config.FirstCoinPassiveSanityRegenPerInGameMinute),
+            state.Sanity + (elapsedInGameMinutes * passiveRegenPerMinute),
             0,
             Config.MaxSanity);
     }
@@ -1160,6 +1751,101 @@ public sealed class SimulationEngine
             Config.MaxCodeQuality);
     }
 
+    private void ApplyNeedPenalties(RunState state, double elapsedInGameMinutes, int hungerStage, int sleepStage)
+    {
+        var hungerSanityLoss = GetHungerSanityLossPerInGameMinute(hungerStage);
+        if (hungerSanityLoss > 0)
+        {
+            state.Sanity = Clamp(
+                state.Sanity - (elapsedInGameMinutes * hungerSanityLoss),
+                0,
+                Config.MaxSanity);
+        }
+
+        var sleepSanityLoss = GetSleepSanityLossPerInGameMinute(sleepStage);
+        if (sleepSanityLoss > 0)
+        {
+            state.Sanity = Clamp(
+                state.Sanity - (elapsedInGameMinutes * sleepSanityLoss),
+                0,
+                Config.MaxSanity);
+        }
+
+        var sleepQualityLoss = GetSleepQualityLossPerInGameMinute(sleepStage);
+        if (sleepQualityLoss > 0)
+        {
+            state.CodeQuality = Clamp(
+                state.CodeQuality - (elapsedInGameMinutes * sleepQualityLoss),
+                0,
+                Config.MaxCodeQuality);
+        }
+    }
+
+    private void AdvanceNeedTimers(RunState state, double elapsedInGameMinutes, bool isSleeping)
+    {
+        state.MinutesSinceLastMeal += elapsedInGameMinutes;
+
+        if (!isSleeping)
+        {
+            state.MinutesSinceLastSleep += elapsedInGameMinutes;
+        }
+    }
+
+    private void AppendNeedThresholdLogs(RunState state, int previousHungerStage, int previousSleepStage, bool isSleeping)
+    {
+        var hungerStage = GetHungerStage(state);
+        if (hungerStage > previousHungerStage)
+        {
+            AppendHungerThresholdLog(state, hungerStage);
+        }
+
+        if (isSleeping)
+        {
+            return;
+        }
+
+        var sleepStage = GetSleepStage(state);
+        if (sleepStage > previousSleepStage)
+        {
+            AppendSleepThresholdLog(state, sleepStage);
+        }
+    }
+
+    private void AppendHungerThresholdLog(RunState state, int hungerStage)
+    {
+        switch (hungerStage)
+        {
+            case 1:
+                AppendLog(state, "It has been too long since the last meal. Hunger is starting to chip away at sanity.");
+                break;
+            case 2:
+                AppendLog(state, "Running seriously hungry now. Sanity is dropping faster until you eat.");
+                break;
+            case 3:
+                AppendLog(state, "Starving. Order food soon or the rest of the day is going to unravel.");
+                break;
+        }
+    }
+
+    private void AppendSleepThresholdLog(RunState state, int sleepStage)
+    {
+        switch (sleepStage)
+        {
+            case 1:
+                AppendLog(state, "Still awake deep into the grind. Push much longer and fatigue will start shredding quality.");
+                break;
+            case 2:
+                AppendLog(state, "One full day awake. Fatigue is now draining sanity and code quality.");
+                break;
+            case 3:
+                AppendLog(state, "Thirty-six hours awake. Fatigue is chewing through sanity and code quality fast.");
+                break;
+            case 4:
+                AppendLog(state, "Two straight days without sleep. You must sleep before doing anything serious.");
+                break;
+        }
+    }
+
     private void AdvanceTimedEffects(RunState state, double elapsedInGameMinutes)
     {
         state.SluggishMinutesRemaining = Math.Max(0, state.SluggishMinutesRemaining - elapsedInGameMinutes);
@@ -1171,9 +1857,29 @@ public sealed class SimulationEngine
             state.RecentCompletedFileName = null;
         }
 
+        if (state.ActiveFoodDelivery is not null)
+        {
+            state.ActiveFoodDelivery.RemainingInGameMinutes -= elapsedInGameMinutes;
+        }
+
         if (state.ActiveCatInterruption is not null)
         {
             state.ActiveCatInterruption.RemainingInGameMinutes -= elapsedInGameMinutes;
+            state.ActiveCatInterruption.MinutesUntilNextTypingBurst -= elapsedInGameMinutes;
+
+            var burstInterval = Math.Max(BoundaryEpsilon, Config.CatTypingBurstIntervalMinutes);
+            while (state.ActiveCatInterruption.MinutesUntilNextTypingBurst <= BoundaryEpsilon &&
+                   state.ActiveCatInterruption.RemainingInGameMinutes > BoundaryEpsilon)
+            {
+                state.ActiveCatInterruption.MinutesUntilNextTypingBurst += burstInterval;
+                state.ActiveCatInterruption.PhantomBugCount += Config.CatBugLinesPerBurst;
+                state.ActiveCatInterruption.GibberishLinesTyped += Config.CatGibberishLinesPerBurst;
+                state.ActiveCatInterruption.TotalQualityLoss += Config.CatBugQualityLossPerBurst;
+                state.CodeQuality = Clamp(
+                    state.CodeQuality - Config.CatBugQualityLossPerBurst,
+                    0,
+                    Config.MaxCodeQuality);
+            }
         }
 
         if (state.ActiveTechDebtBug is not null)
@@ -1189,14 +1895,21 @@ public sealed class SimulationEngine
 
     private void ResolveExpiredIncidents(RunState state)
     {
+        ResolveFoodDelivery(state);
+
         if (state.ActiveCatInterruption is not null &&
             state.ActiveCatInterruption.RemainingInGameMinutes <= BoundaryEpsilon)
         {
-            var deletedLines = Math.Min(state.LinesOfCode, state.ActiveCatInterruption.LinesDeletionPenalty);
-            state.LinesOfCode -= deletedLines;
+            var cat = state.ActiveCatInterruption;
+            var deletedLines = Math.Min(state.CurrentPortfolioLinesOfCode, cat.LinesDeletionPenalty);
+            state.CurrentPortfolioLinesOfCode -= deletedLines;
+            state.LinesOfCode = Math.Max(0, state.LinesOfCode - deletedLines);
             PortfolioWorkspace.SynchronizeToLinesOfCode(state);
             state.ActiveCatInterruption = null;
-            AppendLog(state, $"The cat stomped across the keyboard and deleted {deletedLines} LoC.");
+            var chaosSummary = cat.PhantomBugCount > 0 || cat.GibberishLinesTyped > 0
+                ? $" It also left {cat.PhantomBugCount} phantom bug burst{(cat.PhantomBugCount == 1 ? string.Empty : "s")} and {cat.GibberishLinesTyped} gibberish line{(cat.GibberishLinesTyped == 1 ? string.Empty : "s")} worth of chaos."
+                : string.Empty;
+            AppendLog(state, $"The cat stomped across the keyboard and deleted {deletedLines} draft LoC.{chaosSummary}");
         }
 
         if (state.ActiveTechDebtBug is not null &&
@@ -1225,7 +1938,7 @@ public sealed class SimulationEngine
         }
     }
 
-    private double GetStepMinutes(RunState state, double remainingMinutes)
+    private double GetStepMinutes(RunState state, double remainingMinutes, bool isSleeping)
     {
         var step = remainingMinutes;
 
@@ -1238,11 +1951,45 @@ public sealed class SimulationEngine
         step = Math.Min(step, GetPositiveTimer(state.SluggishMinutesRemaining));
         step = Math.Min(step, GetPositiveTimer(state.DeepWorkMinutesRemaining));
         step = Math.Min(step, GetPositiveTimer(state.ContextSwitchMinutesRemaining));
+        step = Math.Min(step, GetPositiveTimer(state.ActiveFoodDelivery?.RemainingInGameMinutes));
         step = Math.Min(step, GetPositiveTimer(state.ActiveCatInterruption?.RemainingInGameMinutes));
+        step = Math.Min(step, GetPositiveTimer(state.ActiveCatInterruption?.MinutesUntilNextTypingBurst));
         step = Math.Min(step, GetPositiveTimer(state.ActiveTechDebtBug?.RemainingInGameMinutes));
         step = Math.Min(step, GetPositiveTimer(state.ActiveJobListing?.RemainingInGameMinutes));
+        step = Math.Min(
+            step,
+            GetMinutesUntilNextThreshold(
+                state.MinutesSinceLastMeal,
+                Config.HungryAfterMinutes,
+                Config.VeryHungryAfterMinutes,
+                Config.StarvingAfterMinutes));
+
+        if (!isSleeping)
+        {
+            step = Math.Min(
+                step,
+                GetMinutesUntilNextThreshold(
+                    state.MinutesSinceLastSleep,
+                    Config.SleepWarningAfterMinutes,
+                    Config.SleepDeprivationAfterMinutes,
+                    Config.SevereSleepDeprivationAfterMinutes,
+                    Config.SleepForcedAfterMinutes));
+        }
 
         return Math.Max(step, BoundaryEpsilon);
+    }
+
+    private double GetMinutesUntilNextThreshold(double currentMinutes, params double[] thresholds)
+    {
+        foreach (var threshold in thresholds)
+        {
+            if (threshold > currentMinutes + BoundaryEpsilon)
+            {
+                return threshold - currentMinutes;
+            }
+        }
+
+        return double.PositiveInfinity;
     }
 
     private static double GetPositiveTimer(double remainingMinutes)
@@ -1263,6 +2010,16 @@ public sealed class SimulationEngine
         }
 
         return remainingMinutes.Value;
+    }
+
+    private static string FormatMinutesForLog(double totalMinutes)
+    {
+        var minutes = Math.Max(1, (int)Math.Ceiling(totalMinutes));
+        var hours = minutes / 60;
+        var remainingMinutes = minutes % 60;
+        return hours > 0
+            ? $"{hours}h {remainingMinutes:00}m"
+            : $"{minutes}m";
     }
 
     private void AppendLog(RunState state, string message)
@@ -1290,6 +2047,16 @@ public sealed class SimulationEngine
         }
     }
 
+    private bool IsActionLockedBySleep(RunState state, PlayerAction action)
+    {
+        return RequiresSleep(state) &&
+               action is PlayerAction.WriteCode
+                   or PlayerAction.Freelance
+                   or PlayerAction.SquashBug
+                   or PlayerAction.ApplyForJob
+                   or PlayerAction.PublishApp;
+    }
+
     private bool CanBeginJobApplication(RunState state, ActiveJobListing listing)
     {
         return state.ActiveJobApplication is null &&
@@ -1297,6 +2064,91 @@ public sealed class SimulationEngine
                state.LinesOfCode >= listing.MinimumPortfolioLines &&
                state.CodeQuality >= listing.MinimumCodeQuality &&
                GetResumeProof(state, listing.ResumeTrack) >= listing.RequiredResumeProof;
+    }
+
+    private bool CanPublishCurrentApp(RunState state)
+    {
+        return PortfolioWorkspace.HasFiniteProgramCount(state) &&
+               state.CurrentPortfolioLinesOfCode > 0 &&
+               PortfolioWorkspace.IsCurrentBatchComplete(state);
+    }
+
+    private void PublishCurrentApp(RunState state)
+    {
+        var releaseNumber = state.PublishedAppCount + 1;
+        var publishedName = $"Release {releaseNumber}";
+        var fundsGained = RollBoundedAmount(
+            state.RunSeed,
+            $"publish:{releaseNumber}",
+            Config.PublishAppFundsMin,
+            Config.PublishAppFundsMax);
+
+        state.PublishedAppCount = releaseNumber;
+        state.LastPublishedAppName = publishedName;
+        state.Funds += fundsGained;
+        state.CurrentPortfolioLinesOfCode = 0;
+        state.CurrentProgramIndex = 0;
+        state.CurrentProgramVisibleLineCount = 0;
+        state.RecentCompletedFileName = null;
+        state.FileCompletionCelebrationMinutesRemaining = 0;
+
+        ScheduleNextPublishedSale(state, state.PublishedAppSaleCount + 1, state.DeskMinutesElapsed);
+
+        AppendLog(state, $"{publishedName} shipped. Storefront cash lands for +${fundsGained:0}.");
+        AppendLog(state, $"A fresh snippet batch is live. Opened {PortfolioWorkspace.GetCurrentProgram(state).FileName}.");
+    }
+
+    private void ScheduleNextPublishedSale(RunState state, int saleNumber, double startDeskMinute)
+    {
+        if (state.PublishedAppCount <= 0)
+        {
+            state.NextPublishedAppSaleDeskMinute = double.PositiveInfinity;
+            return;
+        }
+
+        state.NextPublishedAppSaleDeskMinute = startDeskMinute + RollBoundedAmount(
+            state.RunSeed,
+            $"published-sale-interval:{saleNumber}",
+            Config.PublishedAppSaleIntervalMinMinutes,
+            Config.PublishedAppSaleIntervalMaxMinutes);
+    }
+
+    private static double RollBoundedAmount(int runSeed, string key, double min, double max)
+    {
+        if (max <= min)
+        {
+            return Math.Round(min, 0);
+        }
+
+        var random = new Random(CreateSeed(runSeed, key));
+        var value = min + (random.NextDouble() * (max - min));
+        return Math.Round(value, 0);
+    }
+
+    private static int CreateSeed(int runSeed, string key)
+    {
+        unchecked
+        {
+            var seed = runSeed == 0 ? 17 : runSeed;
+            foreach (var character in key)
+            {
+                seed = (seed * 31) + character;
+            }
+
+            return seed & int.MaxValue;
+        }
+    }
+
+    private static int ParseTrailingNumber(string value, string prefix)
+    {
+        if (!value.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        return int.TryParse(value[prefix.Length..], out var parsed)
+            ? parsed
+            : 0;
     }
 
     private void AwardInterviewPrep(RunState state, int points, string reason)

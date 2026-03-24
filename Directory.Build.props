@@ -3,5 +3,9 @@
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <KniVersion>4.2.9001</KniVersion>
+    <KniDesktopPlatformVersion>4.2.9001.1</KniDesktopPlatformVersion>
+    <KniBlazorPlatformVersion>4.2.9001.2</KniBlazorPlatformVersion>
+    <BlazorWebAssemblyVersion>10.0.4</BlazorWebAssemblyVersion>
   </PropertyGroup>
 </Project>

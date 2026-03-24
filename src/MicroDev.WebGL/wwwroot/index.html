@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Micro Dev</title>
+    <base href="./" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link href="css/app.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="app">
+        <div class="app-loading-shell">
+            <div class="app-loading-panel">
+                <div class="app-loading-title">Micro Dev</div>
+                <div class="app-loading-copy">Loading the WebGL build...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobile-overlay" class="mobile-overlay" hidden>
+        <div class="mobile-overlay-panel">
+            <div class="mobile-overlay-eyebrow">Mobile Mode</div>
+            <div class="mobile-overlay-title">Rotate to landscape</div>
+            <div id="mobile-overlay-copy" class="mobile-overlay-copy">
+                Micro Dev uses a wide desktop workspace. Rotate your phone to landscape for readable controls and reliable touch input.
+            </div>
+            <button id="mobile-overlay-action" class="mobile-overlay-action" type="button">
+                Enter Fullscreen
+            </button>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">x</a>
+    </div>
+    <script>
+        window.microDev = window.microDev ?? {};
+        window.microDev.audioContexts = [];
+        window.microDev.activeTouchPointerId = null;
+        window.microDev.activeTouchIdentifier = null;
+        window.microDev.shouldPauseGame = false;
+        window.microDev.isMobileBrowser = function () {
+            const viewport = window.microDev.getViewportSize();
+            const coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+            const touchPoints = navigator.maxTouchPoints ?? 0;
+            const mobileAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent ?? "") ||
+                navigator.userAgentData?.mobile === true;
+            const phoneSizedViewport = Math.max(viewport.width, viewport.height) <= 1400 &&
+                Math.min(viewport.width, viewport.height) <= 900;
+            const compactViewport = Math.max(viewport.width, viewport.height) <= 1400 &&
+                Math.min(viewport.width, viewport.height) <= 540;
+
+            return mobileAgent || compactViewport || (coarsePointer && (touchPoints > 0 || phoneSizedViewport));
+        };
+        window.microDev.getViewportSize = function () {
+            const visualViewport = window.visualViewport;
+            if (visualViewport) {
+                return {
+                    width: Math.max(1, Math.round(visualViewport.width)),
+                    height: Math.max(1, Math.round(visualViewport.height))
+                };
+            }
+
+            return {
+                width: Math.max(1, window.innerWidth),
+                height: Math.max(1, window.innerHeight)
+            };
+        };
+        window.microDev.getRenderScale = function () {
+            const devicePixelRatio = window.devicePixelRatio || 1;
+            return Math.max(1, Math.min(3, devicePixelRatio));
+        };
+        window.microDev.requestFullscreen = async function () {
+            const holder = document.getElementById("canvasHolder") ?? document.documentElement;
+            const requestFullscreen = holder.requestFullscreen?.bind(holder) ??
+                document.documentElement.requestFullscreen?.bind(document.documentElement);
+
+            if (!requestFullscreen) {
+                return false;
+            }
+
+            try {
+                await requestFullscreen({ navigationUI: "hide" });
+            }
+            catch {
+                try {
+                    await requestFullscreen();
+                }
+                catch {
+                    return false;
+                }
+            }
+
+            if (screen.orientation?.lock) {
+                screen.orientation.lock("landscape").catch(() => { });
+            }
+
+            return true;
+        };
+        window.microDev.syncViewportState = function () {
+            const viewport = window.microDev.getViewportSize();
+            const root = document.documentElement;
+            const overlay = document.getElementById("mobile-overlay");
+            const overlayAction = document.getElementById("mobile-overlay-action");
+            const isMobileBrowser = window.microDev.isMobileBrowser();
+            const isPortrait = viewport.height > viewport.width;
+            const showRotateOverlay = isMobileBrowser && isPortrait;
+            const canFullscreen = !!document.documentElement.requestFullscreen;
+
+            root.style.setProperty("--microdev-vw", `${viewport.width}px`);
+            root.style.setProperty("--microdev-vh", `${viewport.height}px`);
+
+            document.body.classList.toggle("mobile-browser", isMobileBrowser);
+            document.body.classList.toggle("mobile-rotate-locked", showRotateOverlay);
+
+            if (overlay) {
+                overlay.hidden = !showRotateOverlay;
+            }
+
+            if (overlayAction) {
+                overlayAction.hidden = !canFullscreen;
+                overlayAction.textContent = document.fullscreenElement ? "Fullscreen Active" : "Enter Fullscreen";
+                overlayAction.disabled = !!document.fullscreenElement;
+            }
+
+            window.microDev.shouldPauseGame = showRotateOverlay;
+            return viewport;
+        };
+        window.microDev.dispatchWindowMouseEvent = function (type, clientX, clientY, buttons) {
+            window.dispatchEvent(new MouseEvent(type, {
+                clientX,
+                clientY,
+                button: 0,
+                buttons,
+                bubbles: true,
+                cancelable: true,
+                view: window
+            }));
+        };
+        window.microDev.trackAudioContext = function (context) {
+            if (!context || window.microDev.audioContexts.includes(context)) {
+                return context;
+            }
+
+            window.microDev.audioContexts.push(context);
+            return context;
+        };
+        window.microDev.resumeAudioContexts = function () {
+            for (const context of window.microDev.audioContexts) {
+                if (context.state === "suspended") {
+                    context.resume().catch(() => { });
+                }
+            }
+        };
+        (() => {
+            const OriginalAudioContext = window.AudioContext ?? window.webkitAudioContext;
+            if (!OriginalAudioContext || OriginalAudioContext.__microDevWrapped) {
+                return;
+            }
+
+            function WrappedAudioContext(...args) {
+                return window.microDev.trackAudioContext(new OriginalAudioContext(...args));
+            }
+
+            WrappedAudioContext.prototype = OriginalAudioContext.prototype;
+            Object.setPrototypeOf(WrappedAudioContext, OriginalAudioContext);
+            Object.defineProperty(WrappedAudioContext, "__microDevWrapped", { value: true });
+
+            window.AudioContext = WrappedAudioContext;
+            if (window.webkitAudioContext) {
+                window.webkitAudioContext = WrappedAudioContext;
+            }
+        })();
+
+        document.getElementById("mobile-overlay-action")?.addEventListener("click", () => {
+            window.microDev.requestFullscreen().catch(() => { });
+        });
+        window.visualViewport?.addEventListener("resize", () => window.microDev.syncViewportState());
+        window.visualViewport?.addEventListener("scroll", () => window.microDev.syncViewportState());
+        window.addEventListener("resize", () => window.microDev.syncViewportState());
+        document.addEventListener("fullscreenchange", () => window.microDev.syncViewportState());
+        window.microDev.syncViewportState();
+    </script>
+    <script src="_content/nkast.Wasm.JSInterop/js/JSObject.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Dom/js/Window.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Dom/js/Document.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Dom/js/Navigator.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Dom/js/Gamepad.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Dom/js/Media.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.XHR/js/XHR.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Canvas/js/Canvas.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Canvas/js/CanvasGLContext.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.Audio/js/Audio.8.0.11.js"></script>
+    <script src="_content/nkast.Wasm.XR/js/XR.8.0.11.js"></script>
+
+    <script>
+        window.microDev = window.microDev ?? {};
+        window.microDev.attachLegacyRuntime = function () {
+            const runtime = window.getDotnetRuntime ? window.getDotnetRuntime(0) : null;
+            const platform = window.Blazor?.platform;
+            if (!runtime?.Module || !runtime?.INTERNAL?.monoStringToStringUnsafe || !platform) {
+                return false;
+            }
+
+            window.Module = runtime.Module;
+
+            window.BINDING = window.BINDING ?? {};
+            if (!window.BINDING.conv_string) {
+                window.BINDING.conv_string = function (monoString) {
+                    if (!monoString) {
+                        return null;
+                    }
+
+                    return runtime.INTERNAL.monoStringToStringUnsafe(monoString);
+                };
+            }
+
+            if (!platform.getArrayLength) {
+                platform.getArrayLength = function (managedArray) {
+                    if (!managedArray) {
+                        return 0;
+                    }
+
+                    return platform.readInt32Field(managedArray, 12);
+                };
+            }
+
+            if (!platform.readObject && platform.readObjectField) {
+                platform.readObject = function (address) {
+                    return platform.readObjectField(address, 0);
+                };
+            }
+
+            return true;
+        };
+        window.microDev.startGameHost = function (instance) {
+            const wireRuntime = () => {
+                if (!window.microDev.attachLegacyRuntime()) {
+                    window.requestAnimationFrame(wireRuntime);
+                    return;
+                }
+
+                window.microDev.initRenderLoop(instance);
+            };
+
+            wireRuntime();
+        };
+        window.microDev.initRenderLoop = function (instance) {
+            const canvas = document.getElementById("theCanvas");
+            const holder = document.getElementById("canvasHolder");
+            let lastRenderWidth = 0;
+            let lastRenderHeight = 0;
+            let lastInputWidth = 0;
+            let lastInputHeight = 0;
+
+            const handleTouchPointerDown = event => {
+                if (event.pointerType === "mouse") {
+                    canvas.focus();
+                    window.microDev.resumeAudioContexts();
+                    return;
+                }
+
+                if (window.microDev.activeTouchPointerId !== null &&
+                    window.microDev.activeTouchPointerId !== event.pointerId) {
+                    return;
+                }
+
+                window.microDev.activeTouchPointerId = event.pointerId;
+                canvas.focus();
+                window.microDev.resumeAudioContexts();
+                canvas.setPointerCapture?.(event.pointerId);
+                window.microDev.dispatchWindowMouseEvent("mousemove", event.clientX, event.clientY, 0);
+                window.microDev.dispatchWindowMouseEvent("mousedown", event.clientX, event.clientY, 1);
+                event.preventDefault();
+            };
+            const handleTouchPointerMove = event => {
+                if (event.pointerType === "mouse" ||
+                    window.microDev.activeTouchPointerId !== event.pointerId) {
+                    return;
+                }
+
+                window.microDev.dispatchWindowMouseEvent("mousemove", event.clientX, event.clientY, 1);
+                event.preventDefault();
+            };
+            const handleTouchPointerUp = event => {
+                if (event.pointerType === "mouse" ||
+                    window.microDev.activeTouchPointerId !== event.pointerId) {
+                    return;
+                }
+
+                window.microDev.dispatchWindowMouseEvent("mousemove", event.clientX, event.clientY, 0);
+                window.microDev.dispatchWindowMouseEvent("mouseup", event.clientX, event.clientY, 0);
+                canvas.releasePointerCapture?.(event.pointerId);
+                window.microDev.activeTouchPointerId = null;
+                event.preventDefault();
+            };
+            const handleTouchStart = event => {
+                if ("PointerEvent" in window || event.changedTouches.length === 0) {
+                    return;
+                }
+
+                const touch = event.changedTouches[0];
+                window.microDev.activeTouchIdentifier = touch.identifier;
+                canvas.focus();
+                window.microDev.resumeAudioContexts();
+                window.microDev.dispatchWindowMouseEvent("mousemove", touch.clientX, touch.clientY, 0);
+                window.microDev.dispatchWindowMouseEvent("mousedown", touch.clientX, touch.clientY, 1);
+                event.preventDefault();
+            };
+            const handleTouchMove = event => {
+                if ("PointerEvent" in window || window.microDev.activeTouchIdentifier === null) {
+                    return;
+                }
+
+                const touch = Array.from(event.changedTouches).find(candidate => candidate.identifier === window.microDev.activeTouchIdentifier);
+                if (!touch) {
+                    return;
+                }
+
+                window.microDev.dispatchWindowMouseEvent("mousemove", touch.clientX, touch.clientY, 1);
+                event.preventDefault();
+            };
+            const handleTouchEnd = event => {
+                if ("PointerEvent" in window || window.microDev.activeTouchIdentifier === null) {
+                    return;
+                }
+
+                const touch = Array.from(event.changedTouches).find(candidate => candidate.identifier === window.microDev.activeTouchIdentifier);
+                if (!touch) {
+                    return;
+                }
+
+                window.microDev.dispatchWindowMouseEvent("mousemove", touch.clientX, touch.clientY, 0);
+                window.microDev.dispatchWindowMouseEvent("mouseup", touch.clientX, touch.clientY, 0);
+                window.microDev.activeTouchIdentifier = null;
+                event.preventDefault();
+            };
+
+            const syncCanvasSize = () => {
+                const viewport = window.microDev.syncViewportState();
+                const renderScale = window.microDev.getRenderScale();
+                const inputWidth = Math.max(1, Math.round(viewport.width));
+                const inputHeight = Math.max(1, Math.round(viewport.height));
+                const renderWidth = Math.max(1, Math.round(inputWidth * renderScale));
+                const renderHeight = Math.max(1, Math.round(inputHeight * renderScale));
+
+                canvas.width = renderWidth;
+                canvas.height = renderHeight;
+                canvas.style.width = `${inputWidth}px`;
+                canvas.style.height = `${inputHeight}px`;
+
+                if (renderWidth === lastRenderWidth &&
+                    renderHeight === lastRenderHeight &&
+                    inputWidth === lastInputWidth &&
+                    inputHeight === lastInputHeight) {
+                    return;
+                }
+
+                lastRenderWidth = renderWidth;
+                lastRenderHeight = renderHeight;
+                lastInputWidth = inputWidth;
+                lastInputHeight = inputHeight;
+                instance.invokeMethodAsync("ResizeDotNet", renderWidth, renderHeight, inputWidth, inputHeight).catch(() => { });
+            };
+
+            canvas.tabIndex = 0;
+            canvas.addEventListener("contextmenu", event => event.preventDefault());
+            canvas.addEventListener("pointerdown", handleTouchPointerDown, { passive: false });
+            canvas.addEventListener("pointermove", handleTouchPointerMove, { passive: false });
+            canvas.addEventListener("pointerup", handleTouchPointerUp, { passive: false });
+            canvas.addEventListener("pointercancel", handleTouchPointerUp, { passive: false });
+            canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+            canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+            canvas.addEventListener("touchend", handleTouchEnd, { passive: false });
+            canvas.addEventListener("touchcancel", handleTouchEnd, { passive: false });
+
+            syncCanvasSize();
+            window.addEventListener("resize", syncCanvasSize);
+            window.requestAnimationFrame(function tick() {
+                syncCanvasSize();
+                if (!window.microDev.shouldPauseGame) {
+                    instance.invokeMethod("TickDotNet");
+                }
+                window.requestAnimationFrame(tick);
+            });
+        };
+
+        window.addEventListener("keydown", event => {
+            window.microDev.resumeAudioContexts();
+            if ([32, 37, 38, 39, 40].includes(event.keyCode)) {
+                event.preventDefault();
+            }
+        });
+
+        window.addEventListener("wheel", event => {
+            event.preventDefault();
+        }, { passive: false });
+    </script>
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

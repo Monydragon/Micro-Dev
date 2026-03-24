@@ -52,6 +52,9 @@ nunit-*.xml
 [Rr]eleasePS/
 dlldata.c
 
+# Generated WebGL content output
+src/MicroDev.WebGL/wwwroot/Content/
+
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
 

@@ -21,6 +21,7 @@ public sealed class OptionsScreen : IScreen
     private readonly Texture2D _pixel;
     private readonly GameAudio _audio;
     private readonly GameSettings _settings;
+    private readonly bool _isBrowserPlatform;
     private readonly Point _virtualResolution;
     private readonly Action _goBack;
     private readonly Action _applySettings;
@@ -50,6 +51,7 @@ public sealed class OptionsScreen : IScreen
         Texture2D pixel,
         GameAudio audio,
         GameSettings settings,
+        bool isBrowserPlatform,
         Point virtualResolution,
         Action goBack,
         Action applySettings)
@@ -58,6 +60,7 @@ public sealed class OptionsScreen : IScreen
         _pixel = pixel;
         _audio = audio;
         _settings = settings;
+        _isBrowserPlatform = isBrowserPlatform;
         _virtualResolution = virtualResolution;
         _goBack = goBack;
         _applySettings = applySettings;
@@ -85,7 +88,8 @@ public sealed class OptionsScreen : IScreen
         UpdateLayout();
         SyncButtonLabels();
 
-        if (_resolutionDropdownOpen)
+        if (!_isBrowserPlatform &&
+            _resolutionDropdownOpen)
         {
             for (var index = 0; index < _resolutionOptionButtons.Length; index++)
             {
@@ -109,14 +113,16 @@ public sealed class OptionsScreen : IScreen
             }
         }
 
-        if (_displayModeButton.Update(input))
+        if (!_isBrowserPlatform &&
+            _displayModeButton.Update(input))
         {
             _settings.WindowMode = GetNextWindowMode(_settings.WindowMode);
             ApplyAndPreview();
             return;
         }
 
-        if (_resolutionButton.Update(input))
+        if (!_isBrowserPlatform &&
+            _resolutionButton.Update(input))
         {
             _resolutionDropdownOpen = !_resolutionDropdownOpen;
             _audio.PlayButtonClick();
@@ -196,18 +202,45 @@ public sealed class OptionsScreen : IScreen
             3);
 
         UiLabel.Draw(spriteBatch, _font, "Display", new Vector2(displayBounds.X + 20, displayBounds.Y + 18), UiTheme.Accent, 0.9f);
-        UiTextBlock.DrawWrapped(
-            spriteBatch,
-            _font,
-            "Window mode and resolution only change the desktop presentation. The game still renders on the same virtual canvas underneath.",
-            new Vector2(displayBounds.X + 20, displayBounds.Y + 48),
-            displayBounds.Width - 40,
-            UiTheme.TextMuted,
-            0.7f,
-            2f,
-            3);
-        DrawDisplayRow(spriteBatch, "Window Mode", _displayModeButton.Bounds, "Choose windowed, borderless, or fullscreen.");
-        DrawDisplayRow(spriteBatch, "Resolution", _resolutionButton.Bounds, "Pick the backbuffer size used for the desktop window.");
+        if (_isBrowserPlatform)
+        {
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                "The WebGL build always renders the same 1600 x 900 virtual desktop and scales it to the browser canvas. Use the browser window size or browser fullscreen for presentation changes.",
+                new Vector2(displayBounds.X + 20, displayBounds.Y + 48),
+                displayBounds.Width - 40,
+                UiTheme.TextMuted,
+                0.7f,
+                2f,
+                4);
+            UiLabel.Draw(spriteBatch, _font, "Browser Canvas", new Vector2(displayBounds.X + 20, displayBounds.Y + 166), UiTheme.TextPrimary, 0.76f);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                "Desktop-only window mode and resolution controls are disabled here so the Web build stays consistent with the browser host.",
+                new Vector2(displayBounds.X + 20, displayBounds.Y + 192),
+                displayBounds.Width - 40,
+                UiTheme.TextMuted,
+                0.62f,
+                2f,
+                4);
+        }
+        else
+        {
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                "Window mode and resolution only change the desktop presentation. The game still renders on the same virtual canvas underneath.",
+                new Vector2(displayBounds.X + 20, displayBounds.Y + 48),
+                displayBounds.Width - 40,
+                UiTheme.TextMuted,
+                0.7f,
+                2f,
+                3);
+            DrawDisplayRow(spriteBatch, "Window Mode", _displayModeButton.Bounds, "Choose windowed, borderless, or fullscreen.");
+            DrawDisplayRow(spriteBatch, "Resolution", _resolutionButton.Bounds, "Pick the backbuffer size used for the desktop window.");
+        }
 
         UiLabel.Draw(spriteBatch, _font, "Audio", new Vector2(audioBounds.X + 20, audioBounds.Y + 18), UiTheme.Accent, 0.9f);
         UiTextBlock.DrawWrapped(
@@ -221,11 +254,14 @@ public sealed class OptionsScreen : IScreen
             2f,
             3);
 
-        _displayModeButton.Draw(spriteBatch, _pixel, _font);
-        _resolutionButton.Draw(spriteBatch, _pixel, _font);
-        if (_resolutionDropdownOpen)
+        if (!_isBrowserPlatform)
         {
-            DrawResolutionDropdown(spriteBatch);
+            _displayModeButton.Draw(spriteBatch, _pixel, _font);
+            _resolutionButton.Draw(spriteBatch, _pixel, _font);
+            if (_resolutionDropdownOpen)
+            {
+                DrawResolutionDropdown(spriteBatch);
+            }
         }
 
         _soundToggleButton.Draw(spriteBatch, _pixel, _font);
@@ -260,7 +296,9 @@ public sealed class OptionsScreen : IScreen
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Borderless is best for seamless alt-tab flow. Fullscreen uses the chosen display mode directly. Lower BGM if you want the typing rhythm to lead the mix.",
+            _isBrowserPlatform
+                ? "Click once to unlock browser audio, then the typing SFX and background loop will behave normally. For fullscreen presentation, use the browser's fullscreen command."
+                : "Borderless is best for seamless alt-tab flow. Fullscreen uses the chosen display mode directly. Lower BGM if you want the typing rhythm to lead the mix.",
             new Vector2(runtimeBounds.X + 20, runtimeBounds.Y + 48),
             runtimeBounds.Width - 40,
             UiTheme.TextMuted,
@@ -270,7 +308,9 @@ public sealed class OptionsScreen : IScreen
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"Current setup: {GetWindowModeLabel(_settings.WindowMode)} at {FormatResolution(_settings.PreferredResolution)} | Master {ToPercent(_settings.MasterVolume)} | SFX {ToPercent(_settings.SoundEffectsVolume)} | BGM {ToPercent(_settings.MusicVolume)}",
+            _isBrowserPlatform
+                ? $"Browser canvas: {FormatResolution(_virtualResolution)} virtual desktop | Master {ToPercent(_settings.MasterVolume)} | SFX {ToPercent(_settings.SoundEffectsVolume)} | BGM {ToPercent(_settings.MusicVolume)}"
+                : $"Current setup: {GetWindowModeLabel(_settings.WindowMode)} at {FormatResolution(_settings.PreferredResolution)} | Master {ToPercent(_settings.MasterVolume)} | SFX {ToPercent(_settings.SoundEffectsVolume)} | BGM {ToPercent(_settings.MusicVolume)}",
             new Vector2(runtimeBounds.X + 20, runtimeBounds.Y + 118),
             runtimeBounds.Width - 40,
             UiTheme.TextPrimary,

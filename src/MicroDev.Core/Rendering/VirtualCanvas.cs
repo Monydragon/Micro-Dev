@@ -5,6 +5,9 @@ namespace MicroDev.Core.Rendering;
 
 public sealed class VirtualCanvas : IDisposable
 {
+    private float _inputScaleX = 1f;
+    private float _inputScaleY = 1f;
+
     public VirtualCanvas(int virtualWidth, int virtualHeight)
     {
         VirtualWidth = virtualWidth;
@@ -54,16 +57,30 @@ public sealed class VirtualCanvas : IDisposable
         DestinationRectangle = new Rectangle(x, y, width, height);
     }
 
+    public void SetInputScale(float inputScaleX, float inputScaleY)
+    {
+        _inputScaleX = inputScaleX > 0f ? inputScaleX : 1f;
+        _inputScaleY = inputScaleY > 0f ? inputScaleY : 1f;
+    }
+
     public Point MapToVirtual(Point windowPoint, out bool isInside)
     {
-        isInside = DestinationRectangle.Contains(windowPoint);
+        var renderX = windowPoint.X * _inputScaleX;
+        var renderY = windowPoint.Y * _inputScaleY;
+
+        isInside =
+            renderX >= DestinationRectangle.Left &&
+            renderX < DestinationRectangle.Right &&
+            renderY >= DestinationRectangle.Top &&
+            renderY < DestinationRectangle.Bottom;
+
         if (!isInside)
         {
             return new Point(-1, -1);
         }
 
-        var relativeX = (windowPoint.X - DestinationRectangle.X) / (float)DestinationRectangle.Width;
-        var relativeY = (windowPoint.Y - DestinationRectangle.Y) / (float)DestinationRectangle.Height;
+        var relativeX = (renderX - DestinationRectangle.X) / DestinationRectangle.Width;
+        var relativeY = (renderY - DestinationRectangle.Y) / DestinationRectangle.Height;
 
         var virtualX = Math.Clamp((int)(relativeX * VirtualWidth), 0, VirtualWidth - 1);
         var virtualY = Math.Clamp((int)(relativeY * VirtualHeight), 0, VirtualHeight - 1);

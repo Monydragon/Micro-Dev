@@ -6,15 +6,21 @@ public sealed class IncidentScheduler
     [
         new("bug-1", IncidentType.TechDebtBug, 120, "A stubborn regression starts eating your momentum."),
         new("cat-1", IncidentType.CatInterruption, 240, "The cat launches onto the desk and blocks the editor."),
+        new("freeze-1", IncidentType.ComputerFreeze, 300, "The whole machine locks up right as you hit a flow state."),
         new("job-1", IncidentType.JobListing, 420, "A fresh C# / .NET listing popped up in the inbox."),
+        new("show-1", IncidentType.StreamingBinge, 540, "Autoplay is already teeing up the next episode."),
         new("bug-2", IncidentType.TechDebtBug, 600, "Another bug slips in while you're rushing."),
         new("cat-2", IncidentType.CatInterruption, 780, "The cat is back and even more convinced this is its workstation."),
+        new("match-1", IncidentType.OnlineMatch, 840, "A promising match shows up while you're half-looking for a distraction."),
         new("job-2", IncidentType.JobListing, 960, "A second .NET job listing appears before the week closes."),
     ];
 
     public IReadOnlyList<QueuedIncident> Update(RunState state, double elapsedInGameMinutes, SimulationConfig config)
     {
-        if (state.Status != RunStatus.InProgress || elapsedInGameMinutes <= 0)
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.PendingLifeEvent is not null ||
+            elapsedInGameMinutes <= 0)
         {
             return Array.Empty<QueuedIncident>();
         }
@@ -74,13 +80,29 @@ public sealed class IncidentScheduler
                 description));
         }
 
+        while (state.PublishedAppCount > 0 &&
+               config.PublishedAppSaleIntervalMinMinutes > 0 &&
+               state.NextPublishedAppSaleDeskMinute <= state.DeskMinutesElapsed)
+        {
+            var saleNumber = state.PublishedAppSaleCount + 1;
+            var triggerMinute = state.NextPublishedAppSaleDeskMinute;
+            state.PublishedAppSaleCount = saleNumber;
+            state.NextPublishedAppSaleDeskMinute = triggerMinute +
+                                                   GetPublishedSaleInterval(state, config, saleNumber + 1);
+            queued ??= [];
+            queued.Add(new QueuedIncident(
+                $"app-sale-{saleNumber}",
+                IncidentType.PublishedAppSale,
+                "A storefront payout from your shipped apps finally clears."));
+        }
+
         return queued is null ? Array.Empty<QueuedIncident>() : queued;
     }
 
     private static IncidentType PickDeskEventType(RunState state)
     {
         var seed = CreateSeed(state.RunSeed, state.GeneratedModifierIncidentCount);
-        return (seed % 8) switch
+        return (seed % 11) switch
         {
             0 => IncidentType.DeepWorkWindow,
             1 => IncidentType.ContextSwitch,
@@ -89,7 +111,10 @@ public sealed class IncidentScheduler
             4 => IncidentType.ExpenseSpike,
             5 => IncidentType.RubberDuckInsight,
             6 => IncidentType.MicroSale,
-            _ => IncidentType.DoomscrollSpiral,
+            7 => IncidentType.DoomscrollSpiral,
+            8 => IncidentType.ComputerFreeze,
+            9 => IncidentType.StreamingBinge,
+            _ => state.HasFoundLove ? IncidentType.CoffeeBounce : IncidentType.OnlineMatch,
         };
     }
 
@@ -105,6 +130,9 @@ public sealed class IncidentScheduler
             IncidentType.RubberDuckInsight => "You explain the problem out loud and the shape of the fix suddenly clicks.",
             IncidentType.MicroSale => "A tiny payout from older work lands out of nowhere and buys back a little breathing room.",
             IncidentType.DoomscrollSpiral => "One stray tab turns into a doomscroll spiral and drains the next block of energy.",
+            IncidentType.ComputerFreeze => "The computer hard-freezes and your whole plan for the next hour just vanished.",
+            IncidentType.StreamingBinge => "A show starts autoplaying and it is dangerously easy to let the night disappear.",
+            IncidentType.OnlineMatch => "A new match shows up online and real life suddenly competes with the backlog.",
             _ => string.Empty,
         };
     }
@@ -113,6 +141,19 @@ public sealed class IncidentScheduler
     {
         var seed = CreateSeed(state.RunSeed, state.GeneratedModifierIncidentCount + 97);
         return seed % 75;
+    }
+
+    private static int GetPublishedSaleInterval(RunState state, SimulationConfig config, int saleNumber)
+    {
+        var minimum = (int)Math.Round(Math.Min(config.PublishedAppSaleIntervalMinMinutes, config.PublishedAppSaleIntervalMaxMinutes));
+        var maximum = (int)Math.Round(Math.Max(config.PublishedAppSaleIntervalMinMinutes, config.PublishedAppSaleIntervalMaxMinutes));
+        if (maximum <= minimum)
+        {
+            return Math.Max(1, minimum);
+        }
+
+        var seed = CreateSeed(state.RunSeed, saleNumber + 211);
+        return minimum + (seed % ((maximum - minimum) + 1));
     }
 
     private static int CreateSeed(int runSeed, int value)

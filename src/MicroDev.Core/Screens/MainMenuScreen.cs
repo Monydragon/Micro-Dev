@@ -26,6 +26,7 @@ public sealed class MainMenuScreen : IScreen
     private readonly UiButton _easyButton = new("Easy");
     private readonly UiButton _normalButton = new("Normal");
     private readonly UiButton _hardButton = new("Hard");
+    private readonly UiButton _continualLoopButton = new("Upgrade Loop");
     private readonly UiButton _endlessButton = new("Endless");
 
     public MainMenuScreen(
@@ -51,9 +52,10 @@ public sealed class MainMenuScreen : IScreen
         _optionsButton.TextScale = 0.86f;
         _exitButton.TextScale = 0.86f;
         _easyButton.TextScale = 0.74f;
-        _normalButton.TextScale = 0.74f;
+        _normalButton.TextScale = 0.72f;
         _hardButton.TextScale = 0.74f;
-        _endlessButton.TextScale = 0.74f;
+        _continualLoopButton.TextScale = 0.62f;
+        _endlessButton.TextScale = 0.7f;
     }
 
     public void Update(GameTime gameTime, InputSnapshot input)
@@ -84,6 +86,7 @@ public sealed class MainMenuScreen : IScreen
         if (UpdateDifficultyButton(_easyButton, GameDifficulty.Easy, input) ||
             UpdateDifficultyButton(_normalButton, GameDifficulty.Normal, input) ||
             UpdateDifficultyButton(_hardButton, GameDifficulty.Hard, input) ||
+            UpdateDifficultyButton(_continualLoopButton, GameDifficulty.ContinualUpgradeLoop, input) ||
             UpdateDifficultyButton(_endlessButton, GameDifficulty.Endless, input))
         {
             return;
@@ -172,10 +175,12 @@ public sealed class MainMenuScreen : IScreen
         _easyButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Easy;
         _normalButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Normal;
         _hardButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Hard;
+        _continualLoopButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.ContinualUpgradeLoop;
         _endlessButton.IsSelected = _settings.SelectedDifficulty == GameDifficulty.Endless;
         _easyButton.Draw(spriteBatch, _pixel, _font);
         _normalButton.Draw(spriteBatch, _pixel, _font);
         _hardButton.Draw(spriteBatch, _pixel, _font);
+        _continualLoopButton.Draw(spriteBatch, _pixel, _font);
         _endlessButton.Draw(spriteBatch, _pixel, _font);
     }
 
@@ -194,10 +199,28 @@ public sealed class MainMenuScreen : IScreen
         _startButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 120, 188, 52);
         _optionsButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 186, 188, 46);
         _exitButton.Bounds = new Rectangle(buttonX, _heroBounds.Y + 242, 188, 46);
-        _easyButton.Bounds = new Rectangle(_footerBounds.X + 846, _footerBounds.Y + 116, 102, 36);
-        _normalButton.Bounds = new Rectangle(_footerBounds.X + 958, _footerBounds.Y + 116, 118, 36);
-        _hardButton.Bounds = new Rectangle(_footerBounds.X + 1086, _footerBounds.Y + 116, 102, 36);
-        _endlessButton.Bounds = new Rectangle(_footerBounds.X + 1198, _footerBounds.Y + 116, 128, 36);
+
+        const int difficultyGap = 8;
+        const int difficultyY = 116;
+        var easyWidth = 84;
+        var normalWidth = 94;
+        var hardWidth = 84;
+        var continualWidth = 122;
+        var endlessWidth = 92;
+        var totalDifficultyWidth =
+            easyWidth +
+            normalWidth +
+            hardWidth +
+            continualWidth +
+            endlessWidth +
+            (difficultyGap * 4);
+        var difficultyStartX = _footerBounds.Right - 24 - totalDifficultyWidth;
+
+        _easyButton.Bounds = new Rectangle(difficultyStartX, _footerBounds.Y + difficultyY, easyWidth, 36);
+        _normalButton.Bounds = new Rectangle(_easyButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, normalWidth, 36);
+        _hardButton.Bounds = new Rectangle(_normalButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, hardWidth, 36);
+        _continualLoopButton.Bounds = new Rectangle(_hardButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, continualWidth, 36);
+        _endlessButton.Bounds = new Rectangle(_continualLoopButton.Bounds.Right + difficultyGap, _footerBounds.Y + difficultyY, endlessWidth, 36);
     }
 
     private bool UpdateDifficultyButton(UiButton button, GameDifficulty difficulty, InputSnapshot input)
@@ -218,6 +241,7 @@ public sealed class MainMenuScreen : IScreen
         {
             GameDifficulty.Easy => "8 curated files, easier thresholds, calmer desk events, and guaranteed recruiter shots so every run gets chances to convert.",
             GameDifficulty.Hard => "Longer portfolio route, tighter bills, stricter recruiters, and a busier desk with more random disruptions.",
+            GameDifficulty.ContinualUpgradeLoop => "Keep the normal release batches, recurring shipped-app payouts, and the upgrade shop alive after successful applications so the run becomes a longer economic loop.",
             GameDifficulty.Endless => "The portfolio feed never ends. Accepted applications pay out, random desk events keep rolling, and the run never hard-stops on a win.",
             _ => "A balanced run with a larger portfolio queue, recurring job listings, and a steady stream of random desk events.",
         };

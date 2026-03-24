@@ -614,6 +614,18 @@ public static class PortfolioWorkspace
         return state.Difficulty != GameDifficulty.Endless;
     }
 
+    public static bool IsCurrentBatchComplete(RunState state)
+    {
+        if (!HasFiniteProgramCount(state))
+        {
+            return false;
+        }
+
+        var currentProgram = GetCurrentProgram(state);
+        return state.CurrentProgramIndex >= GetProgramCount(state) - 1 &&
+               state.CurrentProgramVisibleLineCount >= currentProgram.CodeLines.Count;
+    }
+
     public static PortfolioProgramDefinition GetCurrentProgram(RunState state)
     {
         return GetProgramAt(state, state.CurrentProgramIndex);
@@ -695,7 +707,7 @@ public static class PortfolioWorkspace
 
     public static void SynchronizeToLinesOfCode(RunState state)
     {
-        var remainingLines = Math.Max(0, state.LinesOfCode);
+        var remainingLines = Math.Max(0, state.CurrentPortfolioLinesOfCode);
         state.CurrentProgramIndex = 0;
         state.CurrentProgramVisibleLineCount = 0;
 
@@ -749,27 +761,12 @@ public static class PortfolioWorkspace
 
         if (HasFiniteProgramCount(state))
         {
-            return programPool[Math.Clamp(clampedIndex, 0, templateCount - 1)];
+            var releaseOffset = (state.PublishedAppCount * templateCount) + Math.Clamp(clampedIndex, 0, templateCount - 1);
+            return CreateCycleVariant(programPool[releaseOffset % programPool.Count], releaseOffset / programPool.Count);
         }
 
         var template = programPool[clampedIndex % templateCount];
-        var cycle = clampedIndex / templateCount;
-        if (cycle <= 0)
-        {
-            return template;
-        }
-
-        var cycleNumber = cycle + 1;
-        var suffix = $".Pass{cycleNumber}";
-        var fileName = template.FileName.EndsWith(".cs", StringComparison.Ordinal)
-            ? template.FileName[..^3] + suffix + ".cs"
-            : template.FileName + suffix;
-
-        return new PortfolioProgramDefinition(
-            $"{template.ProjectName} Iteration {cycleNumber}",
-            fileName,
-            $"{template.Description} Endless mode keeps the portfolio feed moving with another real pass.",
-            template.CodeLines);
+        return CreateCycleVariant(template, clampedIndex / templateCount, "Pass", "Iteration", "Endless mode keeps the portfolio feed moving with another real pass.");
     }
 
     private static IReadOnlyList<PortfolioProgramDefinition> GetRunProgramPool(RunState state)
@@ -1146,6 +1143,31 @@ public static class PortfolioWorkspace
             var swapIndex = random.Next(index + 1);
             (values[index], values[swapIndex]) = (values[swapIndex], values[index]);
         }
+    }
+
+    private static PortfolioProgramDefinition CreateCycleVariant(
+        PortfolioProgramDefinition template,
+        int cycle,
+        string fileSuffixLabel = "Pack",
+        string projectLabel = "Cycle",
+        string cycleDescription = "A fresh release keeps the shipped-app loop moving with another set of real snippets.")
+    {
+        if (cycle <= 0)
+        {
+            return template;
+        }
+
+        var cycleNumber = cycle + 1;
+        var suffix = $".{fileSuffixLabel}{cycleNumber}";
+        var fileName = template.FileName.EndsWith(".cs", StringComparison.Ordinal)
+            ? template.FileName[..^3] + suffix + ".cs"
+            : template.FileName + suffix;
+
+        return new PortfolioProgramDefinition(
+            $"{template.ProjectName} {projectLabel} {cycleNumber}",
+            fileName,
+            $"{template.Description} {cycleDescription}",
+            template.CodeLines);
     }
 
     private sealed record GeneratedProgramTheme(

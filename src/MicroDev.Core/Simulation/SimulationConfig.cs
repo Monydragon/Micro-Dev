@@ -18,6 +18,10 @@ public sealed class SimulationConfig
 
     public double StartingSanity { get; init; } = 70;
 
+    public double StartingMinutesSinceLastMeal { get; init; } = 4 * 60;
+
+    public double StartingMinutesSinceLastSleep { get; init; } = 0;
+
     public bool StartWithFirstCoin { get; init; } = true;
 
     public int StartingLinesOfCode { get; init; } = 0;
@@ -78,37 +82,127 @@ public sealed class SimulationConfig
 
     public double DoomscrollSanityLoss { get; init; } = 4;
 
+    public double HungryAfterMinutes { get; init; } = 10 * 60;
+
+    public double VeryHungryAfterMinutes { get; init; } = 16 * 60;
+
+    public double StarvingAfterMinutes { get; init; } = 24 * 60;
+
+    public double HungrySanityLossPerInGameMinute { get; init; } = 0.008;
+
+    public double VeryHungrySanityLossPerInGameMinute { get; init; } = 0.015;
+
+    public double StarvingSanityLossPerInGameMinute { get; init; } = 0.025;
+
+    public double SleepWarningAfterMinutes { get; init; } = 18 * 60;
+
+    public double SleepDeprivationAfterMinutes { get; init; } = 24 * 60;
+
+    public double SevereSleepDeprivationAfterMinutes { get; init; } = 36 * 60;
+
+    public double SleepForcedAfterMinutes { get; init; } = 48 * 60;
+
+    public double SleepDeprivationSanityLossPerInGameMinute { get; init; } = 0.01;
+
+    public double SleepDeprivationQualityLossPerInGameMinute { get; init; } = 0.015;
+
+    public double SevereSleepDeprivationSanityLossPerInGameMinute { get; init; } = 0.02;
+
+    public double SevereSleepDeprivationQualityLossPerInGameMinute { get; init; } = 0.03;
+
     public double BurgerFundsCost { get; init; } = 12;
 
-    public double BurgerFocusGain { get; init; } = 20;
+    public double BurgerFocusGain { get; init; } = 72;
 
-    public double BurgerSanityGain { get; init; } = 0;
+    public double BurgerSanityGain { get; init; } = 2;
 
-    public double BurgerSluggishDurationMinutes { get; init; } = 180;
+    public double BurgerSluggishDurationMinutes { get; init; } = 150;
 
     public double BurritoFundsCost { get; init; } = 10;
 
-    public double BurritoFocusGain { get; init; } = 16;
+    public double BurritoFocusGain { get; init; } = 66;
 
-    public double BurritoSanityGain { get; init; } = 2;
+    public double BurritoSanityGain { get; init; } = 7;
 
-    public double BurritoSluggishDurationMinutes { get; init; } = 120;
+    public double BurritoSluggishDurationMinutes { get; init; } = 105;
 
     public double PizzaFundsCost { get; init; } = 15;
 
-    public double PizzaFocusGain { get; init; } = 24;
+    public double PizzaFocusGain { get; init; } = 82;
 
-    public double PizzaSanityGain { get; init; } = -2;
+    public double PizzaSanityGain { get; init; } = 0;
 
-    public double PizzaSluggishDurationMinutes { get; init; } = 240;
+    public double PizzaSluggishDurationMinutes { get; init; } = 195;
 
     public double DumplingsFundsCost { get; init; } = 17;
 
-    public double DumplingsFocusGain { get; init; } = 14;
+    public double DumplingsFocusGain { get; init; } = 58;
 
-    public double DumplingsSanityGain { get; init; } = 6;
+    public double DumplingsSanityGain { get; init; } = 14;
 
-    public double DumplingsSluggishDurationMinutes { get; init; } = 75;
+    public double DumplingsSluggishDurationMinutes { get; init; } = 60;
+
+    public double FoodDeliveryDurationMinutes { get; init; } = 30;
+
+    public double ExpeditedFoodDeliveryDurationMinutes { get; init; } = 10;
+
+    public double ExpeditedFoodDeliveryTipAmount { get; init; } = 6;
+
+    public double ComputerFreezeSelfRepairDurationMinutes { get; init; } = 75;
+
+    public double ComputerFreezeSelfRepairSanityLoss { get; init; } = 8;
+
+    public double ComputerFreezeSelfRepairFocusLoss { get; init; } = 4;
+
+    public double ComputerFreezeTechSupportDurationMinutes { get; init; } = 45;
+
+    public double ComputerFreezeTechSupportSanityLoss { get; init; } = 4;
+
+    public double ComputerFreezeTechSupportFundsCost { get; init; } = 18;
+
+    public double ComputerFreezeRepairShopDurationMinutes { get; init; } = 120;
+
+    public double ComputerFreezeRepairShopSanityLoss { get; init; } = 2;
+
+    public double ComputerFreezeRepairShopFundsCost { get; init; } = 36;
+
+    public double StreamingBingeDurationMinutes { get; init; } = 105;
+
+    public double StreamingBingeSanityGain { get; init; } = 8;
+
+    public double StreamingBingeFocusLoss { get; init; } = 6;
+
+    public double StreamingEpisodeDurationMinutes { get; init; } = 42;
+
+    public double StreamingEpisodeSanityGain { get; init; } = 3;
+
+    public double StreamingEpisodeFocusLoss { get; init; } = 2;
+
+    public double StreamingTurnOffSanityLoss { get; init; } = 1;
+
+    public double OnlineMatchMessageDurationMinutes { get; init; } = 20;
+
+    public double OnlineMatchMessageSanityGain { get; init; } = 3;
+
+    public double OnlineMatchMessageFocusLoss { get; init; } = 2;
+
+    public int OnlineMatchMessageRelationshipGain { get; init; } = 1;
+
+    public double OnlineDateDurationMinutes { get; init; } = 120;
+
+    public double OnlineDateFundsCost { get; init; } = 18;
+
+    public double OnlineDateSanityGain { get; init; } = 10;
+
+    public double OnlineDateFocusLoss { get; init; } = 6;
+
+    public int OnlineDateRelationshipGain { get; init; } = 2;
+
+    public double OnlineMatchIgnoreSanityLoss { get; init; } = 1;
+
+    public int RelationshipProgressNeededForLove { get; init; } = 4;
+
+    public double FoundLovePassiveSanityRegenPerInGameMinute { get; init; } = 0.004;
 
     public double FreelanceDurationMinutes { get; init; } = 60;
 
@@ -150,9 +244,9 @@ public sealed class SimulationConfig
 
     public double SleepDurationMinutes { get; init; } = 8 * 60;
 
-    public double SleepFocusGain { get; init; } = 60;
+    public double SleepFocusGain { get; init; } = 100;
 
-    public double SleepSanityGain { get; init; } = 25;
+    public double SleepSanityGain { get; init; } = 18;
 
     public double DailyBillAmount { get; init; } = 40;
 
@@ -163,6 +257,14 @@ public sealed class SimulationConfig
     public double CatStayDurationMinutes { get; init; } = 150;
 
     public int CatLinesDeletionPenalty { get; init; } = 25;
+
+    public double CatTypingBurstIntervalMinutes { get; init; } = 20;
+
+    public double CatBugQualityLossPerBurst { get; init; } = 1.5;
+
+    public int CatBugLinesPerBurst { get; init; } = 1;
+
+    public int CatGibberishLinesPerBurst { get; init; } = 2;
 
     public double TechDebtDurationMinutes { get; init; } = 180;
 
@@ -204,6 +306,18 @@ public sealed class SimulationConfig
 
     public bool ContinueAfterSuccessfulApplication { get; init; }
 
+    public double PublishAppFundsMin { get; init; } = 46;
+
+    public double PublishAppFundsMax { get; init; } = 82;
+
+    public double PublishedAppSaleFundsMin { get; init; } = 8;
+
+    public double PublishedAppSaleFundsMax { get; init; } = 22;
+
+    public double PublishedAppSaleIntervalMinMinutes { get; init; } = 180;
+
+    public double PublishedAppSaleIntervalMaxMinutes { get; init; } = 360;
+
     public double FileCompletionCelebrationMinutes { get; init; } = 90;
 
     public double FirstCoinPassiveSanityRegenPerInGameMinute { get; init; } = 0.006;
@@ -233,6 +347,12 @@ public sealed class SimulationConfig
                 ModifierIncidentIntervalMinutes = 300,
                 ApplicationChallengeRequiredLines = 8,
                 ApplicationInterviewMinimumCorrectAnswers = 1,
+                PublishAppFundsMin = 56,
+                PublishAppFundsMax = 92,
+                PublishedAppSaleFundsMin = 10,
+                PublishedAppSaleFundsMax = 24,
+                PublishedAppSaleIntervalMinMinutes = 150,
+                PublishedAppSaleIntervalMaxMinutes = 300,
             },
             GameDifficulty.Hard => new SimulationConfig
             {
@@ -253,6 +373,12 @@ public sealed class SimulationConfig
                 ModifierIncidentIntervalMinutes = 150,
                 ApplicationChallengeRequiredLines = 12,
                 ApplicationInterviewMinimumCorrectAnswers = 2,
+                PublishAppFundsMin = 38,
+                PublishAppFundsMax = 68,
+                PublishedAppSaleFundsMin = 6,
+                PublishedAppSaleFundsMax = 18,
+                PublishedAppSaleIntervalMinMinutes = 210,
+                PublishedAppSaleIntervalMaxMinutes = 420,
             },
             GameDifficulty.Endless => new SimulationConfig
             {
@@ -268,6 +394,30 @@ public sealed class SimulationConfig
                 ContinueAfterSuccessfulApplication = true,
                 SuccessfulApplicationFundsReward = 55,
                 SuccessfulApplicationSanityReward = 8,
+                PublishAppFundsMin = 52,
+                PublishAppFundsMax = 88,
+                PublishedAppSaleFundsMin = 9,
+                PublishedAppSaleFundsMax = 24,
+                PublishedAppSaleIntervalMinMinutes = 165,
+                PublishedAppSaleIntervalMaxMinutes = 315,
+            },
+            GameDifficulty.ContinualUpgradeLoop => new SimulationConfig
+            {
+                Difficulty = difficulty,
+                PortfolioTemplateCount = 12,
+                ContinueAfterSuccessfulApplication = true,
+                SuccessfulApplicationFundsReward = 48,
+                SuccessfulApplicationSanityReward = 6,
+                FirstGuaranteedJobDelayMinutes = 330,
+                GuaranteedJobListingIntervalMinutes = 300,
+                FirstModifierIncidentDelayMinutes = 135,
+                ModifierIncidentIntervalMinutes = 180,
+                PublishAppFundsMin = 52,
+                PublishAppFundsMax = 90,
+                PublishedAppSaleFundsMin = 10,
+                PublishedAppSaleFundsMax = 24,
+                PublishedAppSaleIntervalMinMinutes = 150,
+                PublishedAppSaleIntervalMaxMinutes = 300,
             },
             _ => new SimulationConfig
             {
@@ -277,6 +427,12 @@ public sealed class SimulationConfig
                 GuaranteedJobListingIntervalMinutes = 360,
                 ApplicationChallengeRequiredLines = 10,
                 ApplicationInterviewMinimumCorrectAnswers = 2,
+                PublishAppFundsMin = 46,
+                PublishAppFundsMax = 82,
+                PublishedAppSaleFundsMin = 8,
+                PublishedAppSaleFundsMax = 22,
+                PublishedAppSaleIntervalMinMinutes = 180,
+                PublishedAppSaleIntervalMaxMinutes = 360,
             },
         };
     }

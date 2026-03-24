@@ -13,6 +13,10 @@ public enum IncidentType
     ExpenseSpike,
     RubberDuckInsight,
     MicroSale,
+    PublishedAppSale,
     DoomscrollSpiral,
+    ComputerFreeze,
+    StreamingBinge,
+    OnlineMatch,
     FirstCoinDilemma,
 }

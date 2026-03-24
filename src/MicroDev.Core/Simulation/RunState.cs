@@ -34,6 +34,10 @@ public sealed class RunState
 
     public double ContextSwitchMinutesRemaining { get; set; }
 
+    public double MinutesSinceLastMeal { get; set; }
+
+    public double MinutesSinceLastSleep { get; set; }
+
     public int SuccessfulApplications { get; set; }
 
     public int GeneratedJobListingCount { get; set; }
@@ -50,9 +54,27 @@ public sealed class RunState
 
     public double FirstCoinRescueDeficit { get; set; }
 
+    public PendingLifeEvent? PendingLifeEvent { get; set; }
+
+    public int RelationshipProgress { get; set; }
+
+    public bool HasFoundLove { get; set; }
+
+    public string? PartnerName { get; set; }
+
+    public int CurrentPortfolioLinesOfCode { get; set; }
+
     public int CurrentProgramIndex { get; set; }
 
     public int CurrentProgramVisibleLineCount { get; set; }
+
+    public int PublishedAppCount { get; set; }
+
+    public int PublishedAppSaleCount { get; set; }
+
+    public double NextPublishedAppSaleDeskMinute { get; set; } = double.PositiveInfinity;
+
+    public string? LastPublishedAppName { get; set; }
 
     public string? RecentCompletedFileName { get; set; }
 
@@ -61,6 +83,8 @@ public sealed class RunState
     public RunStatus Status { get; set; } = RunStatus.InProgress;
 
     public string? OutcomeMessage { get; set; }
+
+    public ActiveFoodDelivery? ActiveFoodDelivery { get; set; }
 
     public ActiveCatInterruption? ActiveCatInterruption { get; set; }
 
@@ -109,6 +133,8 @@ public sealed class RunState
             SluggishMinutesRemaining = SluggishMinutesRemaining,
             DeepWorkMinutesRemaining = DeepWorkMinutesRemaining,
             ContextSwitchMinutesRemaining = ContextSwitchMinutesRemaining,
+            MinutesSinceLastMeal = MinutesSinceLastMeal,
+            MinutesSinceLastSleep = MinutesSinceLastSleep,
             SuccessfulApplications = SuccessfulApplications,
             GeneratedJobListingCount = GeneratedJobListingCount,
             GeneratedModifierIncidentCount = GeneratedModifierIncidentCount,
@@ -117,12 +143,22 @@ public sealed class RunState
             HasFirstCoin = HasFirstCoin,
             FirstCoinDecisionPending = FirstCoinDecisionPending,
             FirstCoinRescueDeficit = FirstCoinRescueDeficit,
+            PendingLifeEvent = PendingLifeEvent?.Clone(),
+            RelationshipProgress = RelationshipProgress,
+            HasFoundLove = HasFoundLove,
+            PartnerName = PartnerName,
+            CurrentPortfolioLinesOfCode = CurrentPortfolioLinesOfCode,
             CurrentProgramIndex = CurrentProgramIndex,
             CurrentProgramVisibleLineCount = CurrentProgramVisibleLineCount,
+            PublishedAppCount = PublishedAppCount,
+            PublishedAppSaleCount = PublishedAppSaleCount,
+            NextPublishedAppSaleDeskMinute = NextPublishedAppSaleDeskMinute,
+            LastPublishedAppName = LastPublishedAppName,
             RecentCompletedFileName = RecentCompletedFileName,
             FileCompletionCelebrationMinutesRemaining = FileCompletionCelebrationMinutesRemaining,
             Status = Status,
             OutcomeMessage = OutcomeMessage,
+            ActiveFoodDelivery = ActiveFoodDelivery?.Clone(),
             ActiveCatInterruption = ActiveCatInterruption?.Clone(),
             ActiveTechDebtBug = ActiveTechDebtBug?.Clone(),
             ActiveJobListing = ActiveJobListing?.Clone(),
@@ -154,6 +190,8 @@ public sealed class RunState
         SluggishMinutesRemaining = other.SluggishMinutesRemaining;
         DeepWorkMinutesRemaining = other.DeepWorkMinutesRemaining;
         ContextSwitchMinutesRemaining = other.ContextSwitchMinutesRemaining;
+        MinutesSinceLastMeal = other.MinutesSinceLastMeal;
+        MinutesSinceLastSleep = other.MinutesSinceLastSleep;
         SuccessfulApplications = other.SuccessfulApplications;
         GeneratedJobListingCount = other.GeneratedJobListingCount;
         GeneratedModifierIncidentCount = other.GeneratedModifierIncidentCount;
@@ -162,12 +200,22 @@ public sealed class RunState
         HasFirstCoin = other.HasFirstCoin;
         FirstCoinDecisionPending = other.FirstCoinDecisionPending;
         FirstCoinRescueDeficit = other.FirstCoinRescueDeficit;
+        PendingLifeEvent = other.PendingLifeEvent?.Clone();
+        RelationshipProgress = other.RelationshipProgress;
+        HasFoundLove = other.HasFoundLove;
+        PartnerName = other.PartnerName;
+        CurrentPortfolioLinesOfCode = other.CurrentPortfolioLinesOfCode;
         CurrentProgramIndex = other.CurrentProgramIndex;
         CurrentProgramVisibleLineCount = other.CurrentProgramVisibleLineCount;
+        PublishedAppCount = other.PublishedAppCount;
+        PublishedAppSaleCount = other.PublishedAppSaleCount;
+        NextPublishedAppSaleDeskMinute = other.NextPublishedAppSaleDeskMinute;
+        LastPublishedAppName = other.LastPublishedAppName;
         RecentCompletedFileName = other.RecentCompletedFileName;
         FileCompletionCelebrationMinutesRemaining = other.FileCompletionCelebrationMinutesRemaining;
         Status = other.Status;
         OutcomeMessage = other.OutcomeMessage;
+        ActiveFoodDelivery = other.ActiveFoodDelivery?.Clone();
         ActiveCatInterruption = other.ActiveCatInterruption?.Clone();
         ActiveTechDebtBug = other.ActiveTechDebtBug?.Clone();
         ActiveJobListing = other.ActiveJobListing?.Clone();

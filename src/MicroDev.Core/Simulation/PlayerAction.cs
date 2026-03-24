@@ -9,5 +9,6 @@ public enum PlayerAction
     PetCat,
     SquashBug,
     ApplyForJob,
+    PublishApp,
     RestartRun,
 }

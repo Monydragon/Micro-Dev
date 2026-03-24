@@ -4,6 +4,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="nkast.Xna.Framework" Version="$(KniVersion)" />
+    <PackageReference Include="nkast.Xna.Framework.Audio" Version="$(KniVersion)" />
+    <PackageReference Include="nkast.Xna.Framework.Content" Version="$(KniVersion)" />
+    <PackageReference Include="nkast.Xna.Framework.Game" Version="$(KniVersion)" />
+    <PackageReference Include="nkast.Xna.Framework.Graphics" Version="$(KniVersion)" />
+    <PackageReference Include="nkast.Xna.Framework.Input" Version="$(KniVersion)" />
   </ItemGroup>
 </Project>

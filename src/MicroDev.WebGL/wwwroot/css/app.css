@@ -1,0 +1,141 @@
+:root {
+  --microdev-vw: 100vw;
+  --microdev-vh: 100dvh;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0c1119;
+  overscroll-behavior: none;
+}
+
+html,
+body,
+#app,
+.canvas-host,
+.app-loading-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+.canvas-host,
+.app-loading-shell {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  right: env(safe-area-inset-right);
+  bottom: env(safe-area-inset-bottom);
+  left: env(safe-area-inset-left);
+  width: var(--microdev-vw);
+  height: var(--microdev-vh);
+  background:
+    radial-gradient(circle at top, rgba(48, 79, 120, 0.35), transparent 55%),
+    linear-gradient(180deg, #121a27 0%, #090d14 100%);
+}
+
+.app-loading-shell {
+  display: grid;
+  place-items: center;
+}
+
+.app-loading-panel {
+  min-width: min(28rem, calc(100vw - 3rem));
+  padding: 1.5rem 1.75rem;
+  border: 1px solid rgba(90, 132, 192, 0.55);
+  background: rgba(15, 22, 33, 0.88);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.app-loading-title {
+  color: #eef4ff;
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  letter-spacing: 0.02em;
+}
+
+.app-loading-copy {
+  margin-top: 0.55rem;
+  color: #8ec8ff;
+  font-size: 1rem;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top))
+    calc(1.25rem + env(safe-area-inset-right))
+    calc(1.5rem + env(safe-area-inset-bottom))
+    calc(1.25rem + env(safe-area-inset-left));
+  background:
+    linear-gradient(180deg, rgba(7, 10, 16, 0.9) 0%, rgba(7, 10, 16, 0.96) 100%),
+    radial-gradient(circle at top, rgba(48, 79, 120, 0.28), transparent 52%);
+  backdrop-filter: blur(8px);
+}
+
+.mobile-overlay[hidden] {
+  display: none;
+}
+
+.mobile-overlay-panel {
+  width: min(28rem, 100%);
+  padding: 1.25rem 1.2rem;
+  border: 1px solid rgba(90, 132, 192, 0.7);
+  background: rgba(15, 22, 33, 0.94);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+.mobile-overlay-eyebrow {
+  color: #8ec8ff;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mobile-overlay-title {
+  margin-top: 0.45rem;
+  color: #eef4ff;
+  font-size: clamp(1.35rem, 5vw, 1.85rem);
+}
+
+.mobile-overlay-copy {
+  margin-top: 0.75rem;
+  color: #b8c7de;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.mobile-overlay-action {
+  margin-top: 1rem;
+  min-height: 3rem;
+  width: 100%;
+  border: 1px solid rgba(90, 132, 192, 0.85);
+  background: linear-gradient(180deg, rgba(63, 95, 140, 0.92) 0%, rgba(45, 73, 112, 0.96) 100%);
+  color: #eef4ff;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+#blazor-error-ui {
+  display: none;
+}

@@ -52,8 +52,14 @@ public sealed class SimulationEngineTests
         var ordered = _engine.PlaceFoodOrder(state, FoodChoice.Burger, doubleCheckOrder: false);
 
         Assert.True(ordered);
+        Assert.NotNull(state.ActiveFoodDelivery);
         Assert.Equal(63, state.Funds, 3);
-        Assert.Equal(60, state.Focus, 3);
+        Assert.Equal(40, state.Focus, 3);
+
+        _engine.AdvanceTime(state, _engine.Config.FoodDeliveryDurationMinutes);
+
+        Assert.Null(state.ActiveFoodDelivery);
+        Assert.Equal(100, state.Focus, 3);
         Assert.Equal(_engine.Config.BurgerSluggishDurationMinutes, state.SluggishMinutesRemaining, 3);
         Assert.True(_engine.IsSluggish(state));
     }
@@ -66,9 +72,14 @@ public sealed class SimulationEngineTests
         var ordered = _engine.PlaceFoodOrder(state, FoodChoice.Burrito, doubleCheckOrder: true);
 
         Assert.True(ordered);
+        Assert.NotNull(state.ActiveFoodDelivery);
         Assert.Equal(65, state.Funds, 3);
-        Assert.Equal(86, state.Focus, 3);
-        Assert.Equal(72, state.Sanity, 3);
+
+        _engine.AdvanceTime(state, _engine.Config.FoodDeliveryDurationMinutes);
+
+        Assert.Null(state.ActiveFoodDelivery);
+        Assert.Equal(100, state.Focus, 3);
+        Assert.Equal(77.18, state.Sanity, 3);
         Assert.Equal(0, state.SluggishMinutesRemaining, 3);
     }
 
@@ -83,8 +94,11 @@ public sealed class SimulationEngineTests
 
         Assert.True(ordered);
         Assert.Equal(58, state.Funds, 3);
-        Assert.Equal(54, state.Focus, 3);
-        Assert.Equal(36, state.Sanity, 3);
+
+        _engine.AdvanceTime(state, _engine.Config.FoodDeliveryDurationMinutes);
+
+        Assert.Equal(97.25, state.Focus, 3);
+        Assert.Equal(44.18, state.Sanity, 3);
     }
 
     [Fact]
@@ -101,8 +115,91 @@ public sealed class SimulationEngineTests
 
         Assert.True(ordered);
         Assert.Equal(63, state.Funds, 3);
-        Assert.Equal(60, state.Focus, 3);
-        Assert.Equal(135, state.SluggishMinutesRemaining, 3);
+
+        _engine.AdvanceTime(state, _engine.Config.FoodDeliveryDurationMinutes);
+
+        Assert.Equal(100, state.Focus, 3);
+        Assert.Equal(112, state.SluggishMinutesRemaining, 3);
+    }
+
+    [Fact]
+    public void PlaceFoodOrder_ExpeditedDelivery_CostsATipAndArrivesSooner()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 40;
+
+        var ordered = _engine.PlaceFoodOrder(state, FoodChoice.Burger, doubleCheckOrder: true, expeditedDelivery: true);
+
+        Assert.True(ordered);
+        Assert.NotNull(state.ActiveFoodDelivery);
+        Assert.Equal(57, state.Funds, 3);
+
+        _engine.AdvanceTime(state, _engine.Config.ExpeditedFoodDeliveryDurationMinutes - 1);
+        Assert.NotNull(state.ActiveFoodDelivery);
+
+        _engine.AdvanceTime(state, 1);
+
+        Assert.Null(state.ActiveFoodDelivery);
+        Assert.Equal(100, state.Focus, 3);
+        Assert.Equal(0, state.SluggishMinutesRemaining, 3);
+    }
+
+    [Fact]
+    public void AdvanceTime_WithoutFood_DrainsSanityAfterHungerThreshold()
+    {
+        var state = _engine.CreateNewRun();
+        state.HasFirstCoin = false;
+        state.Sanity = 60;
+        state.MinutesSinceLastMeal = _engine.Config.HungryAfterMinutes;
+
+        _engine.AdvanceTime(state, 120);
+
+        Assert.Equal(59.04, state.Sanity, 3);
+    }
+
+    [Fact]
+    public void AdvanceTime_WhileSleepDeprived_DrainsCodeQuality()
+    {
+        var state = _engine.CreateNewRun();
+        state.HasFirstCoin = false;
+        state.CodeQuality = 80;
+        state.MinutesSinceLastSleep = _engine.Config.SleepDeprivationAfterMinutes;
+
+        _engine.AdvanceTime(state, 120);
+
+        Assert.Equal(78.2, state.CodeQuality, 3);
+    }
+
+    [Fact]
+    public void AdvanceTime_AfterTwoDaysAwake_RequiresSleep()
+    {
+        var state = _engine.CreateNewRun();
+        state.MinutesSinceLastSleep = _engine.Config.SleepForcedAfterMinutes - 60;
+
+        _engine.AdvanceTime(state, 60);
+
+        Assert.True(_engine.RequiresSleep(state));
+        Assert.False(_engine.CanApplyAction(state, PlayerAction.WriteCode));
+        Assert.True(_engine.CanApplyAction(state, PlayerAction.Sleep));
+        Assert.Contains(state.EventLog, entry => entry.Contains("Two straight days without sleep", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Sleep_RefillsFocusToFull_AndClearsSleepDebt()
+    {
+        var state = _engine.CreateNewRun();
+        state.HasFirstCoin = false;
+        state.Focus = 12;
+        state.Sanity = 40;
+        state.MinutesSinceLastMeal = 0;
+        state.MinutesSinceLastSleep = 30 * 60;
+
+        var slept = _engine.ApplyAction(state, PlayerAction.Sleep);
+
+        Assert.True(slept);
+        Assert.Equal(_engine.Config.MaxFocus, state.Focus, 3);
+        Assert.Equal(58, state.Sanity, 3);
+        Assert.Equal(0, state.MinutesSinceLastSleep, 3);
     }
 
     [Fact]
@@ -139,12 +236,13 @@ public sealed class SimulationEngineTests
     {
         var state = _engine.CreateNewRun();
         _engine.PlaceFoodOrder(state, FoodChoice.Burger, doubleCheckOrder: false);
+        _engine.AdvanceTime(state, _engine.Config.FoodDeliveryDurationMinutes);
 
         var applied = _engine.ApplyAction(state, PlayerAction.WriteCode);
 
         Assert.True(applied);
         Assert.Equal(1, state.LinesOfCode);
-        Assert.Equal(87.25, state.Focus, 3);
+        Assert.Equal(97.25, state.Focus, 3);
         Assert.Equal(100, state.CodeQuality, 3);
     }
 
@@ -171,6 +269,48 @@ public sealed class SimulationEngineTests
 
         Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
         Assert.NotEmpty(PortfolioWorkspace.GetVisibleLines(state));
+    }
+
+    [Fact]
+    public void PublishApp_CompletingPortfolioPaysAndRollsToANewBatch()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 2000;
+        var firstFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
+
+        CompleteCurrentPortfolioBatch(_engine, state);
+        var fundsBeforePublish = state.Funds;
+
+        Assert.True(_engine.IsPortfolioPublishReady(state));
+        Assert.True(_engine.ApplyAction(state, PlayerAction.PublishApp));
+
+        Assert.Equal(1, state.PublishedAppCount);
+        Assert.True(state.Funds > fundsBeforePublish);
+        Assert.Equal(0, state.CurrentPortfolioLinesOfCode);
+        Assert.Equal(0, state.CurrentProgramIndex);
+        Assert.Equal(0, state.CurrentProgramVisibleLineCount);
+        Assert.NotNull(state.LastPublishedAppName);
+        Assert.NotEqual(firstFileName, PortfolioWorkspace.GetCurrentProgram(state).FileName);
+    }
+
+    [Fact]
+    public void PublishedApps_CanTriggerStorefrontPayouts()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 2000;
+
+        CompleteCurrentPortfolioBatch(_engine, state);
+        Assert.True(_engine.ApplyAction(state, PlayerAction.PublishApp));
+
+        state.NextPublishedAppSaleDeskMinute = 1;
+        var fundsBeforeSale = state.Funds;
+        var incidents = _scheduler.Update(state, 2, _engine.Config);
+
+        Assert.Contains(incidents, incident => incident.Type == IncidentType.PublishedAppSale);
+
+        _engine.QueueIncidents(state, incidents);
+
+        Assert.True(state.Funds > fundsBeforeSale);
     }
 
     [Fact]
@@ -288,6 +428,56 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
+    public void ComputerFreeze_CanBeResolvedWithASelfRepairChoice()
+    {
+        var state = _engine.CreateNewRun();
+
+        _engine.QueueIncidents(state, [new QueuedIncident("freeze-1", IncidentType.ComputerFreeze, "Freeze!")]);
+
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.True(_engine.ResolveLifeEventOption(state, 0));
+
+        Assert.False(_engine.HasPendingLifeEvent(state));
+        Assert.Equal("09:15", state.ClockText);
+        Assert.True(state.Sanity < 70);
+        Assert.True(state.Focus < 70);
+    }
+
+    [Fact]
+    public void StreamingBinge_EventTradesTimeForSanity()
+    {
+        var state = _engine.CreateNewRun();
+        state.Sanity = 50;
+
+        _engine.QueueIncidents(state, [new QueuedIncident("show-1", IncidentType.StreamingBinge, "Show!")]);
+
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.True(_engine.ResolveLifeEventOption(state, 0));
+
+        Assert.False(_engine.HasPendingLifeEvent(state));
+        Assert.Equal("09:45", state.ClockText);
+        Assert.True(state.Sanity > 50);
+        Assert.True(state.Focus < 70);
+    }
+
+    [Fact]
+    public void OnlineMatch_CanBecomeRealRelationshipAfterEnoughPositiveChoices()
+    {
+        var state = _engine.CreateNewRun();
+        state.Funds = 100;
+
+        _engine.QueueIncidents(state, [new QueuedIncident("match-1", IncidentType.OnlineMatch, "Match!")]);
+        Assert.True(_engine.ResolveLifeEventOption(state, 1));
+
+        _engine.QueueIncidents(state, [new QueuedIncident("match-2", IncidentType.OnlineMatch, "Match!")]);
+        Assert.True(_engine.ResolveLifeEventOption(state, 1));
+
+        Assert.True(state.HasFoundLove);
+        Assert.NotNull(state.PartnerName);
+        Assert.True(state.RelationshipProgress >= _engine.Config.RelationshipProgressNeededForLove);
+    }
+
+    [Fact]
     public void CatTimeout_DeletesLinesOfCodeWhenIgnored()
     {
         var state = _engine.CreateNewRun();
@@ -321,6 +511,20 @@ public sealed class SimulationEngineTests
 
         Assert.Null(state.ActiveCatInterruption);
         Assert.Equal(80, state.LinesOfCode);
+    }
+
+    [Fact]
+    public void CatInterruption_AddsGibberishAndQualityLossWhileActive()
+    {
+        var state = _engine.CreateNewRun();
+        _engine.QueueIncidents(state, [new QueuedIncident("cat-1", IncidentType.CatInterruption, "Cat!")]);
+
+        _engine.AdvanceTime(state, (_engine.Config.CatTypingBurstIntervalMinutes * 2) + 1);
+
+        var cat = Assert.IsType<ActiveCatInterruption>(state.ActiveCatInterruption);
+        Assert.True(cat.PhantomBugCount >= 2);
+        Assert.True(cat.GibberishLinesTyped >= 4);
+        Assert.True(state.CodeQuality < 100);
     }
 
     [Fact]
@@ -491,6 +695,27 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
+    public void JobApplicationQuestions_ShuffleAnswerOrder()
+    {
+        var state = _engine.CreateNewRun();
+        state.RunSeed = 12345;
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Focus = 200;
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.ApplyForJob));
+
+        var application = Assert.IsType<ActiveJobApplication>(state.ActiveJobApplication);
+        Assert.Contains(application.Questions, question => question.CorrectOptionIndex != 0);
+        Assert.All(application.Questions, question =>
+        {
+            Assert.InRange(question.CorrectOptionIndex, 0, question.Options.Count - 1);
+        });
+    }
+
+    [Fact]
     public void JobApplicationChallenge_RejectionKeepsRunAlive()
     {
         var state = _engine.CreateNewRun();
@@ -575,7 +800,7 @@ public sealed class SimulationEngineTests
         Assert.False(state.HasFirstCoin);
         Assert.False(state.FirstCoinDecisionPending);
         Assert.Equal(5, state.Funds, 3);
-        Assert.Equal(67.76, state.Sanity, 3);
+        Assert.Equal(61.28, state.Sanity, 3);
     }
 
     [Fact]
@@ -610,12 +835,48 @@ public sealed class SimulationEngineTests
         var engine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.Endless));
         var state = engine.CreateNewRun();
         state.LinesOfCode = 10000;
+        state.CurrentPortfolioLinesOfCode = 10000;
 
         PortfolioWorkspace.SynchronizeToLinesOfCode(state);
 
         Assert.Equal(GameDifficulty.Endless, state.Difficulty);
         Assert.True(state.CurrentProgramIndex >= PortfolioWorkspace.GetProgramCount(state));
         Assert.Contains("Pass", PortfolioWorkspace.GetCurrentProgram(state).FileName);
+    }
+
+    [Fact]
+    public void ContinualUpgradeLoop_KeepsRunAliveAfterSuccessfulApplication()
+    {
+        var engine = new SimulationEngine(SimulationConfig.ForDifficulty(GameDifficulty.ContinualUpgradeLoop));
+        var state = engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Focus = 200;
+        var fundsBeforeSuccess = state.Funds;
+
+        engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(engine.ApplyAction(state, PlayerAction.ApplyForJob));
+
+        while (state.ActiveJobApplication is not null &&
+               !state.ActiveJobApplication.TakeHomeComplete)
+        {
+            Assert.True(engine.WorkOnJobApplication(state));
+        }
+
+        while (state.ActiveJobApplication is not null)
+        {
+            var question = state.ActiveJobApplication.Questions[state.ActiveJobApplication.CurrentQuestionIndex];
+            Assert.True(engine.AnswerInterviewQuestion(state, question.CorrectOptionIndex));
+        }
+
+        Assert.Equal(GameDifficulty.ContinualUpgradeLoop, state.Difficulty);
+        Assert.Equal(RunStatus.InProgress, state.Status);
+        Assert.Equal(1, state.SuccessfulApplications);
+        Assert.Null(state.OutcomeMessage);
+        Assert.True(state.Funds > fundsBeforeSuccess);
+        Assert.True(PortfolioWorkspace.HasFiniteProgramCount(state));
     }
 
     [Fact]
@@ -643,6 +904,23 @@ public sealed class SimulationEngineTests
     {
         var listing = Assert.IsType<ActiveJobListing>(state.ActiveJobListing);
         SetResumeProof(state, listing.ResumeTrack, listing.RequiredResumeProof);
+    }
+
+    private static void CompleteCurrentPortfolioBatch(SimulationEngine engine, RunState state)
+    {
+        var totalLines = 0;
+        for (var index = 0; index < PortfolioWorkspace.GetProgramCount(state); index++)
+        {
+            state.CurrentProgramIndex = index;
+            state.CurrentProgramVisibleLineCount = 0;
+            totalLines += PortfolioWorkspace.GetCurrentProgram(state).TotalLinesOfCode;
+        }
+
+        state.CurrentPortfolioLinesOfCode = totalLines;
+        state.LinesOfCode = Math.Max(state.LinesOfCode, totalLines);
+        PortfolioWorkspace.SynchronizeToLinesOfCode(state);
+
+        Assert.True(engine.IsPortfolioPublishReady(state));
     }
 
     private static int GetResumeProof(RunState state, ResumeTrack track)

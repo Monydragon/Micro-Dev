@@ -491,48 +491,48 @@ internal static class JobApplicationContentCatalog
     private static readonly IReadOnlyList<InterviewQuestion> CoreProgrammingQuestions =
     [
         new(
-            "Which type is usually used to store true or false?",
+            "Which C# type is typically used for a true-or-false value?",
             ["bool", "string", "int"],
             0),
         new(
-            "Which type is usually used to store text like a player name?",
+            "Which type is the usual choice for text such as a player name?",
             ["string", "bool", "int"],
             0),
         new(
-            "Which type is usually used to store a whole number like 42?",
+            "Which type is typically used for a whole number such as 42?",
             ["int", "bool", "string"],
             0),
         new(
             "What does an if statement usually do?",
-            ["Runs code only when a condition is true", "Creates a sprite on screen", "Renames a file"],
+            ["Runs code only when a condition is true", "Repeats a block a fixed number of times", "Stores a value for later use"],
             0),
         new(
             "What is a loop usually used for?",
-            ["Repeating work", "Drawing text", "Closing the game"],
+            ["Repeating a set of steps", "Declaring a namespace", "Renaming a variable automatically"],
             0),
         new(
-            "What is a variable used for?",
-            ["Storing a value you want to use later", "Only drawing UI", "Turning code into music"],
+            "What is a variable mainly used for?",
+            ["Storing a value you want to use later", "Ending the program immediately", "Rendering every frame by itself"],
             0),
         new(
-            "What does a function return value mean?",
-            ["The result it gives back", "Its screen position", "Its file name"],
+            "What does a function's return value represent?",
+            ["The result it gives back to the caller", "The line where the function was declared", "The button that triggered the function"],
             0),
         new(
             "What does == usually check?",
-            ["Whether two values are equal", "Whether a loop has ended", "Whether a string is empty"],
+            ["Whether two values are equal", "Whether a method is static", "Whether a list has more than one item"],
             0),
         new(
             "What is a list or array useful for?",
-            ["Storing multiple values together", "Making every function static", "Avoiding all bugs"],
+            ["Storing multiple values together", "Making every method public", "Guaranteeing thread safety automatically"],
             0),
         new(
             "What does null usually mean?",
-            ["No value is set there yet", "The value is always true", "The number is below zero"],
+            ["No value is set there yet", "The value is always true", "The number is negative"],
             0),
         new(
             "What is a parameter?",
-            ["A value passed into a function", "A saved screenshot", "A finished build"],
+            ["A value passed into a function", "A file generated during publish", "A warning produced by the compiler"],
             0),
     ];
 
@@ -559,7 +559,9 @@ internal static class JobApplicationContentCatalog
 
         return indexes
             .Take(3)
-            .Select(index => CoreProgrammingQuestions[index].Clone())
+            .Select((index, position) => ShuffleQuestionOptions(
+                CoreProgrammingQuestions[index],
+                CreateSeed(seed, $"question:{position}:{CoreProgrammingQuestions[index].Prompt}")))
             .ToArray();
     }
 
@@ -600,6 +602,15 @@ internal static class JobApplicationContentCatalog
             var swapIndex = random.Next(index + 1);
             (values[index], values[swapIndex]) = (values[swapIndex], values[index]);
         }
+    }
+
+    private static InterviewQuestion ShuffleQuestionOptions(InterviewQuestion question, int seed)
+    {
+        var options = question.Options.ToList();
+        var correctAnswer = options[question.CorrectOptionIndex];
+        Shuffle(options, seed);
+        var correctOptionIndex = options.FindIndex(option => string.Equals(option, correctAnswer, StringComparison.Ordinal));
+        return new InterviewQuestion(question.Prompt, options, correctOptionIndex);
     }
 
     private enum JobTechFamily
