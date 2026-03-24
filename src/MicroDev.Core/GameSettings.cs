@@ -2,9 +2,14 @@ namespace MicroDev.Core;
 
 using Microsoft.Xna.Framework;
 using MicroDev.Core.Simulation;
+using MicroDev.Core.UI;
 
 public sealed class GameSettings
 {
+    public UiThemeMode ThemeMode { get; set; } = UiThemeMode.Dark;
+
+    public UiFontOption UiFont { get; set; } = UiFontOption.Consolas;
+
     public bool SoundEffectsEnabled { get; set; } = true;
 
     public bool MusicEnabled { get; set; } = true;

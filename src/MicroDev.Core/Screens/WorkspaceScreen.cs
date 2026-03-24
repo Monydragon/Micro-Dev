@@ -8,14 +8,14 @@ using MicroDev.Core.UI;
 
 namespace MicroDev.Core.Screens;
 
-public sealed class WorkspaceScreen : IScreen
+public sealed class WorkspaceScreen : IScreen, IUiFontAware
 {
-    private const float CodeScale = 0.9f;
-    private const float CardBodyScale = 0.66f;
-    private const float BodyScale = 0.74f;
-    private const float SmallScale = 0.68f;
+    private const float CodeScale = UiTypography.Code;
+    private const float CardBodyScale = UiTypography.Caption;
+    private const float BodyScale = UiTypography.Body;
+    private const float SmallScale = UiTypography.Caption;
 
-    private readonly SpriteFont _font;
+    private SpriteFont _font;
     private readonly Texture2D _pixel;
     private readonly SimulationEngine _simulation;
     private readonly IncidentScheduler _incidentScheduler;
@@ -137,10 +137,17 @@ public sealed class WorkspaceScreen : IScreen
         UpdateButtons();
     }
 
+    public void ApplyFont(SpriteFont font)
+    {
+        _font = font;
+    }
+
     public void Update(GameTime gameTime, InputSnapshot input)
     {
         var previousStatus = _state.Status;
         _mousePosition = input.MousePosition;
+        ConfigureButtons();
+        AdvanceButtonAnimations((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (previousStatus == RunStatus.InProgress)
         {
@@ -228,6 +235,7 @@ public sealed class WorkspaceScreen : IScreen
 
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
     {
+        ConfigureButtons();
         DrawWorkspace(spriteBatch);
 
         if (_foodAppOpen && _state.Status == RunStatus.InProgress)
@@ -280,55 +288,159 @@ public sealed class WorkspaceScreen : IScreen
 
     private void ConfigureButtons()
     {
-        _foodAppButton.TextScale = 0.8f;
-        _freelanceButton.TextScale = 0.8f;
-        _sleepButton.TextScale = 0.8f;
-        _upgradesButton.TextScale = 0.8f;
-        _bankAppButton.TextScale = 0.76f;
-        _optionsButton.TextScale = 0.66f;
-        _squashBugButton.TextScale = 0.64f;
-        _applyForJobButton.TextScale = 0.64f;
-        _publishAppButton.TextScale = 0.68f;
-        _restartButton.TextScale = 0.92f;
-        _breakCoinButton.TextScale = 0.82f;
-        _acceptEvictionButton.TextScale = 0.8f;
-        _burgerButton.TextScale = 0.82f;
-        _burritoButton.TextScale = 0.82f;
-        _pizzaButton.TextScale = 0.82f;
-        _dumplingsButton.TextScale = 0.76f;
-        _doubleCheckOrderButton.TextScale = 0.74f;
-        _expediteOrderButton.TextScale = 0.74f;
-        _confirmFoodOrderButton.TextScale = 0.84f;
-        _closeFoodAppButton.TextScale = 0.72f;
-        _closeBankAppButton.TextScale = 0.72f;
-        _closeFreelanceBoardButton.TextScale = 0.72f;
-        _closeUpgradesButton.TextScale = 0.72f;
-        _openApplicationButton.TextScale = 0.64f;
-        _closeApplicationButton.TextScale = 0.72f;
-        foreach (var button in _interviewOptionButtons)
+        foreach (var button in GetAllButtons())
         {
-            button.TextScale = 0.72f;
+            button.TextScale = UiTypography.Button;
+        }
+
+        foreach (var button in GetSidebarActionButtons())
+        {
+            button.TextScale = UiTypography.Body;
+            button.HorizontalPadding = 10;
+        }
+
+        _optionsButton.TextScale = UiTypography.Body;
+        _optionsButton.HorizontalPadding = 10;
+
+        foreach (var button in GetOverlayCloseButtons())
+        {
+            button.TextScale = UiTypography.Body;
+            button.HorizontalPadding = 10;
+        }
+
+        _foodAppButton.AccentColor = UiTheme.Accent;
+        _freelanceButton.AccentColor = UiTheme.Warning;
+        _sleepButton.AccentColor = UiTheme.Warning;
+        _upgradesButton.AccentColor = UiTheme.Success;
+        _bankAppButton.AccentColor = UiTheme.Accent;
+        _optionsButton.AccentColor = UiTheme.Warning;
+        _squashBugButton.AccentColor = UiTheme.Danger;
+        _applyForJobButton.AccentColor = UiTheme.Success;
+        _publishAppButton.AccentColor = UiTheme.Success;
+        _restartButton.AccentColor = UiTheme.Warning;
+        _breakCoinButton.AccentColor = UiTheme.Warning;
+        _acceptEvictionButton.AccentColor = UiTheme.Danger;
+        _burgerButton.AccentColor = UiTheme.Warning;
+        _burritoButton.AccentColor = UiTheme.Warning;
+        _pizzaButton.AccentColor = UiTheme.Warning;
+        _dumplingsButton.AccentColor = UiTheme.Warning;
+        _doubleCheckOrderButton.AccentColor = UiTheme.Accent;
+        _expediteOrderButton.AccentColor = UiTheme.Warning;
+        _confirmFoodOrderButton.AccentColor = UiTheme.Success;
+        _closeFoodAppButton.AccentColor = UiTheme.Warning;
+        _closeBankAppButton.AccentColor = UiTheme.Warning;
+        _closeFreelanceBoardButton.AccentColor = UiTheme.Warning;
+        _closeUpgradesButton.AccentColor = UiTheme.Warning;
+        _openApplicationButton.AccentColor = UiTheme.Accent;
+        _closeApplicationButton.AccentColor = UiTheme.Warning;
+
+        _doubleCheckOrderButton.TextAlignment = UiTextAlignment.Left;
+        _expediteOrderButton.TextAlignment = UiTextAlignment.Left;
+        ConfigureButtonAlignment();
+    }
+
+    private void ConfigureButtonAlignment()
+    {
+        _doubleCheckOrderButton.HorizontalPadding = 14;
+        _expediteOrderButton.HorizontalPadding = 14;
+
+        foreach (var button in _foodModifierButtons)
+        {
+            button.TextAlignment = UiTextAlignment.Left;
+            button.HorizontalPadding = 12;
         }
 
         foreach (var button in _lifeEventOptionButtons)
         {
-            button.TextScale = 0.68f;
+            button.TextAlignment = UiTextAlignment.Left;
+            button.HorizontalPadding = 12;
+        }
+
+        foreach (var button in _interviewOptionButtons)
+        {
+            button.TextAlignment = UiTextAlignment.Left;
+            button.HorizontalPadding = 12;
+        }
+    }
+
+    private IEnumerable<UiButton> GetOverlayCloseButtons()
+    {
+        yield return _closeFoodAppButton;
+        yield return _closeBankAppButton;
+        yield return _closeFreelanceBoardButton;
+        yield return _closeUpgradesButton;
+        yield return _closeApplicationButton;
+    }
+
+    private void AdvanceButtonAnimations(float elapsedSeconds)
+    {
+        foreach (var button in GetAllButtons())
+        {
+            button.AdvanceAnimation(elapsedSeconds);
+        }
+    }
+
+    private IEnumerable<UiButton> GetAllButtons()
+    {
+        yield return _foodAppButton;
+        yield return _freelanceButton;
+        yield return _sleepButton;
+        yield return _upgradesButton;
+        yield return _bankAppButton;
+        yield return _optionsButton;
+        yield return _squashBugButton;
+        yield return _applyForJobButton;
+        yield return _publishAppButton;
+        yield return _restartButton;
+        yield return _breakCoinButton;
+        yield return _acceptEvictionButton;
+        yield return _burgerButton;
+        yield return _burritoButton;
+        yield return _pizzaButton;
+        yield return _dumplingsButton;
+        yield return _doubleCheckOrderButton;
+        yield return _expediteOrderButton;
+        yield return _confirmFoodOrderButton;
+        yield return _closeFoodAppButton;
+        yield return _closeBankAppButton;
+        yield return _closeFreelanceBoardButton;
+        yield return _closeUpgradesButton;
+        yield return _openApplicationButton;
+        yield return _closeApplicationButton;
+
+        foreach (var button in _interviewOptionButtons)
+        {
+            yield return button;
+        }
+
+        foreach (var button in _lifeEventOptionButtons)
+        {
+            yield return button;
         }
 
         foreach (var button in _foodModifierButtons)
         {
-            button.TextScale = 0.68f;
+            yield return button;
         }
 
         foreach (var button in _upgradeButtons.Values)
         {
-            button.TextScale = 0.72f;
+            yield return button;
         }
 
         foreach (var button in _freelanceGigButtons.Values)
         {
-            button.TextScale = 0.72f;
+            yield return button;
         }
+    }
+
+    private IEnumerable<UiButton> GetSidebarActionButtons()
+    {
+        yield return _foodAppButton;
+        yield return _freelanceButton;
+        yield return _bankAppButton;
+        yield return _upgradesButton;
+        yield return _sleepButton;
     }
 
     private void HandleWorkspaceInput(InputSnapshot input)
@@ -756,16 +868,16 @@ public sealed class WorkspaceScreen : IScreen
     {
         DrawBackdrop(spriteBatch);
 
-        UiPanel.Draw(spriteBatch, _pixel, _editorPanelBounds, UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _editorPanelBounds, UiTheme.WithOpacity(UiTheme.PanelFill, 0.97f), UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _editorViewportBounds, UiTheme.EditorFill, UiTheme.EditorBorder, 2);
-        UiPanel.Draw(spriteBatch, _pixel, _sidebarBounds, UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _sidebarBounds, UiTheme.WithOpacity(UiTheme.PanelFill, 0.97f), UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _logBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
-        spriteBatch.Draw(_pixel, new Rectangle(_editorPanelBounds.X + 1, _editorPanelBounds.Y + 1, _editorPanelBounds.Width - 2, 4), UiTheme.AccentDim);
-        spriteBatch.Draw(_pixel, new Rectangle(_sidebarBounds.X + 1, _sidebarBounds.Y + 1, _sidebarBounds.Width - 2, 4), UiTheme.AccentDim);
+        spriteBatch.Draw(_pixel, new Rectangle(_editorPanelBounds.X + 1, _editorPanelBounds.Y + 1, _editorPanelBounds.Width - 2, 4), UiTheme.Accent);
+        spriteBatch.Draw(_pixel, new Rectangle(_sidebarBounds.X + 1, _sidebarBounds.Y + 1, _sidebarBounds.Width - 2, 4), UiTheme.WithOpacity(UiTheme.Success, 0.9f));
 
-        UiLabel.Draw(spriteBatch, _font, "Micro Dev Workspace", new Vector2(_editorPanelBounds.X + 18, _editorPanelBounds.Y + 12), UiTheme.TextPrimary, 1.08f);
-        UiLabel.Draw(spriteBatch, _font, $"Day {_state.Day}  {_state.ClockText}", new Vector2(_editorPanelBounds.Right - 172, _editorPanelBounds.Y + 14), UiTheme.TextMuted, 0.88f);
+        UiLabel.Draw(spriteBatch, _font, "Micro Dev Workspace", new Vector2(_editorPanelBounds.X + 18, _editorPanelBounds.Y + 12), UiTheme.TextPrimary, UiTypography.Title);
+        UiLabel.Draw(spriteBatch, _font, $"Day {_state.Day}  {_state.ClockText}", new Vector2(_editorPanelBounds.Right - 194, _editorPanelBounds.Y + 16), UiTheme.TextMuted, UiTypography.Section);
 
         DrawCodeEditor(spriteBatch);
         DrawSidebar(spriteBatch);
@@ -775,13 +887,14 @@ public sealed class WorkspaceScreen : IScreen
     private void DrawBackdrop(SpriteBatch spriteBatch)
     {
         spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y), UiTheme.DesktopBackground);
-        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 180), UiTheme.DesktopGlow * 0.18f);
-        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 2), UiTheme.AccentDim);
+        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 216), UiTheme.WithOpacity(UiTheme.DesktopGlow, 0.34f));
+        spriteBatch.Draw(_pixel, new Rectangle(54, 36, 520, 692), UiTheme.WithOpacity(UiTheme.AccentDim, 0.1f));
+        spriteBatch.Draw(_pixel, new Rectangle(0, 0, _virtualResolution.X, 2), UiTheme.Accent);
 
-        for (var index = 0; index < 5; index++)
+        for (var index = 0; index < 6; index++)
         {
-            var y = 108 + (index * 148);
-            spriteBatch.Draw(_pixel, new Rectangle(0, y, _virtualResolution.X, 1), UiTheme.AccentDim * 0.18f);
+            var y = 106 + (index * 132);
+            spriteBatch.Draw(_pixel, new Rectangle(0, y, _virtualResolution.X, 1), UiTheme.WithOpacity(UiTheme.AccentDim, 0.16f));
         }
     }
 
@@ -800,13 +913,14 @@ public sealed class WorkspaceScreen : IScreen
 
         var tabBounds = new Rectangle(_editorViewportBounds.X, _editorViewportBounds.Y - 38, Math.Min(468, _editorViewportBounds.Width - 236), 34);
         UiPanel.Draw(spriteBatch, _pixel, tabBounds, UiTheme.PanelRaised, UiTheme.EditorBorder, 2);
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
-            UiTextBlock.TrimToWidth(_font, program.FileName, tabBounds.Width - 28, 0.8f),
+            program.FileName,
             new Vector2(tabBounds.X + 14, tabBounds.Y + 7),
+            tabBounds.Width - 28,
             UiTheme.TextPrimary,
-            0.8f);
+            0.8f,
+            0.7f);
 
         var titleY = _editorViewportBounds.Y + 12;
         var projectMeta = finitePortfolio
@@ -815,13 +929,14 @@ public sealed class WorkspaceScreen : IScreen
         var projectMetaSize = _font.MeasureString(projectMeta) * SmallScale;
         var projectTitleMaxWidth = Math.Max(220, headerRight - contentX - 18 - projectMetaSize.X);
 
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
-            UiTextBlock.TrimToWidth(_font, program.ProjectName, projectTitleMaxWidth, 0.92f),
+            program.ProjectName,
             new Vector2(contentX, titleY),
+            projectTitleMaxWidth,
             UiTheme.Accent,
-            0.92f);
+            0.92f,
+            0.78f);
 
         UiLabel.Draw(
             spriteBatch,
@@ -1137,7 +1252,7 @@ public sealed class WorkspaceScreen : IScreen
 
     private void DrawStatusStrip(SpriteBatch spriteBatch)
     {
-        var stripBounds = new Rectangle(_sidebarBounds.X + 16, _sidebarBounds.Y + 292, _sidebarBounds.Width - 32, 50);
+        var stripBounds = GetSidebarStatusStripBounds();
         var fill = UiTheme.PanelRaised;
         var border = UiTheme.PanelBorder;
         var message = $"Typing {_simulation.GetCurrentWriteLinesPerClick(_state)} line/click at {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus. Upgrades buy speed back.";
@@ -1249,7 +1364,7 @@ public sealed class WorkspaceScreen : IScreen
             spriteBatch,
             _font,
             message,
-            new Vector2(stripBounds.X + 12, stripBounds.Y + 10),
+            new Vector2(stripBounds.X + 12, stripBounds.Y + 9),
             stripBounds.Width - 24,
             textColor,
             BodyScale,
@@ -1259,7 +1374,7 @@ public sealed class WorkspaceScreen : IScreen
 
     private void DrawActionButtons(SpriteBatch spriteBatch)
     {
-        UiLabel.Draw(spriteBatch, _font, "Actions", new Vector2(_sidebarBounds.X + 16, _sidebarBounds.Y + 352), UiTheme.TextPrimary, 0.88f);
+        UiLabel.Draw(spriteBatch, _font, "Actions", new Vector2(_sidebarBounds.X + 16, GetSidebarActionsHeaderY()), UiTheme.TextPrimary, 0.88f);
         _foodAppButton.Draw(spriteBatch, _pixel, _font);
         _freelanceButton.Draw(spriteBatch, _pixel, _font);
         _bankAppButton.Draw(spriteBatch, _pixel, _font);
@@ -1319,13 +1434,14 @@ public sealed class WorkspaceScreen : IScreen
         UiPanel.Draw(spriteBatch, _pixel, _techDebtCardBounds, new Color(56, 34, 34), UiTheme.Danger, 2);
         _squashBugButton.Draw(spriteBatch, _pixel, _font);
         var titleWidth = _techDebtCardBounds.Width - 20 - _squashBugButton.Bounds.Width - 8;
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
-            UiTextBlock.TrimToWidth(_font, "Tech Debt", titleWidth, 0.72f),
+            "Tech Debt",
             new Vector2(_techDebtCardBounds.X + 10, _techDebtCardBounds.Y + 8),
+            titleWidth,
             UiTheme.Danger,
-            0.72f);
+            0.72f,
+            0.66f);
 
         var summary = $"{bug.Summary} | {FormatRemainingTime(bug.RemainingInGameMinutes)} left";
         var bodyTop = GetAlertCardBodyTop(_techDebtCardBounds);
@@ -1348,13 +1464,14 @@ public sealed class WorkspaceScreen : IScreen
         _applyForJobButton.Draw(spriteBatch, _pixel, _font);
 
         var titleWidth = _jobListingCardBounds.Width - 20 - _applyForJobButton.Bounds.Width - 8;
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
-            UiTextBlock.TrimToWidth(_font, listing.Title, titleWidth, 0.72f),
+            listing.Title,
             new Vector2(_jobListingCardBounds.X + 10, _jobListingCardBounds.Y + 8),
+            titleWidth,
             UiTheme.Success,
-            0.72f);
+            0.72f,
+            0.62f);
         var requirements =
             $"{listing.TechStack}  |  {_simulation.GetResumeTrackLabel(listing.ResumeTrack)} proof {_simulation.GetResumeProof(_state, listing.ResumeTrack)}/{listing.RequiredResumeProof}  |  {FormatRemainingTime(listing.RemainingInGameMinutes)} left";
         var bodyTop = GetAlertCardBodyTop(_jobListingCardBounds);
@@ -1377,13 +1494,14 @@ public sealed class WorkspaceScreen : IScreen
         _openApplicationButton.Draw(spriteBatch, _pixel, _font);
 
         var titleWidth = _applicationCardBounds.Width - 20 - _openApplicationButton.Bounds.Width - 8;
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
-            UiTextBlock.TrimToWidth(_font, application.ListingTitle, titleWidth, 0.72f),
+            application.ListingTitle,
             new Vector2(_applicationCardBounds.X + 10, _applicationCardBounds.Y + 8),
+            titleWidth,
             UiTheme.Accent,
-            0.72f);
+            0.72f,
+            0.62f);
 
         var revealedLines = _simulation.GetVisibleJobApplicationLines(_state)
             .Count(line => !string.IsNullOrWhiteSpace(line));
@@ -1423,13 +1541,14 @@ public sealed class WorkspaceScreen : IScreen
             ? $"Release {_state.PublishedAppCount + 1} Ready"
             : "Published Apps";
         var titleWidth = _publishCardBounds.Width - 20 - (_publishAppButton.Bounds == Rectangle.Empty ? 0 : _publishAppButton.Bounds.Width + 8);
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
-            UiTextBlock.TrimToWidth(_font, title, titleWidth, 0.72f),
+            title,
             new Vector2(_publishCardBounds.X + 10, _publishCardBounds.Y + 8),
+            titleWidth,
             accent,
-            0.72f);
+            0.72f,
+            0.66f);
 
         if (_publishAppButton.Bounds != Rectangle.Empty)
         {
@@ -1544,7 +1663,15 @@ public sealed class WorkspaceScreen : IScreen
                     : $"Messy order. Expect the full {FormatRemainingTime(option.SluggishMinutesWhenUnchecked)} sluggish hit when it arrives."
             : $"{option.Name} is {(activeDelivery.Expedited ? "expedited" : "on standard delivery")} with {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)} left before the stats land.";
 
-        UiLabel.Draw(spriteBatch, _font, "Food Delivery App", new Vector2(_foodAppBounds.X + 24, _foodAppBounds.Y + 18), UiTheme.TextPrimary, 1.0f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Food Delivery App",
+            new Vector2(_foodAppBounds.X + 24, _foodAppBounds.Y + 18),
+            _closeFoodAppButton.Bounds,
+            _foodAppBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.86f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -1665,7 +1792,15 @@ public sealed class WorkspaceScreen : IScreen
         UiPanel.Draw(spriteBatch, _pixel, _bankAppBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
         spriteBatch.Draw(_pixel, new Rectangle(_bankAppBounds.X + 1, _bankAppBounds.Y + 1, _bankAppBounds.Width - 2, 4), UiTheme.Accent);
 
-        UiLabel.Draw(spriteBatch, _font, "Banking App", new Vector2(_bankAppBounds.X + 24, _bankAppBounds.Y + 18), UiTheme.TextPrimary, 1.0f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Banking App",
+            new Vector2(_bankAppBounds.X + 24, _bankAppBounds.Y + 18),
+            _closeBankAppButton.Bounds,
+            _bankAppBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.86f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -1779,7 +1914,15 @@ public sealed class WorkspaceScreen : IScreen
         UiPanel.Draw(spriteBatch, _pixel, _freelanceBoardBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
         spriteBatch.Draw(_pixel, new Rectangle(_freelanceBoardBounds.X + 1, _freelanceBoardBounds.Y + 1, _freelanceBoardBounds.Width - 2, 4), UiTheme.Accent);
 
-        UiLabel.Draw(spriteBatch, _font, "Freelance Board", new Vector2(_freelanceBoardBounds.X + 24, _freelanceBoardBounds.Y + 18), UiTheme.TextPrimary, 1.0f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Freelance Board",
+            new Vector2(_freelanceBoardBounds.X + 24, _freelanceBoardBounds.Y + 18),
+            _closeFreelanceBoardButton.Bounds,
+            _freelanceBoardBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.86f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -1824,15 +1967,32 @@ public sealed class WorkspaceScreen : IScreen
 
             var qualityLabel = gig.CodeQualityGain > 0
                 ? $"+{gig.CodeQualityGain:0.#} quality"
-                : "No portfolio gain";
+                : "No quality gain";
 
-            UiLabel.Draw(
-                spriteBatch,
-                _font,
-                UiTextBlock.TrimToWidth(_font, qualityLabel, railBounds.Width - 20, 0.66f),
-                new Vector2(railBounds.X + 10, railBounds.Y + 10),
-                gig.CodeQualityGain > 0 ? UiTheme.Success : UiTheme.TextMuted,
-                0.66f);
+            if (gig.CodeQualityGain > 0)
+            {
+                DrawFittedLabel(
+                    spriteBatch,
+                    qualityLabel,
+                    new Vector2(railBounds.X + 10, railBounds.Y + 10),
+                    railBounds.Width - 20,
+                    UiTheme.Success,
+                    0.66f,
+                    0.54f);
+            }
+            else
+            {
+                UiTextBlock.DrawWrapped(
+                    spriteBatch,
+                    _font,
+                    qualityLabel,
+                    new Vector2(railBounds.X + 10, railBounds.Y + 10),
+                    railBounds.Width - 20,
+                    UiTheme.TextMuted,
+                    0.58f,
+                    0f,
+                    2);
+            }
 
             _freelanceGigButtons[type].Draw(spriteBatch, _pixel, _font);
         }
@@ -1848,7 +2008,15 @@ public sealed class WorkspaceScreen : IScreen
         UiPanel.Draw(spriteBatch, _pixel, _upgradesBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
         spriteBatch.Draw(_pixel, new Rectangle(_upgradesBounds.X + 1, _upgradesBounds.Y + 1, _upgradesBounds.Width - 2, 4), UiTheme.Accent);
 
-        UiLabel.Draw(spriteBatch, _font, "Rig Upgrades", new Vector2(_upgradesBounds.X + 24, _upgradesBounds.Y + 18), UiTheme.TextPrimary, 1.02f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Rig Upgrades",
+            new Vector2(_upgradesBounds.X + 24, _upgradesBounds.Y + 18),
+            _closeUpgradesButton.Bounds,
+            _upgradesBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.02f,
+            0.86f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -1942,8 +2110,24 @@ public sealed class WorkspaceScreen : IScreen
         UiPanel.Draw(spriteBatch, _pixel, _applicationBounds, UiTheme.PanelFill, UiTheme.Success, 3);
         spriteBatch.Draw(_pixel, new Rectangle(_applicationBounds.X + 1, _applicationBounds.Y + 1, _applicationBounds.Width - 2, 4), UiTheme.Success);
 
-        UiLabel.Draw(spriteBatch, _font, application.ListingTitle, new Vector2(_applicationBounds.X + 24, _applicationBounds.Y + 18), UiTheme.TextPrimary, 1.0f);
-        UiLabel.Draw(spriteBatch, _font, application.TechStack, new Vector2(_applicationBounds.X + 24, _applicationBounds.Y + 48), UiTheme.Accent, 0.72f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            application.ListingTitle,
+            new Vector2(_applicationBounds.X + 24, _applicationBounds.Y + 18),
+            _closeApplicationButton.Bounds,
+            _applicationBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.76f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            application.TechStack,
+            new Vector2(_applicationBounds.X + 24, _applicationBounds.Y + 48),
+            _closeApplicationButton.Bounds,
+            _applicationBounds.Right - 24,
+            UiTheme.Accent,
+            0.72f,
+            0.62f);
         _closeApplicationButton.Draw(spriteBatch, _pixel, _font);
 
         UiTextBlock.DrawWrapped(
@@ -2232,10 +2416,12 @@ public sealed class WorkspaceScreen : IScreen
     private void UpdateButtons()
     {
         const int sidebarPadding = 16;
-        const int gap = 12;
+        const int gap = 10;
         var contentX = _sidebarBounds.X + sidebarPadding;
         var contentWidth = _sidebarBounds.Width - (sidebarPadding * 2);
         var halfWidth = (contentWidth - gap) / 2;
+        var actionButtonsY = GetSidebarActionButtonsTop();
+        var alertsTop = GetSidebarAlertsTop();
         var activeDelivery = _state.ActiveFoodDelivery;
         var hasActiveFoodDelivery = activeDelivery is not null;
         var reviewReceiptEnabled = activeDelivery?.ReviewReceipt ?? _doubleCheckOrder;
@@ -2260,16 +2446,16 @@ public sealed class WorkspaceScreen : IScreen
             ? "Interview"
             : "Continue";
 
-        _optionsButton.Bounds = new Rectangle(_sidebarBounds.Right - 92, _sidebarBounds.Y + 10, 76, 28);
-        _foodAppButton.Bounds = new Rectangle(contentX, _sidebarBounds.Y + 378, halfWidth, 34);
-        _freelanceButton.Bounds = new Rectangle(contentX + halfWidth + gap, _sidebarBounds.Y + 378, halfWidth, 34);
-        _bankAppButton.Bounds = new Rectangle(contentX, _sidebarBounds.Y + 418, halfWidth, 34);
-        _upgradesButton.Bounds = new Rectangle(contentX + halfWidth + gap, _sidebarBounds.Y + 418, halfWidth, 34);
-        _sleepButton.Bounds = new Rectangle(contentX, _sidebarBounds.Y + 458, contentWidth, 34);
+        _optionsButton.Bounds = new Rectangle(_sidebarBounds.Right - 112, _sidebarBounds.Y + 10, 96, 30);
+        _foodAppButton.Bounds = new Rectangle(contentX, actionButtonsY, halfWidth, 34);
+        _freelanceButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY, halfWidth, 34);
+        _bankAppButton.Bounds = new Rectangle(contentX, actionButtonsY + 40, halfWidth, 34);
+        _upgradesButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY + 40, halfWidth, 34);
+        _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 80, contentWidth, 34);
 
         _coinFrameBounds = new Rectangle(_editorViewportBounds.Right - 148, _editorViewportBounds.Y + 6, 128, 86);
 
-        _alertsPanelBounds = new Rectangle(contentX, _sidebarBounds.Y + 504, contentWidth, _sidebarBounds.Bottom - (_sidebarBounds.Y + 504) - 16);
+        _alertsPanelBounds = new Rectangle(contentX, alertsTop, contentWidth, _sidebarBounds.Bottom - alertsTop - 16);
 
         _techDebtCardBounds = Rectangle.Empty;
         _jobListingCardBounds = Rectangle.Empty;
@@ -2439,7 +2625,7 @@ public sealed class WorkspaceScreen : IScreen
         _doubleCheckOrderButton.Bounds = new Rectangle(_foodAppBounds.X + 24, foodActionsY, 208, 34);
         _expediteOrderButton.Bounds = new Rectangle(_foodAppBounds.X + 246, foodActionsY, 208, 34);
         _confirmFoodOrderButton.Bounds = new Rectangle(_foodAppBounds.X + 468, foodActionsY, 188, 34);
-        _closeFoodAppButton.Bounds = new Rectangle(_foodAppBounds.Right - 88, _foodAppBounds.Y + 18, 64, 28);
+        _closeFoodAppButton.Bounds = new Rectangle(_foodAppBounds.Right - 112, _foodAppBounds.Y + 18, 88, 30);
         _foodSummaryPanelBounds = new Rectangle(
             foodContentX,
             _foodChoicePanelBounds.Bottom + 18,
@@ -2470,11 +2656,11 @@ public sealed class WorkspaceScreen : IScreen
         }
 
         _bankAppBounds = new Rectangle(_editorViewportBounds.X + 100, _editorViewportBounds.Y + 34, 700, 468);
-        _closeBankAppButton.Bounds = new Rectangle(_bankAppBounds.Right - 88, _bankAppBounds.Y + 18, 64, 28);
+        _closeBankAppButton.Bounds = new Rectangle(_bankAppBounds.Right - 112, _bankAppBounds.Y + 18, 88, 30);
 
         _applicationBounds = new Rectangle(_editorViewportBounds.X + 70, _editorViewportBounds.Y + 16, 774, 566);
         _applicationEditorBounds = new Rectangle(_applicationBounds.X + 24, _applicationBounds.Y + 174, _applicationBounds.Width - 48, _applicationBounds.Height - 198);
-        _closeApplicationButton.Bounds = new Rectangle(_applicationBounds.Right - 88, _applicationBounds.Y + 18, 64, 28);
+        _closeApplicationButton.Bounds = new Rectangle(_applicationBounds.Right - 112, _applicationBounds.Y + 18, 88, 30);
         var optionY = _applicationEditorBounds.Bottom - 144;
         for (var index = 0; index < _interviewOptionButtons.Length; index++)
         {
@@ -2502,7 +2688,7 @@ public sealed class WorkspaceScreen : IScreen
         }
 
         _freelanceBoardBounds = new Rectangle(_editorViewportBounds.X + 92, _editorViewportBounds.Y + 24, 724, 530);
-        _closeFreelanceBoardButton.Bounds = new Rectangle(_freelanceBoardBounds.Right - 88, _freelanceBoardBounds.Y + 18, 64, 28);
+        _closeFreelanceBoardButton.Bounds = new Rectangle(_freelanceBoardBounds.Right - 112, _freelanceBoardBounds.Y + 18, 88, 30);
 
         var freelanceCardX = _freelanceBoardBounds.X + 24;
         var freelanceCardY = _freelanceBoardBounds.Y + 126;
@@ -2524,7 +2710,7 @@ public sealed class WorkspaceScreen : IScreen
         var upgradesWidth = Math.Min(_editorViewportBounds.Width - 48, 992);
         var upgradesX = _editorViewportBounds.X + ((_editorViewportBounds.Width - upgradesWidth) / 2);
         _upgradesBounds = new Rectangle(upgradesX, _editorViewportBounds.Y + 8, upgradesWidth, 636);
-        _closeUpgradesButton.Bounds = new Rectangle(_upgradesBounds.Right - 88, _upgradesBounds.Y + 18, 64, 28);
+        _closeUpgradesButton.Bounds = new Rectangle(_upgradesBounds.Right - 112, _upgradesBounds.Y + 18, 88, 30);
 
         var upgradeCardWidth = (_upgradesBounds.Width - 72) / 2;
         var upgradeCardHeight = 118;
@@ -2585,7 +2771,7 @@ public sealed class WorkspaceScreen : IScreen
     {
         const int margin = 16;
         const int gap = 14;
-        const int sidebarWidth = 392;
+        const int sidebarWidth = 408;
         const int logHeight = 138;
 
         var contentHeight = _virtualResolution.Y - (margin * 3) - logHeight;
@@ -2596,6 +2782,58 @@ public sealed class WorkspaceScreen : IScreen
         _sidebarBounds = new Rectangle(_editorPanelBounds.Right + gap, margin, sidebarWidth, contentHeight);
         _logBounds = new Rectangle(margin, _editorPanelBounds.Bottom + gap, _virtualResolution.X - (margin * 2), logHeight);
         _catOverlayBounds = new Rectangle(_editorViewportBounds.X + 144, _editorViewportBounds.Y + 108, _editorViewportBounds.Width - 288, 284);
+    }
+
+    private Rectangle GetSidebarStatusStripBounds()
+    {
+        return new Rectangle(_sidebarBounds.X + 16, _sidebarBounds.Y + 292, _sidebarBounds.Width - 32, 60);
+    }
+
+    private float GetSidebarActionsHeaderY()
+    {
+        return GetSidebarStatusStripBounds().Bottom + 10f;
+    }
+
+    private int GetSidebarActionButtonsTop()
+    {
+        return GetSidebarStatusStripBounds().Bottom + 36;
+    }
+
+    private int GetSidebarAlertsTop()
+    {
+        return GetSidebarActionButtonsTop() + 126;
+    }
+
+    private void DrawOverlayHeaderLabel(
+        SpriteBatch spriteBatch,
+        string text,
+        Vector2 position,
+        Rectangle closeButtonBounds,
+        int contentRight,
+        Color color,
+        float preferredScale,
+        float minimumScale)
+    {
+        var maxWidth = Math.Max(140f, closeButtonBounds.X - position.X - 16f);
+        if (closeButtonBounds == Rectangle.Empty)
+        {
+            maxWidth = Math.Max(140f, contentRight - position.X);
+        }
+
+        DrawFittedLabel(spriteBatch, text, position, maxWidth, color, preferredScale, minimumScale);
+    }
+
+    private void DrawFittedLabel(
+        SpriteBatch spriteBatch,
+        string text,
+        Vector2 position,
+        float maxWidth,
+        Color color,
+        float preferredScale,
+        float minimumScale)
+    {
+        var (displayText, scale) = UiTextBlock.FitText(_font, text, maxWidth, preferredScale, minimumScale);
+        UiLabel.Draw(spriteBatch, _font, displayText, position, color, scale);
     }
 
     private void DrawTooltip(SpriteBatch spriteBatch)
