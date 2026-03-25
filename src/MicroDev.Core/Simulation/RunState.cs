@@ -62,6 +62,10 @@ public sealed class RunState
 
     public string? PartnerName { get; set; }
 
+    public string? RelationshipCandidateName { get; set; }
+
+    public int RelationshipCandidateCompatibility { get; set; }
+
     public int CurrentPortfolioLinesOfCode { get; set; }
 
     public int CurrentProgramIndex { get; set; }
@@ -147,6 +151,8 @@ public sealed class RunState
             RelationshipProgress = RelationshipProgress,
             HasFoundLove = HasFoundLove,
             PartnerName = PartnerName,
+            RelationshipCandidateName = RelationshipCandidateName,
+            RelationshipCandidateCompatibility = RelationshipCandidateCompatibility,
             CurrentPortfolioLinesOfCode = CurrentPortfolioLinesOfCode,
             CurrentProgramIndex = CurrentProgramIndex,
             CurrentProgramVisibleLineCount = CurrentProgramVisibleLineCount,
@@ -204,6 +210,8 @@ public sealed class RunState
         RelationshipProgress = other.RelationshipProgress;
         HasFoundLove = other.HasFoundLove;
         PartnerName = other.PartnerName;
+        RelationshipCandidateName = other.RelationshipCandidateName;
+        RelationshipCandidateCompatibility = other.RelationshipCandidateCompatibility;
         CurrentPortfolioLinesOfCode = other.CurrentPortfolioLinesOfCode;
         CurrentProgramIndex = other.CurrentProgramIndex;
         CurrentProgramVisibleLineCount = other.CurrentProgramVisibleLineCount;

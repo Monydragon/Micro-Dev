@@ -93,3 +93,70 @@ Small change the text overlaps please correct that for the upgrades
 
 [prompt 16]
 I want to make the interview questions easier for common players more high level concepts more simple common programming knowledge like for example data types and such like what is a bool or a string or int and stuff less specific also you need to get all the interview questions right in order to get the job. I want to make the gameplay feel unique I want more random events to occur based on difficulty less events for easy and more for hard. I also want to make a pass and make sure the UI is not overlapping from the image you will see on the desk dashboard you see focus overlapping which needs to add a little space there. also the alerts section should gracefully handle and display multiple easily if needed so there is no overlap.
+
+[prompt 17]
+I want to add a project to support WEBGL build, Let's focus on getting that working and then after I have a WEBGL build run the build.
+
+[prompt 18]
+I want to fix the WEBGL build right now It builds I open the browser and it does not load. look into why the game is not loading make sure to have the same features and display with the WEBGL build.
+
+[prompt 19]
+currently build is failing for webgl look into this and harden webGL support
+
+[prompt 20]
+on webgl build at least locally the cursor is acting weird its not lined up with the buttons what I mean is that when i place my cursor over the button its not interactable and there is an offset or some other issue look into this.
+
+[prompt 21]
+on WebGL it should properly scale for mobile when detected screen size or other methods. right now mobile web support is not working let's patch that up.
+
+[prompt 22]
+perfect it's working now there is a resolution scaling issue or something because the text is blurry and not focused and it should match to the phone dimensions at the same aspect when possible.
+
+[prompt 23]
+When you finish the prompts all of them you get to publish your app and then get money from that and then you get a new set of code snippets continuing and on random it will be every x random within a given reasonable range, also for the interview questions clean that up more and make it randomized so that the first option is not always the answer.
+
+[prompt 24]
+As you can see the food delivery window UI is overlapping and bad UX let's improve that and also let's make food more rewarding and make sure that if you don't eat you lose sanity and you are required to sleep after 2 days but there should be messages and events about lack of sleep and code quality will go down food needs to nearly fill the bar up for focus and sleeping will refill the bar to full. let's balance the game so that food is appealing and not sleep for when to choose.
+
+[prompt 25]
+I want the game to be able to be continued with a new mode continual upgrade loop. have a timer for food to be delivered and higher cost for expedited delivery in the form of a tip. During events there should be effects from those events for example but not limited to. the cat event where the cat is blocking the screen and during this event the cat should have added bugs and types on the screen gibberish
+
+
+[prompt 26]
+add events like computer freezing where the player loses time and sanity and has to repair the computer on my own, take it to a shop or call tech support, distractions and the ability to find love through looking online for matches. videos playing watching shows taking time, make this a REAL LIFE type of sim
+
+[prompt 27]
+I need to a full UI Overhaul, make sure to take pictures and organize them in a folder. while using these as reference. Micro Dev Container, should be top aligned. Color Scheme, add a toggle for dark and light mode and the UI should reflect the colors accordingly. Easy normal hard and upgrade loop and endless should be color coded. ensure all font sizes are the same. the text in the difficulty left aligned so it lines it lines up with the buttons. add the Consolas font as the primary font allow the user to change fonts provide a good common pallet of fonts commonly used in programming also include a few fonts in there as well. ensure entire application uses the same font family as selected. when clicking a button there should be a digital animation and the screen should fade for transitions.
+
+[prompt 28]
+Main Screen difficulty tabs should be more visible and noticeable for tab selection, add line breaks accordingly and scan for other areas where line breaks are needed do a full scan and use screenshots organized. if a drop down appears it should be in front of everything else. 
+
+[prompt 29]
+fix overlap and line breaks from options and make sure to scan other UI elements with images for verification
+
+[prompt 30]
+look at the options screen, the buttons for master volume should be + and - icons or other representation. line break above master volume as the same line break as BGM volume. I need this page to be scrollable and be able to handle scrolling on mobile and desktop.
+
+[prompt 31]
+In options the options header should stay at the top for a more connected feel. 
+
+[prompt 32]
+when scrolling the container is moving vertically and not staying in the options modal nested window make sure that its seamless take screenshots as needed
+
+[prompt 33]
+the options menu: i want to keep the options within the options container container while scrolling the options are exiting the options menu 
+
+[prompt 34]
+On the pages the close button is cutting text off. get rid of extra ... from various elements try to fit into space otherwise tooltips are there
+
+[prompt 35]
+I want to do a overhaul the events should be more generated. and all of the features I want to make sure that every play through is unique and randomized. Let's make a seed based randomization and be able to have a random seed each time but allow in options to set the seed or randomize it. I want all names and interactions to be coherent. This is a life simulator and developer simulator and clicker so I want the game to feel like micromanagement is a big part of the game. I want the game loop to have more interactions. also when I say procedural I would like more variety for food delivery and the ability to home cook meals but takes longer. I want more upgrades in a scrollable box I want to be able to make the game feel alive there is stuff that happens. I want the code snippets be related to the project. for relationships there should be more interactions and in 1 game loop try to keep the game engaging, I want the whole entire game to feel fresh each run
+
+
+[prompt 36]
+I want you to make a very detailed tutorial that guides the player in the beginning and explains the gameplay flow and clearly shows how to play and survive and also I want the ability to easily restart a run or do a new run from the main game. also rename the Delivery App and Banking app to just be Food + Kitchen and banking app should just be called Banking
+
+
+
+[prompt-not yet until ready to build pipeline after jam]
+I want to be able to publish directly with butler to itch.io for fast iterations I want to be able to have an easy way to use butler to upload my project and making sure the latest version that is stable is always up

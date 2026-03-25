@@ -258,7 +258,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"{_settings.WindowMode}  |  {_settings.PreferredResolution.X} x {_settings.PreferredResolution.Y}",
+            $"{_settings.WindowMode}  |  {_settings.PreferredResolution.X} x {_settings.PreferredResolution.Y}  |  {GetSeedSummary()}",
             new Vector2(noteBounds.X + 14, noteBounds.Y + 66),
             noteBounds.Width - 28,
             UiTheme.TextMuted,
@@ -400,5 +400,12 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
             GameDifficulty.Endless => "The queue never ends, recruiter loops keep rolling, and the desk becomes a permanent grind.",
             _ => "The balanced default with steady incidents, recurring opportunities, and a full portfolio run.",
         };
+    }
+
+    private string GetSeedSummary()
+    {
+        return _settings.RunSeedMode == RunSeedMode.RandomEachRun
+            ? "Seed Random"
+            : $"Seed {_settings.ManualRunSeed}";
     }
 }

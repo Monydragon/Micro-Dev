@@ -142,11 +142,31 @@ public sealed class SimulationConfig
 
     public double DumplingsSluggishDurationMinutes { get; init; } = 60;
 
+    public double SkilletPastaFundsCost { get; init; } = 8;
+
+    public double SkilletPastaFocusGain { get; init; } = 54;
+
+    public double SkilletPastaSanityGain { get; init; } = 10;
+
+    public double SkilletPastaSluggishDurationMinutes { get; init; } = 18;
+
+    public double MealPrepChiliFundsCost { get; init; } = 9;
+
+    public double MealPrepChiliFocusGain { get; init; } = 48;
+
+    public double MealPrepChiliSanityGain { get; init; } = 16;
+
+    public double MealPrepChiliSluggishDurationMinutes { get; init; } = 0;
+
     public double FoodDeliveryDurationMinutes { get; init; } = 30;
 
     public double ExpeditedFoodDeliveryDurationMinutes { get; init; } = 10;
 
     public double ExpeditedFoodDeliveryTipAmount { get; init; } = 6;
+
+    public double SkilletPastaCookDurationMinutes { get; init; } = 52;
+
+    public double MealPrepChiliCookDurationMinutes { get; init; } = 72;
 
     public double ComputerFreezeSelfRepairDurationMinutes { get; init; } = 75;
 
@@ -203,6 +223,28 @@ public sealed class SimulationConfig
     public int RelationshipProgressNeededForLove { get; init; } = 4;
 
     public double FoundLovePassiveSanityRegenPerInGameMinute { get; init; } = 0.004;
+
+    public double PartnerCheckInReplyDurationMinutes { get; init; } = 15;
+
+    public double PartnerCheckInReplySanityGain { get; init; } = 2;
+
+    public double PartnerCheckInReplyFocusLoss { get; init; } = 1;
+
+    public int PartnerCheckInReplyRelationshipGain { get; init; } = 1;
+
+    public double PartnerCheckInDinnerDurationMinutes { get; init; } = 75;
+
+    public double PartnerCheckInDinnerFundsCost { get; init; } = 7;
+
+    public double PartnerCheckInDinnerSanityGain { get; init; } = 7;
+
+    public double PartnerCheckInDinnerFocusLoss { get; init; } = 2;
+
+    public int PartnerCheckInDinnerRelationshipGain { get; init; } = 2;
+
+    public double PartnerCheckInHeadsDownFocusGain { get; init; } = 4;
+
+    public double PartnerCheckInHeadsDownSanityLoss { get; init; } = 2;
 
     public double FreelanceDurationMinutes { get; init; } = 60;
 

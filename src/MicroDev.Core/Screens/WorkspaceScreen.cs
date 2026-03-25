@@ -22,11 +22,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly GameAudio _audio;
     private readonly Point _virtualResolution;
     private readonly Action<WorkspaceScreen> _showOptions;
-    private readonly UiButton _foodAppButton = new("Delivery App");
+    private readonly UiButton _foodAppButton = new("Food + Kitchen");
     private readonly UiButton _freelanceButton = new("Freelance Board");
     private readonly UiButton _sleepButton = new("Sleep");
     private readonly UiButton _upgradesButton = new("Upgrades");
-    private readonly UiButton _bankAppButton = new("Banking App");
+    private readonly UiButton _bankAppButton = new("Banking");
+    private readonly UiButton _guideButton = new("Guide");
+    private readonly UiButton _newRunButton = new("New Run");
     private readonly UiButton _optionsButton = new("Options");
     private readonly UiButton _squashBugButton = new("Fix");
     private readonly UiButton _applyForJobButton = new("Apply");
@@ -38,7 +40,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _burritoButton = new("Burrito");
     private readonly UiButton _pizzaButton = new("Pizza");
     private readonly UiButton _dumplingsButton = new("Dumplings");
-    private readonly UiButton _doubleCheckOrderButton = new("Review Receipt: OFF");
+    private readonly UiButton _skilletPastaButton = new("Pasta");
+    private readonly UiButton _mealPrepChiliButton = new("Chili");
+    private readonly UiButton _doubleCheckOrderButton = new("Check Details: OFF");
     private readonly UiButton _expediteOrderButton = new("Expedite: OFF");
     private readonly UiButton _confirmFoodOrderButton = new("Place Order");
     private readonly UiButton _closeFoodAppButton = new("Close");
@@ -47,6 +51,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _closeUpgradesButton = new("Close");
     private readonly UiButton _openApplicationButton = new("Continue");
     private readonly UiButton _closeApplicationButton = new("Close");
+    private readonly UiButton _tutorialBackButton = new("Back");
+    private readonly UiButton _tutorialNextButton = new("Next");
+    private readonly UiButton _tutorialCloseButton = new("Close");
     private readonly UiButton[] _interviewOptionButtons =
     [
         new UiButton(string.Empty),
@@ -74,6 +81,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private Rectangle _editorViewportBounds;
     private Rectangle _sidebarBounds;
     private Rectangle _logBounds;
+    private Rectangle _runControlsBounds;
     private Rectangle _catOverlayBounds;
     private Rectangle _alertsPanelBounds;
     private Rectangle _techDebtCardBounds;
@@ -89,8 +97,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private Rectangle _bankAppBounds;
     private Rectangle _freelanceBoardBounds;
     private Rectangle _upgradesBounds;
+    private Rectangle _upgradesViewportBounds;
+    private Rectangle _upgradesScrollbarTrackBounds;
+    private Rectangle _upgradesScrollbarThumbBounds;
     private Rectangle _applicationBounds;
     private Rectangle _applicationEditorBounds;
+    private Rectangle _tutorialBounds;
     private readonly Dictionary<EfficiencyUpgradeType, Rectangle> _upgradeCardBounds = [];
     private readonly Dictionary<FreelanceGigType, Rectangle> _freelanceGigCardBounds = [];
     private bool _foodAppOpen;
@@ -101,8 +113,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private FoodChoice _selectedFood = FoodChoice.Burger;
     private bool _doubleCheckOrder;
     private bool _expediteFoodDelivery;
+    private float _upgradesScrollOffset;
+    private float _upgradesMaxScrollOffset;
     private string? _lastCelebratedFileName;
     private Point _mousePosition;
+    private bool _tutorialOpen;
+    private int _tutorialPageIndex;
 
     public WorkspaceScreen(
         SpriteFont font,
@@ -134,6 +150,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         ConfigureButtons();
         UpdateLayout();
+        OpenTutorial();
         UpdateButtons();
     }
 
@@ -149,7 +166,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         ConfigureButtons();
         AdvanceButtonAnimations((float)gameTime.ElapsedGameTime.TotalSeconds);
 
-        if (previousStatus == RunStatus.InProgress)
+        if (previousStatus == RunStatus.InProgress && !_tutorialOpen)
         {
             var elapsedSeconds = gameTime.ElapsedGameTime.TotalSeconds;
             var elapsedInGameMinutes = elapsedSeconds * _simulation.Config.InGameMinutesPerRealSecond;
@@ -171,7 +188,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _jobApplicationOpen = false;
         }
 
-        if (_state.Status != RunStatus.InProgress)
+        if (_tutorialOpen)
+        {
+            HandleTutorialInput(input);
+        }
+        else if (_state.Status != RunStatus.InProgress)
         {
             _foodAppOpen = false;
             _bankAppOpen = false;
@@ -179,10 +200,16 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _upgradesOpen = false;
             _jobApplicationOpen = false;
             _restartButton.Enabled = true;
+            _newRunButton.Enabled = true;
             if (_restartButton.Update(input))
             {
                 _audio.PlayButtonClick();
-                _simulation.ApplyAction(_state, PlayerAction.RestartRun);
+                RestartCurrentRun();
+            }
+            else if (_newRunButton.Update(input))
+            {
+                _audio.PlayButtonClick();
+                StartFreshRun();
             }
         }
         else if (_state.FirstCoinDecisionPending)
@@ -259,7 +286,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             DrawJobApplicationOverlay(spriteBatch);
         }
 
-        if (_state.Status != RunStatus.InProgress)
+        if (_tutorialOpen)
+        {
+            DrawTutorialOverlay(spriteBatch);
+        }
+        else if (_state.Status != RunStatus.InProgress)
         {
             DrawOutcomeOverlay(spriteBatch);
         }
@@ -299,6 +330,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             button.HorizontalPadding = 10;
         }
 
+        _guideButton.TextScale = UiTypography.Body;
+        _guideButton.HorizontalPadding = 10;
+        _restartButton.TextScale = _state.Status == RunStatus.InProgress ? UiTypography.Body : UiTypography.Button;
+        _restartButton.HorizontalPadding = 10;
+        _newRunButton.TextScale = _state.Status == RunStatus.InProgress ? UiTypography.Body : UiTypography.Button;
+        _newRunButton.HorizontalPadding = 10;
         _optionsButton.TextScale = UiTypography.Body;
         _optionsButton.HorizontalPadding = 10;
 
@@ -313,6 +350,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _sleepButton.AccentColor = UiTheme.Warning;
         _upgradesButton.AccentColor = UiTheme.Success;
         _bankAppButton.AccentColor = UiTheme.Accent;
+        _guideButton.AccentColor = UiTheme.Accent;
+        _newRunButton.AccentColor = UiTheme.Success;
         _optionsButton.AccentColor = UiTheme.Warning;
         _squashBugButton.AccentColor = UiTheme.Danger;
         _applyForJobButton.AccentColor = UiTheme.Success;
@@ -324,6 +363,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _burritoButton.AccentColor = UiTheme.Warning;
         _pizzaButton.AccentColor = UiTheme.Warning;
         _dumplingsButton.AccentColor = UiTheme.Warning;
+        _skilletPastaButton.AccentColor = UiTheme.Success;
+        _mealPrepChiliButton.AccentColor = UiTheme.Success;
         _doubleCheckOrderButton.AccentColor = UiTheme.Accent;
         _expediteOrderButton.AccentColor = UiTheme.Warning;
         _confirmFoodOrderButton.AccentColor = UiTheme.Success;
@@ -333,6 +374,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _closeUpgradesButton.AccentColor = UiTheme.Warning;
         _openApplicationButton.AccentColor = UiTheme.Accent;
         _closeApplicationButton.AccentColor = UiTheme.Warning;
+        _tutorialBackButton.AccentColor = UiTheme.Warning;
+        _tutorialNextButton.AccentColor = UiTheme.Success;
+        _tutorialCloseButton.AccentColor = UiTheme.Warning;
 
         _doubleCheckOrderButton.TextAlignment = UiTextAlignment.Left;
         _expediteOrderButton.TextAlignment = UiTextAlignment.Left;
@@ -370,6 +414,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
         yield return _closeApplicationButton;
+        yield return _tutorialCloseButton;
     }
 
     private void AdvanceButtonAnimations(float elapsedSeconds)
@@ -387,6 +432,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _sleepButton;
         yield return _upgradesButton;
         yield return _bankAppButton;
+        yield return _guideButton;
+        yield return _newRunButton;
         yield return _optionsButton;
         yield return _squashBugButton;
         yield return _applyForJobButton;
@@ -398,6 +445,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _burritoButton;
         yield return _pizzaButton;
         yield return _dumplingsButton;
+        yield return _skilletPastaButton;
+        yield return _mealPrepChiliButton;
         yield return _doubleCheckOrderButton;
         yield return _expediteOrderButton;
         yield return _confirmFoodOrderButton;
@@ -407,6 +456,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeUpgradesButton;
         yield return _openApplicationButton;
         yield return _closeApplicationButton;
+        yield return _tutorialBackButton;
+        yield return _tutorialNextButton;
+        yield return _tutorialCloseButton;
 
         foreach (var button in _interviewOptionButtons)
         {
@@ -445,6 +497,27 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private void HandleWorkspaceInput(InputSnapshot input)
     {
+        if (_guideButton.Update(input))
+        {
+            OpenTutorial();
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_restartButton.Update(input))
+        {
+            RestartCurrentRun();
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_newRunButton.Update(input))
+        {
+            StartFreshRun();
+            _audio.PlayButtonClick();
+            return;
+        }
+
         if (_optionsButton.Update(input))
         {
             _audio.PlayButtonClick();
@@ -619,7 +692,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return;
         }
 
-        var modifierOptions = _simulation.GetFoodOrderModifiers(_selectedFood);
+        if (_skilletPastaButton.Update(input))
+        {
+            SetSelectedFood(FoodChoice.SkilletPasta);
+            return;
+        }
+
+        if (_mealPrepChiliButton.Update(input))
+        {
+            SetSelectedFood(FoodChoice.MealPrepChili);
+            return;
+        }
+
+        var modifierOptions = _simulation.GetFoodOrderModifiers(_state, _selectedFood);
         for (var index = 0; index < _foodModifierButtons.Length && index < modifierOptions.Count; index++)
         {
             if (!_foodModifierButtons[index].Update(input))
@@ -757,8 +842,50 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         }
     }
 
+    private void HandleTutorialInput(InputSnapshot input)
+    {
+        if (_tutorialCloseButton.Update(input))
+        {
+            _tutorialOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_tutorialBackButton.Update(input))
+        {
+            _tutorialPageIndex = Math.Max(0, _tutorialPageIndex - 1);
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_tutorialNextButton.Update(input))
+        {
+            if (_tutorialPageIndex >= GetTutorialPageCount() - 1)
+            {
+                _tutorialOpen = false;
+            }
+            else
+            {
+                _tutorialPageIndex++;
+            }
+
+            _audio.PlayButtonClick();
+        }
+    }
+
     private void HandleUpgradesInput(InputSnapshot input)
     {
+        if (_upgradesMaxScrollOffset > 0f &&
+            input.ScrollWheelDelta != 0 &&
+            _upgradesBounds.Contains(input.MousePosition))
+        {
+            _upgradesScrollOffset = Math.Clamp(
+                _upgradesScrollOffset - (input.ScrollWheelDelta * 0.36f),
+                0f,
+                _upgradesMaxScrollOffset);
+            UpdateButtons();
+        }
+
         if (_closeUpgradesButton.Update(input))
         {
             _upgradesOpen = false;
@@ -1272,7 +1399,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             fill = new Color(36, 46, 67);
             border = UiTheme.Accent;
             textColor = UiTheme.Accent;
-            message = $"{_simulation.GetFoodOption(_state.ActiveFoodDelivery.Choice).Name} on the way. ETA {FormatRemainingTime(_state.ActiveFoodDelivery.RemainingInGameMinutes)}{(_state.ActiveFoodDelivery.Expedited ? " after the extra tip." : ".")}";
+            var foodChoice = _state.ActiveFoodDelivery.Choice;
+            var prepMode = _simulation.IsHomeCooked(foodChoice)
+                ? "cooking"
+                : _state.ActiveFoodDelivery.Expedited ? "rushing over" : "on the way";
+            message = $"{_simulation.GetFoodOption(_state, foodChoice).Name} is {prepMode}. ETA {FormatRemainingTime(_state.ActiveFoodDelivery.RemainingInGameMinutes)}.";
         }
         else if (_simulation.RequiresSleep(_state))
         {
@@ -1608,7 +1739,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     {
         UiLabel.Draw(spriteBatch, _font, "Status Feed", new Vector2(_logBounds.X + 18, _logBounds.Y + 12), UiTheme.TextPrimary, 0.92f);
 
-        var maxWidth = _logBounds.Width - 36;
+        if (_runControlsBounds != Rectangle.Empty)
+        {
+            DrawRunControlsPanel(spriteBatch);
+        }
+
+        var maxWidth = (_runControlsBounds == Rectangle.Empty
+                ? _logBounds.Right - 18
+                : _runControlsBounds.X - 16) - (_logBounds.X + 18);
         var lineY = _logBounds.Y + 38f;
         var maxBottom = _logBounds.Bottom - 14f;
 
@@ -1635,6 +1773,30 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         }
     }
 
+    private void DrawRunControlsPanel(SpriteBatch spriteBatch)
+    {
+        UiPanel.Draw(spriteBatch, _pixel, _runControlsBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, "Run Controls", new Vector2(_runControlsBounds.X + 12, _runControlsBounds.Y + 10), UiTheme.TextPrimary, 0.74f);
+
+        var seedModeText = _state.RunSeed > 0
+            ? $"Seed {_state.RunSeed} live. Restart replays this run; New Run rolls the current seed setting."
+            : "Restart replays the current setup; New Run rolls the current seed setting.";
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            seedModeText,
+            new Vector2(_runControlsBounds.X + 12, _runControlsBounds.Y + 32),
+            _runControlsBounds.Width - 24,
+            UiTheme.TextMuted,
+            0.58f,
+            1f,
+            3);
+
+        _guideButton.Draw(spriteBatch, _pixel, _font);
+        _restartButton.Draw(spriteBatch, _pixel, _font);
+        _newRunButton.Draw(spriteBatch, _pixel, _font);
+    }
+
     private void DrawFoodAppOverlay(SpriteBatch spriteBatch)
     {
         var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
@@ -1644,8 +1806,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         spriteBatch.Draw(_pixel, new Rectangle(_foodAppBounds.X + 1, _foodAppBounds.Y + 1, _foodAppBounds.Width - 2, 4), UiTheme.Accent);
 
         var activeDelivery = _state.ActiveFoodDelivery;
-        var option = _simulation.GetFoodOption(activeDelivery?.Choice ?? _selectedFood);
-        var orderOptions = _simulation.GetFoodOrderModifiers(activeDelivery?.Choice ?? _selectedFood);
+        var currentFoodChoice = activeDelivery?.Choice ?? _selectedFood;
+        var option = _simulation.GetFoodOption(_state, currentFoodChoice);
+        var orderOptions = _simulation.GetFoodOrderModifiers(_state, currentFoodChoice);
         IReadOnlyCollection<FoodOrderModifier> selectedModifiers = activeDelivery is not null
             ? activeDelivery.SelectedModifiers
             : _selectedFoodModifiers;
@@ -1653,19 +1816,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var expedited = activeDelivery?.Expedited ?? _expediteFoodDelivery;
         var penaltyMinutes = _simulation.GetFoodOrderPenaltyMinutes(option.Choice, selectedModifiers, reviewReceipt);
         var introText = activeDelivery is null
-            ? "Pick a meal to nearly refill focus and stop hunger from chewing at sanity. The food only helps once it arrives, so decide whether the expedite tip is worth the shorter ETA."
-            : "Your order is already on the road. Keep an eye on the ETA here or from the desk strip while the delivery timer runs down.";
+            ? "Mix delivery and home cooking to manage time, cash, and recovery. Takeout lands faster, but cooking is cheaper, steadier, and better for long micromanagement runs."
+            : "Your meal loop is already active. Keep an eye on the ETA here or from the desk strip while the timer runs down.";
         var orderStateText = activeDelivery is null
             ? penaltyMinutes <= 0
-                ? "Receipt reviewed. This order should land clean with no sluggish penalty."
+                ? "Details locked. This meal should land clean with no sluggish penalty."
                 : penaltyMinutes < option.SluggishMinutesWhenUnchecked
                     ? $"Partial cleanup. Expected sluggishness falls to {FormatRemainingTime(penaltyMinutes)} after delivery."
                     : $"Messy order. Expect the full {FormatRemainingTime(option.SluggishMinutesWhenUnchecked)} sluggish hit when it arrives."
-            : $"{option.Name} is {(activeDelivery.Expedited ? "expedited" : "on standard delivery")} with {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)} left before the stats land.";
+            : $"{option.Name} is {(_simulation.IsHomeCooked(activeDelivery.Choice) ? "cooking" : activeDelivery.Expedited ? "expedited" : "on standard delivery")} with {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)} left before the stats land.";
 
         DrawOverlayHeaderLabel(
             spriteBatch,
-            "Food Delivery App",
+            "Food + Kitchen",
             new Vector2(_foodAppBounds.X + 24, _foodAppBounds.Y + 18),
             _closeFoodAppButton.Bounds,
             _foodAppBounds.Right - 24,
@@ -1689,7 +1852,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiLabel.Draw(
             spriteBatch,
             _font,
-            activeDelivery is null ? "Delivery ETA, cash tradeoff." : "Order locked until this driver arrives.",
+            activeDelivery is null ? "Delivery speed versus home-cooked stability." : "Meal locked until the timer resolves.",
             new Vector2(_foodChoicePanelBounds.X + 14, _foodChoicePanelBounds.Y + 38),
             UiTheme.TextMuted,
             0.62f);
@@ -1697,6 +1860,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _burritoButton.Draw(spriteBatch, _pixel, _font);
         _pizzaButton.Draw(spriteBatch, _pixel, _font);
         _dumplingsButton.Draw(spriteBatch, _pixel, _font);
+        _skilletPastaButton.Draw(spriteBatch, _pixel, _font);
+        _mealPrepChiliButton.Draw(spriteBatch, _pixel, _font);
 
         UiPanel.Draw(spriteBatch, _pixel, _foodSummaryPanelBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
@@ -1710,8 +1875,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             spriteBatch,
             _font,
             activeDelivery is null
-                ? $"Cost: ${_simulation.GetFoodTotalCost(option.Choice, expedited):0}   ETA: {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(expedited))}   Focus on arrival: +{option.FocusGain:0}"
-                : $"Paid: ${activeDelivery.TotalFundsCost:0}   ETA: {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)}   Delivery: {(activeDelivery.Expedited ? "Expedited" : "Standard")}",
+                ? $"Cost: ${_simulation.GetFoodTotalCost(_state, option.Choice, expedited):0}   ETA: {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, option.Choice, expedited))}   Focus on arrival: +{option.FocusGain:0}"
+                : $"Paid: ${activeDelivery.TotalFundsCost:0}   ETA: {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)}   Mode: {(_simulation.IsHomeCooked(activeDelivery.Choice) ? "Home Cook" : activeDelivery.Expedited ? "Expedited" : "Delivery")}",
             new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 42),
             UiTheme.Warning,
             0.74f);
@@ -1731,7 +1896,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             spriteBatch,
             _font,
             activeDelivery is null
-                ? "Meals clear hunger on delivery. Sleep is slower, but it is the only full reset."
+                ? _simulation.IsHomeCooked(option.Choice)
+                    ? "Home cooking is slower, cheaper, and calmer than takeout. It still clears hunger only when the meal is ready."
+                    : "Delivery clears hunger on arrival. Sleep is slower, but it is still the only full reset."
                 : $"Expected on arrival: sanity {option.SanityGain:+0;-0;0}, hunger reset, and {(penaltyMinutes <= 0 ? "no sluggishness" : $"{FormatRemainingTime(penaltyMinutes)} sluggishness")}.",
             new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 108),
             UiTheme.TextMuted,
@@ -1794,7 +1961,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         DrawOverlayHeaderLabel(
             spriteBatch,
-            "Banking App",
+            "Banking",
             new Vector2(_bankAppBounds.X + 24, _bankAppBounds.Y + 18),
             _closeBankAppButton.Bounds,
             _bankAppBounds.Right - 24,
@@ -1858,7 +2025,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"Daily bill: -${_simulation.Config.DailyBillAmount:0}. Difficulty: {_state.Difficulty}.",
+            $"Daily bill: -${_simulation.Config.DailyBillAmount:0}. Difficulty: {_state.Difficulty}. Seed: {_state.RunSeed}.",
             new Vector2(rentBounds.X + 16, rentBounds.Y + 78),
             rentBounds.Width - 32,
             UiTheme.TextMuted,
@@ -2020,7 +2187,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Base typing is slow on purpose now. Buy your way back to flow with better tools, cleaner habits, and automation.",
+            "Base typing is slow on purpose now. Buy your way back to flow with better tools, cleaner habits, food prep support, and automation.",
             new Vector2(_upgradesBounds.X + 24, _upgradesBounds.Y + 52),
             _upgradesBounds.Width - 48,
             UiTheme.TextMuted,
@@ -2028,9 +2195,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2f,
             3);
 
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var previousScissor = graphicsDevice.ScissorRectangle;
+        graphicsDevice.ScissorRectangle = _upgradesViewportBounds;
+
         foreach (var definition in EfficiencyUpgradeCatalog.All)
         {
             var cardBounds = _upgradeCardBounds[definition.Type];
+            if (cardBounds.Bottom < _upgradesViewportBounds.Top - 4 ||
+                cardBounds.Y > _upgradesViewportBounds.Bottom + 4)
+            {
+                continue;
+            }
+
             var purchased = _state.PurchasedUpgrades.Contains(definition.Type);
             var fill = purchased ? new Color(26, 56, 43) : UiTheme.PanelRaised;
             var border = purchased ? UiTheme.Success : UiTheme.PanelBorder;
@@ -2096,6 +2273,26 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 1f,
                 railMaxLines);
             _upgradeButtons[definition.Type].Draw(spriteBatch, _pixel, _font);
+        }
+
+        graphicsDevice.ScissorRectangle = previousScissor;
+
+        if (_upgradesMaxScrollOffset > 0f)
+        {
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _upgradesScrollbarTrackBounds,
+                UiTheme.WithOpacity(UiTheme.PanelMuted, 0.78f),
+                UiTheme.PanelBorder,
+                1);
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _upgradesScrollbarThumbBounds,
+                UiTheme.Accent,
+                UiTheme.TextPrimary,
+                1);
         }
 
         _closeUpgradesButton.Draw(spriteBatch, _pixel, _font);
@@ -2312,7 +2509,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var borderColor = lifeEvent.Type switch
         {
             IncidentType.ComputerFreeze => UiTheme.Warning,
-            IncidentType.OnlineMatch => UiTheme.Success,
+            IncidentType.OnlineMatch or IncidentType.PartnerCheckIn => UiTheme.Success,
             _ => UiTheme.Accent,
         };
 
@@ -2342,12 +2539,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2f,
             5);
 
-        if (lifeEvent.Type == IncidentType.OnlineMatch)
+        if (lifeEvent.Type is IncidentType.OnlineMatch or IncidentType.PartnerCheckIn)
         {
             UiLabel.Draw(
                 spriteBatch,
                 _font,
-                $"Relationship progress: {_state.RelationshipProgress}/{_simulation.Config.RelationshipProgressNeededForLove}",
+                _state.HasFoundLove
+                    ? $"{_state.PartnerName} | relationship strength {_state.RelationshipProgress}"
+                    : $"Relationship progress: {_state.RelationshipProgress}/{_simulation.Config.RelationshipProgressNeededForLove}",
                 new Vector2(_lifeEventBounds.X + 28, _lifeEventBounds.Y + 264),
                 UiTheme.Success,
                 0.7f);
@@ -2402,7 +2601,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Restart to begin another week with cleaner timing and a stronger portfolio route.",
+            "Restart replays this exact seed. New Run rolls forward using the current seed mode from Options.",
             new Vector2(modalBounds.X + 30, modalBounds.Y + 216),
             modalBounds.Width - 60,
             UiTheme.TextMuted,
@@ -2411,6 +2610,74 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2);
 
         _restartButton.Draw(spriteBatch, _pixel, _font);
+        _newRunButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawTutorialOverlay(SpriteBatch spriteBatch)
+    {
+        var page = GetTutorialPage(_tutorialPageIndex);
+        var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
+        UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
+
+        UiPanel.Draw(spriteBatch, _pixel, _tutorialBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_tutorialBounds.X + 1, _tutorialBounds.Y + 1, _tutorialBounds.Width - 2, 4), UiTheme.Accent);
+
+        UiLabel.Draw(spriteBatch, _font, "How To Survive The Week", new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 24), UiTheme.TextPrimary, 1.08f);
+        UiLabel.Draw(
+            spriteBatch,
+            _font,
+            $"Page {_tutorialPageIndex + 1}/{GetTutorialPageCount()}  |  Seed {_state.RunSeed}",
+            new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 56),
+            UiTheme.TextMuted,
+            0.68f);
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            page.Title,
+            new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 86),
+            _tutorialCloseButton.Bounds,
+            _tutorialBounds.Right - 28,
+            UiTheme.Accent,
+            1.0f,
+            0.82f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            page.Intro,
+            new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 122),
+            _tutorialBounds.Width - 56,
+            UiTheme.TextPrimary,
+            0.74f,
+            2f,
+            3);
+
+        var cardsTop = _tutorialBounds.Y + 206;
+        var cardsBottom = _tutorialBackButton.Bounds.Y - 18;
+        var cardGap = 12;
+        var cardCount = Math.Max(1, page.Sections.Length);
+        var totalGap = Math.Max(0, cardCount - 1) * cardGap;
+        var cardHeight = Math.Max(76, (cardsBottom - cardsTop - totalGap) / cardCount);
+
+        for (var index = 0; index < page.Sections.Length; index++)
+        {
+            var section = page.Sections[index];
+            var bounds = new Rectangle(_tutorialBounds.X + 28, cardsTop + (index * (cardHeight + cardGap)), _tutorialBounds.Width - 56, cardHeight);
+            UiPanel.Draw(spriteBatch, _pixel, bounds, index == 0 ? UiTheme.PanelRaised : UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+            UiLabel.Draw(spriteBatch, _font, section.Heading, new Vector2(bounds.X + 16, bounds.Y + 12), UiTheme.TextPrimary, 0.78f);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                section.Body,
+                new Vector2(bounds.X + 16, bounds.Y + 38),
+                bounds.Width - 32,
+                UiTheme.TextMuted,
+                0.66f,
+                2f,
+                4);
+        }
+
+        _tutorialBackButton.Draw(spriteBatch, _pixel, _font);
+        _tutorialNextButton.Draw(spriteBatch, _pixel, _font);
+        _tutorialCloseButton.Draw(spriteBatch, _pixel, _font);
     }
 
     private void UpdateButtons()
@@ -2424,23 +2691,35 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var alertsTop = GetSidebarAlertsTop();
         var activeDelivery = _state.ActiveFoodDelivery;
         var hasActiveFoodDelivery = activeDelivery is not null;
+        if (!hasActiveFoodDelivery && !_simulation.AllowsExpeditedDelivery(_selectedFood))
+        {
+            _expediteFoodDelivery = false;
+        }
+
         var reviewReceiptEnabled = activeDelivery?.ReviewReceipt ?? _doubleCheckOrder;
         var expeditedDeliveryEnabled = activeDelivery?.Expedited ?? _expediteFoodDelivery;
 
         _foodAppButton.Enabled = _state.Status == RunStatus.InProgress;
-        _foodAppButton.Text = hasActiveFoodDelivery ? "Track Order" : "Delivery App";
+        _foodAppButton.Text = hasActiveFoodDelivery ? "Track Order" : "Food + Kitchen";
         _freelanceButton.Enabled = _state.Status == RunStatus.InProgress;
         _bankAppButton.Enabled = _state.Status == RunStatus.InProgress;
+        _bankAppButton.Text = "Banking";
         _sleepButton.Enabled = _simulation.CanApplyAction(_state, PlayerAction.Sleep);
         _sleepButton.Text = _simulation.RequiresSleep(_state) ? "Sleep Now" : "Sleep";
         _sleepButton.IsSelected = _simulation.RequiresSleep(_state);
         _upgradesButton.Enabled = _state.Status == RunStatus.InProgress;
+        _guideButton.Enabled = _state.Status == RunStatus.InProgress;
+        _guideButton.Text = "Guide";
+        _newRunButton.Enabled = true;
+        _newRunButton.Text = "New Run";
         _optionsButton.Enabled = true;
         _squashBugButton.Enabled = _simulation.CanApplyAction(_state, PlayerAction.SquashBug);
         _applyForJobButton.Enabled = _simulation.CanApplyAction(_state, PlayerAction.ApplyForJob);
         _applyForJobButton.Text = "Start";
         _publishAppButton.Enabled = _simulation.CanApplyAction(_state, PlayerAction.PublishApp);
         _publishAppButton.Text = "Publish";
+        _restartButton.Enabled = true;
+        _restartButton.Text = _state.Status == RunStatus.InProgress ? "Restart" : "Restart Run";
         _openApplicationButton.Enabled = _state.ActiveJobApplication is not null;
         _openApplicationButton.Text = _state.ActiveJobApplication is not null && _state.ActiveJobApplication.TakeHomeComplete
             ? "Interview"
@@ -2454,6 +2733,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 80, contentWidth, 34);
 
         _coinFrameBounds = new Rectangle(_editorViewportBounds.Right - 148, _editorViewportBounds.Y + 6, 128, 86);
+        _runControlsBounds = _state.Status == RunStatus.InProgress
+            ? new Rectangle(_logBounds.Right - 350, _logBounds.Y + 10, 334, _logBounds.Height - 20)
+            : Rectangle.Empty;
 
         _alertsPanelBounds = new Rectangle(contentX, alertsTop, contentWidth, _sidebarBounds.Bottom - alertsTop - 16);
 
@@ -2544,7 +2826,21 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _publishAppButton.Bounds = new Rectangle(_publishCardBounds.Right - 94, _publishCardBounds.Y + 8, 84, 24);
         }
 
-        _restartButton.Bounds = new Rectangle(628, 494, 344, 54);
+        if (_runControlsBounds != Rectangle.Empty)
+        {
+            var runButtonY = _runControlsBounds.Bottom - 38;
+            var runButtonWidth = (_runControlsBounds.Width - 40) / 3;
+            _guideButton.Bounds = new Rectangle(_runControlsBounds.X + 12, runButtonY, runButtonWidth, 28);
+            _restartButton.Bounds = new Rectangle(_guideButton.Bounds.Right + 8, runButtonY, runButtonWidth, 28);
+            _newRunButton.Bounds = new Rectangle(_restartButton.Bounds.Right + 8, runButtonY, runButtonWidth, 28);
+        }
+        else
+        {
+            _guideButton.Bounds = Rectangle.Empty;
+            _restartButton.Bounds = new Rectangle(468, 494, 304, 54);
+            _newRunButton.Bounds = new Rectangle(828, 494, 304, 54);
+        }
+
         _breakCoinButton.Bounds = new Rectangle(552, 480, 198, 44);
         _acceptEvictionButton.Bounds = new Rectangle(850, 480, 198, 44);
         _lifeEventBounds = new Rectangle(420, 184, 760, 392);
@@ -2583,7 +2879,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var choiceWidth = 300;
         var foodContentWidth = foodWidth - 48;
         var modifierWidth = foodContentWidth - choiceWidth - topPanelsGap;
-        var modifierOptions = _simulation.GetFoodOrderModifiers(activeDelivery?.Choice ?? _selectedFood);
+        var selectedFoodForOverlay = activeDelivery?.Choice ?? _selectedFood;
+        var modifierOptions = _simulation.GetFoodOrderModifiers(_state, selectedFoodForOverlay);
         var modifierIntroHeight = UiTextBlock.MeasureWrappedHeight(
             _font,
             GetFoodModifierIntroText(activeDelivery),
@@ -2596,7 +2893,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         const int modifierButtonHeight = 30;
         const int modifierRowGap = 40;
         const int baseTopPanelsHeight = 182;
-        var requiredChoicePanelHeight = 52 + (mealButtonHeight * 2) + mealButtonGap + 18;
+        var requiredChoicePanelHeight = 52 + (mealButtonHeight * 3) + (mealButtonGap * 2) + 18;
         var requiredModifierPanelHeight = 50 + (int)Math.Ceiling(modifierIntroHeight) + 10 + modifierButtonHeight + 18;
         if (modifierOptions.Count > 1)
         {
@@ -2620,6 +2917,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _burritoButton.Bounds = new Rectangle(mealButtonX + mealButtonWidth + mealButtonGap, mealButtonY, mealButtonWidth, mealButtonHeight);
         _pizzaButton.Bounds = new Rectangle(mealButtonX, mealButtonY + mealButtonHeight + mealButtonGap, mealButtonWidth, mealButtonHeight);
         _dumplingsButton.Bounds = new Rectangle(mealButtonX + mealButtonWidth + mealButtonGap, mealButtonY + mealButtonHeight + mealButtonGap, mealButtonWidth, mealButtonHeight);
+        _skilletPastaButton.Bounds = new Rectangle(mealButtonX, mealButtonY + ((mealButtonHeight + mealButtonGap) * 2), mealButtonWidth, mealButtonHeight);
+        _mealPrepChiliButton.Bounds = new Rectangle(mealButtonX + mealButtonWidth + mealButtonGap, mealButtonY + ((mealButtonHeight + mealButtonGap) * 2), mealButtonWidth, mealButtonHeight);
 
         var foodActionsY = _foodAppBounds.Bottom - 52;
         _doubleCheckOrderButton.Bounds = new Rectangle(_foodAppBounds.X + 24, foodActionsY, 208, 34);
@@ -2661,6 +2960,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _applicationBounds = new Rectangle(_editorViewportBounds.X + 70, _editorViewportBounds.Y + 16, 774, 566);
         _applicationEditorBounds = new Rectangle(_applicationBounds.X + 24, _applicationBounds.Y + 174, _applicationBounds.Width - 48, _applicationBounds.Height - 198);
         _closeApplicationButton.Bounds = new Rectangle(_applicationBounds.Right - 112, _applicationBounds.Y + 18, 88, 30);
+        _tutorialBounds = new Rectangle(226, 92, 1148, 628);
+        _tutorialCloseButton.Bounds = new Rectangle(_tutorialBounds.Right - 112, _tutorialBounds.Y + 18, 88, 30);
+        _tutorialBackButton.Bounds = new Rectangle(_tutorialBounds.X + 28, _tutorialBounds.Bottom - 52, 136, 34);
+        _tutorialNextButton.Bounds = new Rectangle(_tutorialBounds.Right - 188, _tutorialBounds.Bottom - 52, 160, 34);
+        _tutorialBackButton.Enabled = _tutorialPageIndex > 0;
+        _tutorialNextButton.Enabled = true;
+        _tutorialNextButton.Text = _tutorialPageIndex >= GetTutorialPageCount() - 1 ? "Begin Run" : "Next";
         var optionY = _applicationEditorBounds.Bottom - 144;
         for (var index = 0; index < _interviewOptionButtons.Length; index++)
         {
@@ -2711,21 +3017,38 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var upgradesX = _editorViewportBounds.X + ((_editorViewportBounds.Width - upgradesWidth) / 2);
         _upgradesBounds = new Rectangle(upgradesX, _editorViewportBounds.Y + 8, upgradesWidth, 636);
         _closeUpgradesButton.Bounds = new Rectangle(_upgradesBounds.Right - 112, _upgradesBounds.Y + 18, 88, 30);
-
-        var upgradeCardWidth = (_upgradesBounds.Width - 72) / 2;
+        _upgradesViewportBounds = new Rectangle(_upgradesBounds.X + 24, _upgradesBounds.Y + 126, _upgradesBounds.Width - 64, _upgradesBounds.Height - 150);
+        _upgradesScrollbarTrackBounds = new Rectangle(_upgradesBounds.Right - 26, _upgradesViewportBounds.Y, 10, _upgradesViewportBounds.Height);
+        var upgradeCardWidth = (_upgradesViewportBounds.Width - 24) / 2;
         var upgradeCardHeight = 118;
-        var firstCardX = _upgradesBounds.X + 24;
+        var firstCardX = _upgradesViewportBounds.X;
         var secondCardX = firstCardX + upgradeCardWidth + 24;
-        var firstRowY = _upgradesBounds.Y + 126;
+        var firstRowY = _upgradesViewportBounds.Y;
         const int upgradeRowGap = 12;
+        var upgradeRows = (int)Math.Ceiling(EfficiencyUpgradeCatalog.All.Count / 2f);
+        var upgradesContentHeight = (upgradeRows * upgradeCardHeight) + (Math.Max(0, upgradeRows - 1) * upgradeRowGap);
+        _upgradesMaxScrollOffset = Math.Max(0f, upgradesContentHeight - _upgradesViewportBounds.Height);
+        _upgradesScrollOffset = Math.Clamp(_upgradesScrollOffset, 0f, _upgradesMaxScrollOffset);
         for (var index = 0; index < EfficiencyUpgradeCatalog.All.Count; index++)
         {
             var definition = EfficiencyUpgradeCatalog.All[index];
             var column = index % 2;
             var row = index / 2;
             var x = column == 0 ? firstCardX : secondCardX;
-            var y = firstRowY + (row * (upgradeCardHeight + upgradeRowGap));
+            var y = firstRowY + (row * (upgradeCardHeight + upgradeRowGap)) - (int)MathF.Round(_upgradesScrollOffset);
             _upgradeCardBounds[definition.Type] = new Rectangle(x, y, upgradeCardWidth, upgradeCardHeight);
+        }
+
+        if (_upgradesMaxScrollOffset <= 0f)
+        {
+            _upgradesScrollbarThumbBounds = _upgradesScrollbarTrackBounds;
+        }
+        else
+        {
+            var thumbHeight = Math.Max(54, (int)MathF.Round(_upgradesScrollbarTrackBounds.Height * (_upgradesViewportBounds.Height / (float)upgradesContentHeight)));
+            var thumbTravel = _upgradesScrollbarTrackBounds.Height - thumbHeight;
+            var thumbY = _upgradesScrollbarTrackBounds.Y + (int)MathF.Round((_upgradesScrollOffset / _upgradesMaxScrollOffset) * thumbTravel);
+            _upgradesScrollbarThumbBounds = new Rectangle(_upgradesScrollbarTrackBounds.X, thumbY, _upgradesScrollbarTrackBounds.Width, thumbHeight);
         }
 
         foreach (var definition in EfficiencyUpgradeCatalog.All)
@@ -2740,6 +3063,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             button.Bounds = new Rectangle(cardBounds.Right - 126, cardBounds.Bottom - 42, 112, 30);
         }
 
+        _burgerButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Burger).Name;
+        _burritoButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Burrito).Name;
+        _pizzaButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Pizza).Name;
+        _dumplingsButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Dumplings).Name;
+        _skilletPastaButton.Text = _simulation.GetFoodOption(_state, FoodChoice.SkilletPasta).Name;
+        _mealPrepChiliButton.Text = _simulation.GetFoodOption(_state, FoodChoice.MealPrepChili).Name;
+
         _burgerButton.IsSelected = _selectedFood == FoodChoice.Burger;
         _burgerButton.Enabled = !hasActiveFoodDelivery;
         _burritoButton.IsSelected = _selectedFood == FoodChoice.Burrito;
@@ -2748,14 +3078,21 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _pizzaButton.Enabled = !hasActiveFoodDelivery;
         _dumplingsButton.IsSelected = _selectedFood == FoodChoice.Dumplings;
         _dumplingsButton.Enabled = !hasActiveFoodDelivery;
+        _skilletPastaButton.IsSelected = _selectedFood == FoodChoice.SkilletPasta;
+        _skilletPastaButton.Enabled = !hasActiveFoodDelivery;
+        _mealPrepChiliButton.IsSelected = _selectedFood == FoodChoice.MealPrepChili;
+        _mealPrepChiliButton.Enabled = !hasActiveFoodDelivery;
         _doubleCheckOrderButton.Enabled = !hasActiveFoodDelivery;
         _doubleCheckOrderButton.IsSelected = reviewReceiptEnabled;
-        _doubleCheckOrderButton.Text = reviewReceiptEnabled ? "Review Receipt: ON" : "Review Receipt: OFF";
-        _expediteOrderButton.Enabled = !hasActiveFoodDelivery;
+        _doubleCheckOrderButton.Text = reviewReceiptEnabled ? "Check Details: ON" : "Check Details: OFF";
+        var canExpediteSelectedFood = _simulation.AllowsExpeditedDelivery(_selectedFood);
+        _expediteOrderButton.Enabled = !hasActiveFoodDelivery && canExpediteSelectedFood;
         _expediteOrderButton.IsSelected = expeditedDeliveryEnabled;
-        _expediteOrderButton.Text = expeditedDeliveryEnabled
-            ? $"Expedite (+${_simulation.GetFoodTipAmount(true):0}): ON"
-            : $"Expedite (+${_simulation.GetFoodTipAmount(true):0}): OFF";
+        _expediteOrderButton.Text = !canExpediteSelectedFood
+            ? "Expedite: N/A"
+            : expeditedDeliveryEnabled
+                ? $"Expedite (+${_simulation.GetFoodTipAmount(_selectedFood, true):0}): ON"
+                : $"Expedite (+${_simulation.GetFoodTipAmount(_selectedFood, true):0}): OFF";
         _confirmFoodOrderButton.Text = hasActiveFoodDelivery ? "Order Active" : "Place Order";
         _confirmFoodOrderButton.Enabled = _simulation.CanPlaceFoodOrder(_state, _selectedFood, _expediteFoodDelivery);
     }
@@ -2763,8 +3100,145 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private string GetFoodModifierIntroText(ActiveFoodDelivery? activeDelivery)
     {
         return activeDelivery is null
-            ? "Toggle the details you want fixed before the order leaves the kitchen."
-            : $"Kitchen notes locked in. Receipt review: {(activeDelivery.ReviewReceipt ? "ON" : "OFF")}  |  Tip: ${activeDelivery.TipAmount:0}.";
+            ? "Toggle the details you want fixed before the meal gets locked in."
+            : $"{(_simulation.IsHomeCooked(activeDelivery.Choice) ? "Prep notes" : "Kitchen notes")} locked in. Detail check: {(activeDelivery.ReviewReceipt ? "ON" : "OFF")}  |  Tip: ${activeDelivery.TipAmount:0}.";
+    }
+
+    private void OpenTutorial()
+    {
+        _tutorialOpen = true;
+        _tutorialPageIndex = 0;
+        _foodAppOpen = false;
+        _bankAppOpen = false;
+        _freelanceBoardOpen = false;
+        _upgradesOpen = false;
+        _jobApplicationOpen = false;
+    }
+
+    private void RestartCurrentRun()
+    {
+        _state = _simulation.CreateNewRun(_state.RunSeed);
+        ResetWorkspaceForFreshState();
+    }
+
+    private void StartFreshRun()
+    {
+        _state = _simulation.CreateNewRun();
+        ResetWorkspaceForFreshState();
+    }
+
+    private void ResetWorkspaceForFreshState()
+    {
+        _selectedFood = FoodChoice.Burger;
+        _selectedFoodModifiers.Clear();
+        _doubleCheckOrder = false;
+        _expediteFoodDelivery = false;
+        _upgradesScrollOffset = 0f;
+        _upgradesMaxScrollOffset = 0f;
+        _lastCelebratedFileName = null;
+        OpenTutorial();
+        UpdateLayout();
+        UpdateButtons();
+    }
+
+    private sealed record TutorialSection(string Heading, string Body);
+
+    private sealed record TutorialPage(string Title, string Intro, TutorialSection[] Sections);
+
+    private int GetTutorialPageCount()
+    {
+        return 6;
+    }
+
+    private TutorialPage GetTutorialPage(int pageIndex)
+    {
+        return pageIndex switch
+        {
+            0 => new TutorialPage(
+                "What A Run Actually Is",
+                $"You start the week on Day {_state.Day} with ${_state.Funds:0}, focus {_state.Focus:0}, sanity {_state.Sanity:0}, and bills hitting every in-game midnight for ${_simulation.Config.DailyBillAmount:0}. Your goal is to keep money, focus, and sanity from collapsing long enough to ship code, earn income, and grow your career.",
+                [
+                    new TutorialSection(
+                        "How you lose",
+                        "If bills push funds below zero and you refuse or cannot cover the deficit, the run ends. You can also burn out if sanity crashes too hard. Survival comes from preventing small problems from stacking into a disaster."),
+                    new TutorialSection(
+                        "How you win",
+                        "Build portfolio files, keep code quality respectable, and convert that work into better job outcomes. Publishing apps and answering recruiter opportunities are the main path toward stability and a successful run."),
+                    new TutorialSection(
+                        "First-day mindset",
+                        "Do not spend the opening hour chasing everything at once. Write code, watch focus and hunger, and protect enough cash so the next bill is not a panic button.")
+                ]),
+            1 => new TutorialPage(
+                "Core Desk Loop",
+                "Most of the run is a rhythm: click the editor to write code, finish files, publish finished batches, and react to whatever the desk throws back at you. Every click trades focus for progress, so efficiency matters.",
+                [
+                    new TutorialSection(
+                        "Writing code",
+                        $"Click inside the editor to type. Each click currently spends about {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus for {_simulation.GetCurrentWriteLinesPerClick(_state)} line{(_simulation.GetCurrentWriteLinesPerClick(_state) == 1 ? string.Empty : "s")}, while quality slowly rises with steady work."),
+                    new TutorialSection(
+                        "Finishing files",
+                        "Each run serves coherent project-related snippets instead of random filler. Completing a file advances the portfolio track, and finishing the whole batch unlocks a publish window for a cash payout and the next set of snippets."),
+                    new TutorialSection(
+                        "Alerts matter",
+                        "Bug cards, recruiter cards, and publish prompts appear in Alerts & Inbox. Ignore them too long and your run leaks value, but chasing them too early can starve the core portfolio loop.")
+                ]),
+            2 => new TutorialPage(
+                "Food, Sleep, And Staying Functional",
+                "The sim is built around micromanagement, so maintenance is not flavor text. Hunger, fatigue, sluggish meals, and sanity regen all shape whether the next hour feels smooth or catastrophic.",
+                [
+                    new TutorialSection(
+                        "Food + Kitchen",
+                        $"Takeout lands fast, and expedited delivery can cut ETA to about {FormatRemainingTime(_simulation.Config.ExpeditedFoodDeliveryDurationMinutes)} for a tip. Home-cooked meals take longer but cost less and usually hit with calmer recovery. Eat before hunger turns into an ongoing sanity bleed."),
+                    new TutorialSection(
+                        "Sleep is a hard gate",
+                        $"Sleep lasts {FormatRemainingTime(_simulation.Config.SleepDurationMinutes)} and fully resets the worst fatigue. If you stay awake too long, coding, gigs, and interviews eventually lock behind sleep, so do not wait until the desk is already falling apart."),
+                    new TutorialSection(
+                        "Survival rule of thumb",
+                        $"If focus is low, hunger is climbing toward {FormatRemainingTime(_simulation.Config.HungryAfterMinutes)}, or you are close to the forced-sleep window, recover early. A stable run beats a heroic collapse every time.")
+                ]),
+            3 => new TutorialPage(
+                "Money And Runway",
+                "Cash is pressure, not score. You need enough runway to absorb bills, buy smart upgrades, and cover life-event choices without turning every decision into a desperate short-term patch.",
+                [
+                    new TutorialSection(
+                        "Banking",
+                        "Open Banking to see current funds, the next bill timer, and whether the framed first coin is still available as an emergency rescue. Use it when you need to decide whether you can afford a meal, upgrade, or time-consuming detour."),
+                    new TutorialSection(
+                        "Three income lanes",
+                        "Published apps create payouts, freelance gigs deliver immediate cash for time and stress, and job applications can end the run successfully. Mix them based on what the current week can support rather than forcing one plan every time."),
+                    new TutorialSection(
+                        "First coin triage",
+                        $"If you still have the first coin, it passively steadies sanity and can break for +${_simulation.Config.FirstCoinEmergencyFundsGain:0} once. Treat it like a last-resort buffer, not your normal rent strategy.")
+                ]),
+            4 => new TutorialPage(
+                "Opportunities, Relationships, And Chaos",
+                "Runs are meant to feel alive. Bugs, recruiter pings, partner moments, random events, and project variation all push and pull on your schedule, so the interesting choice is usually about timing rather than a single best button.",
+                [
+                    new TutorialSection(
+                        "Recruiter loop",
+                        "Listings care about portfolio proof, quality, and follow-through. Start applications only when you can afford the focus and time; half-committing at the wrong moment can leave the whole desk weaker."),
+                    new TutorialSection(
+                        "Upgrades pay back time",
+                        "Use the upgrades list to reduce focus drain, smooth food logistics, improve typing efficiency, and make repeated actions less punishing. The right upgrade can be stronger than one more emergency gig."),
+                    new TutorialSection(
+                        "Relationships and life events",
+                        $"Relationship scenes now stay coherent within a run. They can restore sanity and make the world feel less mechanical, but they still cost time or focus. Treat them as part of the schedule, not separate from it.")
+                ]),
+            _ => new TutorialPage(
+                "Using Seeds, Restart, And New Run",
+                $"This run is currently using seed {_state.RunSeed}. The seed drives project order, event timing, food flavor, names, and other procedural details so a restart can replay the same scenario while a fresh run can feel new.",
+                [
+                    new TutorialSection(
+                        "Restart",
+                        "Restart replays the current run seed from the opening state. Use it when you want to test a different strategy against the exact same project order, event cadence, and relationship thread."),
+                    new TutorialSection(
+                        "New Run",
+                        "New Run starts over using the seed rules from Options. If seed mode is random, you get a fresh scenario. If seed mode is manual, New Run keeps using that manual value until you change it."),
+                    new TutorialSection(
+                        "Good opening plan",
+                        "Read Alerts & Inbox, write until the first real resource warning appears, secure food before hunger snowballs, and keep enough cash for bills. Once the desk is stable, start reaching for gigs, upgrades, and recruiter momentum.")
+                ]),
+        };
     }
 
     private void UpdateLayout()
@@ -2906,19 +3380,34 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 return BuildFoodTooltip(FoodChoice.Dumplings);
             }
 
+            if (_skilletPastaButton.IsHovered)
+            {
+                return BuildFoodTooltip(FoodChoice.SkilletPasta);
+            }
+
+            if (_mealPrepChiliButton.IsHovered)
+            {
+                return BuildFoodTooltip(FoodChoice.MealPrepChili);
+            }
+
             if (_doubleCheckOrderButton.IsHovered)
             {
-                return ("Review Receipt", "Check the full order before it goes through. Pair it with the right order details to eliminate the sluggish penalty.");
+                return ("Check Details", "Lock in the important meal details before the choice goes live. Pair it with the right prep notes to eliminate the sluggish penalty.");
             }
 
             if (_expediteOrderButton.IsHovered)
             {
+                if (!_simulation.AllowsExpeditedDelivery(_selectedFood))
+                {
+                    return ("Expedite", "Home-cooked meals cannot be expedited. They trade speed for lower cost and steadier recovery.");
+                }
+
                 return (
                     "Expedite Delivery",
-                    $"Add a ${_simulation.GetFoodTipAmount(true):0} tip to cut delivery time down to {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(true))} instead of {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(false))}.");
+                    $"Add a ${_simulation.GetFoodTipAmount(_selectedFood, true):0} tip to cut delivery time down to {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, _selectedFood, true))} instead of {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, _selectedFood, false))}.");
             }
 
-            var orderOptions = _simulation.GetFoodOrderModifiers(_selectedFood);
+            var orderOptions = _simulation.GetFoodOrderModifiers(_state, _selectedFood);
             for (var index = 0; index < _foodModifierButtons.Length && index < orderOptions.Count; index++)
             {
                 if (_foodModifierButtons[index].IsHovered)
@@ -2931,11 +3420,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
             if (_confirmFoodOrderButton.IsHovered)
             {
-                var option = _simulation.GetFoodOption(_selectedFood);
+                var option = _simulation.GetFoodOption(_state, _selectedFood);
                 var penalty = _simulation.GetFoodOrderPenaltyMinutes(_selectedFood, _selectedFoodModifiers, _doubleCheckOrder);
                 return (
                     "Place Order",
-                    $"Spend ${_simulation.GetFoodTotalCost(_selectedFood, _expediteFoodDelivery):0} for {option.Name}. ETA {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_expediteFoodDelivery))}. Focus {FormatSigned(option.FocusGain)}, sanity {FormatSigned(option.SanityGain)}, and expected sluggishness {(penalty <= 0 ? "removed" : FormatRemainingTime(penalty))} on arrival.");
+                    $"Spend ${_simulation.GetFoodTotalCost(_state, _selectedFood, _expediteFoodDelivery):0} for {option.Name}. ETA {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, _selectedFood, _expediteFoodDelivery))}. Focus {FormatSigned(option.FocusGain)}, sanity {FormatSigned(option.SanityGain)}, and expected sluggishness {(penalty <= 0 ? "removed" : FormatRemainingTime(penalty))} on arrival.");
                 }
 
             return null;
@@ -2976,10 +3465,10 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 var delivery = _state.ActiveFoodDelivery;
                 return (
                     "Track Order",
-                    $"{_simulation.GetFoodOption(delivery.Choice).Name} is already on the road. ETA {FormatRemainingTime(delivery.RemainingInGameMinutes)} before the stats land.");
+                    $"{_simulation.GetFoodOption(_state, delivery.Choice).Name} is already in progress. ETA {FormatRemainingTime(delivery.RemainingInGameMinutes)} before the stats land.");
             }
 
-            return ("Delivery App", "Browse near-full focus refills that also reset hunger, then decide how much sluggishness risk you can tolerate while the delivery timer runs.");
+            return ("Food + Kitchen", "Balance delivery speed against home-cooked efficiency. Meals restore focus and hunger on arrival, but the details still matter.");
         }
 
         if (_freelanceButton.IsHovered)
@@ -2994,7 +3483,22 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_bankAppButton.IsHovered)
         {
-            return ("Banking App", "Open a clean finance view with runway, rent countdown, and first-coin emergency status.");
+            return ("Banking", "Open a clean finance view with runway, rent countdown, and first-coin emergency status.");
+        }
+
+        if (_guideButton.IsHovered)
+        {
+            return ("Guide", "Reopen the multi-step tutorial with survival advice, core loop guidance, and seed/run-control explanations.");
+        }
+
+        if (_restartButton.IsHovered)
+        {
+            return ("Restart", $"Replay seed {_state.RunSeed} from the opening state to test a different route against the exact same scenario.");
+        }
+
+        if (_newRunButton.IsHovered)
+        {
+            return ("New Run", "Start a fresh run using the current seed mode from Options. Random mode rolls a new seed, manual mode reuses the chosen one.");
         }
 
         if (_optionsButton.IsHovered)
@@ -3019,7 +3523,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_squashBugButton.IsHovered && _state.ActiveTechDebtBug is not null)
         {
-            return ("Fix Bug", $"Spend {_simulation.Config.SquashBugFocusCost:0} focus to stop the drain and recover +4 code quality.");
+            return ("Fix Bug", $"Spend {_simulation.GetCurrentSquashBugFocusCost(_state):0} focus to stop the drain and recover +4 code quality.");
         }
 
         if (_applyForJobButton.IsHovered && _state.ActiveJobListing is not null)
@@ -3052,14 +3556,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private (string Title, string Body) BuildFoodTooltip(FoodChoice choice)
     {
-        var option = _simulation.GetFoodOption(choice);
-        var recommended = _simulation.GetFoodOrderModifiers(choice)
+        var option = _simulation.GetFoodOption(_state, choice);
+        var recommended = _simulation.GetFoodOrderModifiers(_state, choice)
             .Where(static modifier => modifier.Recommended)
             .Select(static modifier => modifier.Label)
             .ToArray();
         return (
             option.Name,
-            $"{option.Description} Base cost ${option.FundsCost:0}. Standard ETA {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(false))}, expedited ETA {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(true))}. Clean order notes: {string.Join(", ", recommended)}.");
+            $"{option.Description} Base cost ${_simulation.GetFoodTotalCost(_state, choice, false):0}. ETA {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, choice, false))}{(_simulation.AllowsExpeditedDelivery(choice) ? $", expedited {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, choice, true))}" : ", home-cooked only")}. Clean order notes: {string.Join(", ", recommended)}.");
     }
 
     private (string Title, string Body) BuildFreelanceTooltip(FreelanceGigType type)
@@ -3078,6 +3582,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 $"The machine is dead until you deal with it. Fixing it yourself burns {FormatRemainingTime(_simulation.Config.ComputerFreezeSelfRepairDurationMinutes)} and sanity. Tech support is faster but costs ${_simulation.Config.ComputerFreezeTechSupportFundsCost:0}. The repair shop is the slowest and most expensive, but least mentally brutal.",
             IncidentType.OnlineMatch =>
                 $"{lifeEvent.SubjectName} looks like an actual human possibility, not just algorithm filler. Message them for a smaller time hit, spend ${_simulation.Config.OnlineDateFundsCost:0} to actually go out, or let the whole thing die and keep grinding. Finding love adds passive sanity support.",
+            IncidentType.PartnerCheckIn =>
+                $"{lifeEvent.SubjectName} is part of the run now, not just a distraction from it. A quick reply keeps the line alive, making room for them costs ${_simulation.Config.PartnerCheckInDinnerFundsCost:0} and real time, and staying heads-down buys focus back at the cost of warmth.",
             _ =>
                 $"{lifeEvent.SubjectName} is queued and autoplay is ready to steal the rest of the night. Binging buys sanity at the cost of real time, one episode is the compromise line, and shutting it off protects the schedule but feels bad in the moment.",
         };
@@ -3089,6 +3595,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             IncidentType.ComputerFreeze => ["Repair Myself", "Tech Support", "Repair Shop"],
             IncidentType.OnlineMatch => ["Send Opener", "Go On Date", "Pass"],
+            IncidentType.PartnerCheckIn => ["Reply", "Make Time", "Stay Heads-Down"],
             _ => ["Binge", "One Episode", "Turn It Off"],
         };
     }
@@ -3160,7 +3667,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_state.ActiveFoodDelivery is not null)
         {
-            return $"{_simulation.GetFoodOption(_state.ActiveFoodDelivery.Choice).Name} is on the way. Delivery ETA {FormatRemainingTime(_state.ActiveFoodDelivery.RemainingInGameMinutes)} before the focus refill lands.";
+            var foodChoice = _state.ActiveFoodDelivery.Choice;
+            var prepMode = _simulation.IsHomeCooked(foodChoice) ? "is cooking" : "is on the way";
+            return $"{_simulation.GetFoodOption(_state, foodChoice).Name} {prepMode}. ETA {FormatRemainingTime(_state.ActiveFoodDelivery.RemainingInGameMinutes)} before the focus refill lands.";
         }
 
         if (_simulation.GetSleepStage(_state) >= 2)

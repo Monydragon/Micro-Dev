@@ -358,16 +358,17 @@ public sealed class SimulationEngineTests
     [Fact]
     public void Scheduler_QueuesIncidents_AsDeskTimeCrossesThresholds()
     {
-        var state = _engine.CreateNewRun();
+        var engine = new SimulationEngine(SimulationConfig.Default, () => 4242);
+        var state = engine.CreateNewRun();
 
-        var firstWave = _scheduler.Update(state, 130, _engine.Config);
-        var secondWave = _scheduler.Update(state, 120, _engine.Config);
-        var thirdWave = _scheduler.Update(state, 200, _engine.Config);
+        var firstWave = _scheduler.Update(state, 220, engine.Config);
+        var secondWave = _scheduler.Update(state, 360, engine.Config);
+        var thirdWave = _scheduler.Update(state, 420, engine.Config);
 
-        Assert.Contains(firstWave, incident => incident.Id == "bug-1");
-        Assert.Contains(secondWave, incident => incident.Id == "cat-1");
+        Assert.Contains(firstWave, incident => incident.Id.StartsWith("desk-", StringComparison.Ordinal));
+        Assert.Contains(secondWave, incident => incident.Id == "job-1");
         Assert.Contains(secondWave, incident => incident.Id.StartsWith("mod-", StringComparison.Ordinal));
-        Assert.Contains(thirdWave, incident => incident.Id == "job-1");
+        Assert.Contains(thirdWave, incident => incident.Id == "job-2");
     }
 
     [Fact]
@@ -898,6 +899,60 @@ public sealed class SimulationEngineTests
         _engine.QueueIncidents(state, [new QueuedIncident("mentor-1", IncidentType.MentorNudge, "Mentor!")]);
 
         Assert.Equal(1, GetResumeProof(state, track));
+    }
+
+    [Fact]
+    public void CreateNewRun_UsesProvidedSeed()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Default, () => 123456);
+
+        var state = engine.CreateNewRun();
+
+        Assert.Equal(123456, state.RunSeed);
+    }
+
+    [Fact]
+    public void RestartRun_ReusesTheCurrentSeedEvenWhenSeedProviderChanges()
+    {
+        var nextSeed = 1000;
+        var engine = new SimulationEngine(SimulationConfig.Default, () => nextSeed++);
+        var state = engine.CreateNewRun();
+
+        Assert.Equal(1000, state.RunSeed);
+
+        Assert.True(engine.ApplyAction(state, PlayerAction.RestartRun));
+
+        Assert.Equal(1000, state.RunSeed);
+    }
+
+    [Fact]
+    public void HomeCookedMeals_CannotBeExpedited_AndUseLongerPrepTime()
+    {
+        var state = _engine.CreateNewRun();
+
+        var ordered = _engine.PlaceFoodOrder(state, FoodChoice.SkilletPasta, doubleCheckOrder: true, expeditedDelivery: true);
+
+        Assert.True(ordered);
+        var delivery = Assert.IsType<ActiveFoodDelivery>(state.ActiveFoodDelivery);
+        Assert.False(delivery.Expedited);
+        Assert.True(delivery.RemainingInGameMinutes > _engine.Config.FoodDeliveryDurationMinutes);
+    }
+
+    [Fact]
+    public void PartnerCheckIn_CanBeResolved_AfterFindingLove()
+    {
+        var state = _engine.CreateNewRun();
+        state.HasFoundLove = true;
+        state.PartnerName = "Jordan";
+        state.RelationshipProgress = _engine.Config.RelationshipProgressNeededForLove;
+        state.Funds = 100;
+
+        _engine.QueueIncidents(state, [new QueuedIncident("partner-1", IncidentType.PartnerCheckIn, "Check in!")]);
+
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.True(_engine.ResolveLifeEventOption(state, 1));
+        Assert.False(_engine.HasPendingLifeEvent(state));
+        Assert.True(state.RelationshipProgress > _engine.Config.RelationshipProgressNeededForLove);
     }
 
     private static void GrantResumeProofForListing(RunState state)

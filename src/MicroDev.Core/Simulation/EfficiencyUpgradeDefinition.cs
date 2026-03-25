@@ -21,4 +21,14 @@ public sealed class EfficiencyUpgradeDefinition
     public double PassiveFocusDrainReduction { get; init; }
 
     public int PrepPointsOnApplicationStart { get; init; }
+
+    public double PassiveSanityRegenPerInGameMinute { get; init; }
+
+    public double FoodCostReduction { get; init; }
+
+    public double FoodDeliveryDurationReductionMinutes { get; init; }
+
+    public double HomeCookDurationReductionMinutes { get; init; }
+
+    public double BugSquashFocusCostReduction { get; init; }
 }

@@ -10,4 +10,10 @@ public enum EfficiencyUpgradeType
     InterviewNotebook,
     AutoFormatter,
     MacroPad,
+    DeskPlant,
+    MealPrepContainers,
+    CourierPrime,
+    BugTriageBoard,
+    FocusLamp,
+    HydrationHabit,
 }

@@ -207,7 +207,9 @@ public sealed class MicroDevGame : Game
 
     private void StartRun(bool immediate = false)
     {
-        var simulation = new SimulationEngine(SimulationConfig.ForDifficulty(_settings.SelectedDifficulty));
+        var simulation = new SimulationEngine(
+            SimulationConfig.ForDifficulty(_settings.SelectedDifficulty),
+            ResolveRunSeed);
         var incidentScheduler = new IncidentScheduler();
         _workspaceScreen = new WorkspaceScreen(
             _font,
@@ -288,6 +290,16 @@ public sealed class MicroDevGame : Game
         }
 
         _graphics.ApplyChanges();
+    }
+
+    private int ResolveRunSeed()
+    {
+        var seed = _settings.RunSeedMode == RunSeedMode.Manual
+            ? _settings.ManualRunSeed
+            : Random.Shared.Next(1, int.MaxValue);
+        seed = Math.Clamp(seed, 1, int.MaxValue - 1);
+        _settings.LastResolvedRunSeed = seed;
+        return seed;
     }
 
     private SpriteFont GetSelectedFont()

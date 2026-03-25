@@ -18,5 +18,6 @@ public enum IncidentType
     ComputerFreeze,
     StreamingBinge,
     OnlineMatch,
+    PartnerCheckIn,
     FirstCoinDilemma,
 }

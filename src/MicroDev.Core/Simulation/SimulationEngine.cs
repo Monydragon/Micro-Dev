@@ -16,40 +16,23 @@ public sealed class SimulationEngine
         ("Runtime Interface Engineer", "C# / .NET / UI"),
         ("Build Pipeline Developer", "C# / .NET / Tooling"),
     ];
-    private static readonly string[] MatchNames =
-    [
-        "Alex",
-        "Jordan",
-        "Sam",
-        "Morgan",
-        "Taylor",
-        "Riley",
-        "Casey",
-        "Avery",
-    ];
-    private static readonly string[] ShowTitles =
-    [
-        "Midnight Refactor",
-        "Space Diner",
-        "Patch Notes",
-        "Cozy Detectives",
-        "Neon Borough",
-        "After Hours Arcade",
-    ];
+    private readonly Func<int> _runSeedProvider;
 
-    public SimulationEngine(SimulationConfig config)
+    public SimulationEngine(SimulationConfig config, Func<int>? runSeedProvider = null)
     {
         Config = config;
+        _runSeedProvider = runSeedProvider ?? (() => Random.Shared.Next(1, int.MaxValue));
     }
 
     public SimulationConfig Config { get; }
 
-    public RunState CreateNewRun()
+    public RunState CreateNewRun(int? runSeed = null)
     {
+        var resolvedRunSeed = Math.Clamp(runSeed ?? _runSeedProvider(), 1, int.MaxValue - 1);
         var state = new RunState
         {
             Difficulty = Config.Difficulty,
-            RunSeed = Random.Shared.Next(1, int.MaxValue),
+            RunSeed = resolvedRunSeed,
             Day = Config.StartingDay,
             TimeOfDayMinutes = Config.StartingTimeOfDayMinutes,
             DeskMinutesElapsed = 0,
@@ -90,6 +73,7 @@ public sealed class SimulationEngine
         }
 
         AppendLog(state, "Another week begins. Rent hits at midnight and recruiters are watching.");
+        AppendLog(state, $"Run seed {state.RunSeed} locked in. Project order, desk incidents, food flavor, and life events will all riff on it.");
         AppendLog(state, $"Opened {PortfolioWorkspace.GetCurrentProgram(state).FileName} in a blank editor.");
         if (state.HasFirstCoin)
         {
@@ -124,7 +108,7 @@ public sealed class SimulationEngine
             PlayerAction.Freelance => true,
             PlayerAction.Sleep => true,
             PlayerAction.PetCat => state.ActiveCatInterruption is not null,
-            PlayerAction.SquashBug => state.ActiveTechDebtBug is not null && state.Focus >= Config.SquashBugFocusCost,
+            PlayerAction.SquashBug => state.ActiveTechDebtBug is not null && state.Focus >= GetSquashBugFocusCost(state),
             PlayerAction.ApplyForJob => state.ActiveJobListing is not null && CanBeginJobApplication(state, state.ActiveJobListing),
             PlayerAction.PublishApp => CanPublishCurrentApp(state),
             _ => false,
@@ -133,21 +117,34 @@ public sealed class SimulationEngine
 
     public bool CanPlaceFoodOrder(RunState state, FoodChoice choice, bool expeditedDelivery = false)
     {
+        expeditedDelivery &= AllowsExpeditedDelivery(choice);
         return state.Status == RunStatus.InProgress &&
                !state.FirstCoinDecisionPending &&
                state.PendingLifeEvent is null &&
                state.ActiveFoodDelivery is null &&
-               state.Funds >= GetFoodTotalCost(choice, expeditedDelivery);
+               state.Funds >= GetFoodTotalCost(state, choice, expeditedDelivery);
+    }
+
+    public double GetFoodTotalCost(RunState state, FoodChoice choice, bool expeditedDelivery = false)
+    {
+        return GetFoodCost(state, choice) + GetFoodTipAmount(choice, expeditedDelivery);
     }
 
     public double GetFoodTotalCost(FoodChoice choice, bool expeditedDelivery = false)
     {
-        return GetFoodCost(choice) + GetFoodTipAmount(expeditedDelivery);
+        return GetFoodCost(choice) + GetFoodTipAmount(choice, expeditedDelivery);
     }
 
     public double GetFoodTipAmount(bool expeditedDelivery)
     {
         return expeditedDelivery
+            ? Config.ExpeditedFoodDeliveryTipAmount
+            : 0;
+    }
+
+    public double GetFoodTipAmount(FoodChoice choice, bool expeditedDelivery)
+    {
+        return expeditedDelivery && AllowsExpeditedDelivery(choice)
             ? Config.ExpeditedFoodDeliveryTipAmount
             : 0;
     }
@@ -159,73 +156,112 @@ public sealed class SimulationEngine
             : Config.FoodDeliveryDurationMinutes;
     }
 
+    public double GetFoodDeliveryDuration(RunState state, FoodChoice choice, bool expeditedDelivery = false)
+    {
+        var duration = GetBaseFoodDuration(choice);
+        foreach (var type in state.PurchasedUpgrades)
+        {
+            var definition = EfficiencyUpgradeCatalog.Get(type);
+            duration -= IsHomeCooked(choice)
+                ? definition.HomeCookDurationReductionMinutes
+                : definition.FoodDeliveryDurationReductionMinutes;
+        }
+
+        if (expeditedDelivery && AllowsExpeditedDelivery(choice))
+        {
+            duration = Math.Min(duration, Config.ExpeditedFoodDeliveryDurationMinutes);
+        }
+
+        return Math.Max(IsHomeCooked(choice) ? 20 : 6, duration);
+    }
+
+    public FoodOptionDefinition GetFoodOption(RunState state, FoodChoice choice)
+    {
+        return GetFoodOption(state.RunSeed, choice);
+    }
+
     public FoodOptionDefinition GetFoodOption(FoodChoice choice)
+    {
+        return GetFoodOption(0, choice);
+    }
+
+    public bool AllowsExpeditedDelivery(FoodChoice choice)
+    {
+        return !IsHomeCooked(choice);
+    }
+
+    public bool IsHomeCooked(FoodChoice choice)
+    {
+        return choice is FoodChoice.SkilletPasta or FoodChoice.MealPrepChili;
+    }
+
+    public IReadOnlyList<FoodOrderModifierOption> GetFoodOrderModifiers(RunState state, FoodChoice choice)
+    {
+        return ProceduralRunContent.GetFoodModifiers(state.RunSeed, choice);
+    }
+
+    public IReadOnlyList<FoodOrderModifierOption> GetFoodOrderModifiers(FoodChoice choice)
+    {
+        return ProceduralRunContent.GetFoodModifiers(0, choice);
+    }
+
+    public double GetCurrentSquashBugFocusCost(RunState state)
+    {
+        return GetSquashBugFocusCost(state);
+    }
+
+    private FoodOptionDefinition GetFoodOption(int runSeed, FoodChoice choice)
     {
         return choice switch
         {
             FoodChoice.Burrito => new FoodOptionDefinition(
                 choice,
-                "Burrito",
-                "Cheap, filling, and steadier than the greasiest options if you bother to note the order carefully.",
+                ProceduralRunContent.GetFoodName(runSeed, choice),
+                ProceduralRunContent.GetFoodDescription(runSeed, choice),
                 Config.BurritoFundsCost,
                 Config.BurritoFocusGain,
                 Config.BurritoSanityGain,
                 Config.BurritoSluggishDurationMinutes),
             FoodChoice.Pizza => new FoodOptionDefinition(
                 choice,
-                "Pizza",
-                "Big focus spike, but the post-meal drag can absolutely flatten the rest of the coding block.",
+                ProceduralRunContent.GetFoodName(runSeed, choice),
+                ProceduralRunContent.GetFoodDescription(runSeed, choice),
                 Config.PizzaFundsCost,
                 Config.PizzaFocusGain,
                 Config.PizzaSanityGain,
                 Config.PizzaSluggishDurationMinutes),
             FoodChoice.Dumplings => new FoodOptionDefinition(
                 choice,
-                "Dumplings",
-                "Comfort food that helps sanity more than raw typing energy. Better for stabilizing a rough day.",
+                ProceduralRunContent.GetFoodName(runSeed, choice),
+                ProceduralRunContent.GetFoodDescription(runSeed, choice),
                 Config.DumplingsFundsCost,
                 Config.DumplingsFocusGain,
                 Config.DumplingsSanityGain,
                 Config.DumplingsSluggishDurationMinutes),
+            FoodChoice.SkilletPasta => new FoodOptionDefinition(
+                choice,
+                ProceduralRunContent.GetFoodName(runSeed, choice),
+                ProceduralRunContent.GetFoodDescription(runSeed, choice),
+                Config.SkilletPastaFundsCost,
+                Config.SkilletPastaFocusGain,
+                Config.SkilletPastaSanityGain,
+                Config.SkilletPastaSluggishDurationMinutes),
+            FoodChoice.MealPrepChili => new FoodOptionDefinition(
+                choice,
+                ProceduralRunContent.GetFoodName(runSeed, choice),
+                ProceduralRunContent.GetFoodDescription(runSeed, choice),
+                Config.MealPrepChiliFundsCost,
+                Config.MealPrepChiliFocusGain,
+                Config.MealPrepChiliSanityGain,
+                Config.MealPrepChiliSluggishDurationMinutes),
             _ => new FoodOptionDefinition(
                 choice,
-                "Burger",
-                "Reliable focus recovery at a fair price, but a sloppy order can still turn the next session sluggish.",
+                ProceduralRunContent.GetFoodName(runSeed, choice),
+                ProceduralRunContent.GetFoodDescription(runSeed, choice),
                 Config.BurgerFundsCost,
                 Config.BurgerFocusGain,
                 Config.BurgerSanityGain,
                 Config.BurgerSluggishDurationMinutes),
-        };
-    }
-
-    public IReadOnlyList<FoodOrderModifierOption> GetFoodOrderModifiers(FoodChoice choice)
-    {
-        return choice switch
-        {
-            FoodChoice.Burrito =>
-            [
-                new(FoodOrderModifier.NoCheese, "No Cheese", "Avoids the heavy lunch spiral that wrecks the next coding block.", true),
-                new(FoodOrderModifier.SauceOnSide, "Sauce On Side", "Keeps the burrito from turning into a total desk disaster.", true),
-                new(FoodOrderModifier.SkipSoda, "Skip Soda", "Cuts the sugar crash, but this one is optional.", false),
-            ],
-            FoodChoice.Pizza =>
-            [
-                new(FoodOrderModifier.NoCheese, "Light Cheese", "Tones down the greasy post-slice slowdown.", true),
-                new(FoodOrderModifier.SauceOnSide, "Hold Ranch", "Skip the extra heaviness unless you really need the comfort.", false),
-                new(FoodOrderModifier.SkipSoda, "Skip Soda", "Avoids stacking a sugar crash on top of the pizza drag.", true),
-            ],
-            FoodChoice.Dumplings =>
-            [
-                new(FoodOrderModifier.NoCheese, "No Extra Chili", "Keeps the comfort food from becoming a focus tax.", true),
-                new(FoodOrderModifier.SauceOnSide, "Sauce On Side", "Lets you control how messy the whole break becomes.", true),
-                new(FoodOrderModifier.SkipSoda, "Skip Soda", "Optional. Helpful, but not the core issue here.", false),
-            ],
-            _ =>
-            [
-                new(FoodOrderModifier.NoCheese, "No Cheese", "The classic burger mistake. Leaving it on slows the whole desk down.", true),
-                new(FoodOrderModifier.SauceOnSide, "Sauce On Side", "Optional, but it keeps the keyboard and your brain cleaner.", false),
-                new(FoodOrderModifier.SkipSoda, "Skip Soda", "Avoids the greasy-food sugar crash combo.", true),
-            ],
         };
     }
 
@@ -480,6 +516,13 @@ public sealed class SimulationEngine
                 2 => true,
                 _ => false,
             },
+            IncidentType.PartnerCheckIn => optionIndex switch
+            {
+                0 => true,
+                1 => state.Funds >= Config.PartnerCheckInDinnerFundsCost,
+                2 => true,
+                _ => false,
+            },
             _ => false,
         };
     }
@@ -504,6 +547,9 @@ public sealed class SimulationEngine
 
             case IncidentType.OnlineMatch:
                 return ResolveOnlineMatch(state, lifeEvent, optionIndex);
+
+            case IncidentType.PartnerCheckIn:
+                return ResolvePartnerCheckIn(state, lifeEvent, optionIndex);
 
             default:
                 return false;
@@ -802,6 +848,7 @@ public sealed class SimulationEngine
         bool reviewReceipt,
         bool expeditedDelivery = false)
     {
+        expeditedDelivery &= AllowsExpeditedDelivery(choice);
         if (state.ActiveFoodDelivery is not null)
         {
             AppendLog(state, "A delivery order is already on the way. Wait for it to land before ordering again.");
@@ -814,9 +861,9 @@ public sealed class SimulationEngine
             return false;
         }
 
-        var option = GetFoodOption(choice);
-        var tipAmount = GetFoodTipAmount(expeditedDelivery);
-        var totalCost = GetFoodTotalCost(choice, expeditedDelivery);
+        var option = GetFoodOption(state, choice);
+        var tipAmount = GetFoodTipAmount(choice, expeditedDelivery);
+        var totalCost = GetFoodTotalCost(state, choice, expeditedDelivery);
         var sluggishPenalty = GetFoodOrderPenaltyMinutes(choice, selectedModifiers, reviewReceipt);
         state.Funds -= totalCost;
         state.ActiveFoodDelivery = new ActiveFoodDelivery
@@ -826,7 +873,7 @@ public sealed class SimulationEngine
             ReviewReceipt = reviewReceipt,
             TipAmount = tipAmount,
             TotalFundsCost = totalCost,
-            RemainingInGameMinutes = GetFoodDeliveryDuration(expeditedDelivery),
+            RemainingInGameMinutes = GetFoodDeliveryDuration(state, choice, expeditedDelivery),
         };
 
         foreach (var modifier in selectedModifiers.Where(static modifier => modifier != FoodOrderModifier.None))
@@ -834,9 +881,11 @@ public sealed class SimulationEngine
             state.ActiveFoodDelivery.SelectedModifiers.Add(modifier);
         }
 
-        var deliveryLine = expeditedDelivery
-            ? $"{option.Name} ordered with a ${tipAmount:0} expedite tip. ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)}."
-            : $"{option.Name} ordered. ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)} before the food actually hits the desk.";
+        var deliveryLine = IsHomeCooked(choice)
+            ? $"{option.Name} goes on the stove. Meal ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)} before the desk gets the recovery bump."
+            : expeditedDelivery
+                ? $"{option.Name} ordered with a ${tipAmount:0} expedite tip. ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)}."
+                : $"{option.Name} ordered. ETA {FormatMinutesForLog(state.ActiveFoodDelivery.RemainingInGameMinutes)} before the food actually hits the desk.";
         AppendLog(state, deliveryLine);
 
         if (sluggishPenalty <= BoundaryEpsilon)
@@ -851,7 +900,7 @@ public sealed class SimulationEngine
     {
         if (action == PlayerAction.RestartRun)
         {
-            state.ResetFrom(CreateNewRun());
+            state.ResetFrom(CreateNewRun(state.RunSeed));
             return true;
         }
 
@@ -974,7 +1023,7 @@ public sealed class SimulationEngine
                     return false;
                 }
 
-                state.Focus = Clamp(state.Focus - Config.SquashBugFocusCost, 0, Config.MaxFocus);
+                state.Focus = Clamp(state.Focus - GetSquashBugFocusCost(state), 0, Config.MaxFocus);
                 state.CodeQuality = Clamp(state.CodeQuality + 4, 0, Config.MaxCodeQuality);
                 state.ActiveTechDebtBug = null;
                 AppendLog(state, "Bug squashed. Code quality stabilizes and the panic subsides.");
@@ -1119,7 +1168,8 @@ public sealed class SimulationEngine
 
     private bool ResolveOnlineMatch(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
     {
-        var matchName = lifeEvent.SubjectName ?? "someone unexpectedly steady";
+        EnsureRelationshipCandidate(state);
+        var matchName = lifeEvent.SubjectName ?? state.RelationshipCandidateName ?? "someone unexpectedly steady";
         switch (optionIndex)
         {
             case 0:
@@ -1167,8 +1217,61 @@ public sealed class SimulationEngine
         {
             state.HasFoundLove = true;
             state.PartnerName = matchName;
+            state.RelationshipCandidateName = matchName;
             state.Sanity = Clamp(state.Sanity + 8, 0, Config.MaxSanity);
             AppendLog(state, $"Somewhere between the backlog and the late-night messages, you found something real with {matchName}. Passive sanity support is now part of the run.");
+        }
+
+        EvaluateLossState(state);
+        return true;
+    }
+
+    private bool ResolvePartnerCheckIn(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
+    {
+        var partnerName = lifeEvent.SubjectName ?? state.PartnerName ?? "someone steady";
+        switch (optionIndex)
+        {
+            case 0:
+                AdvanceTime(state, Config.PartnerCheckInReplyDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity + Config.PartnerCheckInReplySanityGain, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.PartnerCheckInReplyFocusLoss, 0, Config.MaxFocus);
+                state.RelationshipProgress += Config.PartnerCheckInReplyRelationshipGain;
+                AppendLog(
+                    state,
+                    $"You sent {partnerName} a real update instead of disappearing into the backlog. {FormatMinutesForLog(Config.PartnerCheckInReplyDurationMinutes)} passed, sanity +{Config.PartnerCheckInReplySanityGain:0}, focus -{Config.PartnerCheckInReplyFocusLoss:0}.");
+                break;
+
+            case 1:
+                state.Funds -= Config.PartnerCheckInDinnerFundsCost;
+                AdvanceTime(state, Config.PartnerCheckInDinnerDurationMinutes);
+                if (state.Status != RunStatus.InProgress)
+                {
+                    return false;
+                }
+
+                state.Sanity = Clamp(state.Sanity + Config.PartnerCheckInDinnerSanityGain, 0, Config.MaxSanity);
+                state.Focus = Clamp(state.Focus - Config.PartnerCheckInDinnerFocusLoss, 0, Config.MaxFocus);
+                state.RelationshipProgress += Config.PartnerCheckInDinnerRelationshipGain;
+                AppendLog(
+                    state,
+                    $"You made room for {partnerName}. -${Config.PartnerCheckInDinnerFundsCost:0}, {FormatMinutesForLog(Config.PartnerCheckInDinnerDurationMinutes)} gone, sanity +{Config.PartnerCheckInDinnerSanityGain:0}, focus -{Config.PartnerCheckInDinnerFocusLoss:0}.");
+                break;
+
+            case 2:
+                state.Focus = Clamp(state.Focus + Config.PartnerCheckInHeadsDownFocusGain, 0, Config.MaxFocus);
+                state.Sanity = Clamp(state.Sanity - Config.PartnerCheckInHeadsDownSanityLoss, 0, Config.MaxSanity);
+                AppendLog(
+                    state,
+                    $"You stayed heads-down and kept the sprint intact. Focus +{Config.PartnerCheckInHeadsDownFocusGain:0}, sanity -{Config.PartnerCheckInHeadsDownSanityLoss:0}.");
+                break;
+
+            default:
+                return false;
         }
 
         EvaluateLossState(state);
@@ -1186,7 +1289,7 @@ public sealed class SimulationEngine
         var delivery = state.ActiveFoodDelivery;
         state.ActiveFoodDelivery = null;
 
-        var option = GetFoodOption(delivery.Choice);
+        var option = GetFoodOption(state, delivery.Choice);
         var previousHungerStage = GetHungerStage(state);
         state.Focus = Clamp(state.Focus + option.FocusGain, 0, Config.MaxFocus);
         state.Sanity = Clamp(state.Sanity + option.SanityGain, 0, Config.MaxSanity);
@@ -1196,9 +1299,11 @@ public sealed class SimulationEngine
         var hungerSuffix = previousHungerStage > 0
             ? " Hunger finally stops chewing through the day."
             : string.Empty;
-        var arrivalLead = delivery.Expedited
-            ? $"{option.Name} arrives fast thanks to the ${delivery.TipAmount:0} expedite tip."
-            : $"{option.Name} finally lands on the desk.";
+        var arrivalLead = IsHomeCooked(delivery.Choice)
+            ? $"{option.Name} is finally ready and plated."
+            : delivery.Expedited
+                ? $"{option.Name} arrives fast thanks to the ${delivery.TipAmount:0} expedite tip."
+                : $"{option.Name} finally lands on the desk.";
 
         if (sluggishPenalty <= BoundaryEpsilon)
         {
@@ -1424,7 +1529,7 @@ public sealed class SimulationEngine
             case IncidentType.StreamingBinge:
                 if (state.PendingLifeEvent is null)
                 {
-                    var showTitle = PickLifeFlavor(state.RunSeed, $"{incident.Id}:show", ShowTitles);
+                    var showTitle = ProceduralRunContent.GetShowTitle(state.RunSeed, $"{incident.Id}:show");
                     state.PendingLifeEvent = new PendingLifeEvent
                     {
                         Type = incident.Type,
@@ -1439,31 +1544,40 @@ public sealed class SimulationEngine
             case IncidentType.OnlineMatch:
                 if (state.PendingLifeEvent is null && !state.HasFoundLove)
                 {
-                    var matchName = PickLifeFlavor(state.RunSeed, $"{incident.Id}:match", MatchNames);
-                    var compatibility = 60 + (CreateSeed(state.RunSeed, $"{incident.Id}:score") % 39);
+                    EnsureRelationshipCandidate(state);
+                    var matchName = state.RelationshipCandidateName!;
                     state.PendingLifeEvent = new PendingLifeEvent
                     {
                         Type = incident.Type,
-                        Title = "New Match",
-                        Description = $"{matchName} actually looks promising instead of just another blurry profile and half-baked bio.",
+                        Title = state.RelationshipProgress <= 0 ? "New Match" : "Message Thread",
+                        Description = state.RelationshipProgress switch
+                        {
+                            <= 0 => $"{matchName} actually looks promising instead of just another blurry profile and half-baked bio.",
+                            1 => $"{matchName} writes back quickly enough that it feels different from the usual dead-end small talk.",
+                            _ => $"{matchName} keeps showing up between deadlines, and the thread is starting to feel like something real.",
+                        },
                         SubjectName = matchName,
-                        SubjectScore = compatibility,
+                        SubjectScore = state.RelationshipCandidateCompatibility,
+                    };
+                    AppendLog(state, incident.Description);
+                }
+                break;
+
+            case IncidentType.PartnerCheckIn:
+                if (state.PendingLifeEvent is null && state.HasFoundLove && !string.IsNullOrWhiteSpace(state.PartnerName))
+                {
+                    state.PendingLifeEvent = new PendingLifeEvent
+                    {
+                        Type = incident.Type,
+                        Title = "Relationship Check-In",
+                        Description = ProceduralRunContent.GetPartnerPrompt(state.RunSeed, state.PartnerName!, state.RelationshipProgress),
+                        SubjectName = state.PartnerName,
+                        SubjectScore = state.RelationshipProgress,
                     };
                     AppendLog(state, incident.Description);
                 }
                 break;
         }
-    }
-
-    private static string PickLifeFlavor(int runSeed, string key, IReadOnlyList<string> values)
-    {
-        if (values.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var index = CreateSeed(runSeed, key) % values.Count;
-        return values[index];
     }
 
     private ActiveJobListing CreateJobListing(RunState state, string incidentId)
@@ -1538,14 +1652,41 @@ public sealed class SimulationEngine
         return linesAdded;
     }
 
+    private double GetFoodCost(RunState state, FoodChoice choice)
+    {
+        var foodCost = GetFoodOption(state, choice).FundsCost;
+        foreach (var type in state.PurchasedUpgrades)
+        {
+            foodCost -= EfficiencyUpgradeCatalog.Get(type).FoodCostReduction;
+        }
+
+        return Math.Max(1, foodCost);
+    }
+
     private double GetFoodCost(FoodChoice choice)
     {
         return GetFoodOption(choice).FundsCost;
     }
 
-    private double GetFoodFocusGain(FoodChoice choice)
+    private double GetBaseFoodDuration(FoodChoice choice)
     {
-        return GetFoodOption(choice).FocusGain;
+        return choice switch
+        {
+            FoodChoice.SkilletPasta => Config.SkilletPastaCookDurationMinutes,
+            FoodChoice.MealPrepChili => Config.MealPrepChiliCookDurationMinutes,
+            _ => Config.FoodDeliveryDurationMinutes,
+        };
+    }
+
+    private double GetSquashBugFocusCost(RunState state)
+    {
+        var focusCost = Config.SquashBugFocusCost;
+        foreach (var type in state.PurchasedUpgrades)
+        {
+            focusCost -= EfficiencyUpgradeCatalog.Get(type).BugSquashFocusCostReduction;
+        }
+
+        return Math.Max(1, focusCost);
     }
 
     private static string GetFoodLabel(FoodChoice choice)
@@ -1555,8 +1696,21 @@ public sealed class SimulationEngine
             FoodChoice.Burrito => "Burrito",
             FoodChoice.Pizza => "Pizza",
             FoodChoice.Dumplings => "Dumplings",
+            FoodChoice.SkilletPasta => "Skillet Pasta",
+            FoodChoice.MealPrepChili => "Meal Prep Chili",
             _ => "Burger",
         };
+    }
+
+    private static void EnsureRelationshipCandidate(RunState state)
+    {
+        if (!string.IsNullOrWhiteSpace(state.RelationshipCandidateName))
+        {
+            return;
+        }
+
+        state.RelationshipCandidateName = ProceduralRunContent.GetRelationshipCandidateName(state.RunSeed);
+        state.RelationshipCandidateCompatibility = ProceduralRunContent.GetRelationshipCandidateCompatibility(state.RunSeed);
     }
 
     private string GetContinuationModeLabel()
@@ -1725,6 +1879,11 @@ public sealed class SimulationEngine
         if (state.HasFoundLove)
         {
             passiveRegenPerMinute += Config.FoundLovePassiveSanityRegenPerInGameMinute;
+        }
+
+        foreach (var type in state.PurchasedUpgrades)
+        {
+            passiveRegenPerMinute += EfficiencyUpgradeCatalog.Get(type).PassiveSanityRegenPerInGameMinute;
         }
 
         if (passiveRegenPerMinute <= 0)
@@ -2076,7 +2235,8 @@ public sealed class SimulationEngine
     private void PublishCurrentApp(RunState state)
     {
         var releaseNumber = state.PublishedAppCount + 1;
-        var publishedName = $"Release {releaseNumber}";
+        var projectAnchor = PortfolioWorkspace.GetCurrentProgram(state).ProjectName;
+        var publishedName = ProceduralRunContent.GetPublishedAppName(state.RunSeed, releaseNumber, projectAnchor);
         var fundsGained = RollBoundedAmount(
             state.RunSeed,
             $"publish:{releaseNumber}",
