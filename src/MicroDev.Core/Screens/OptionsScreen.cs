@@ -176,7 +176,9 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
         var previousScissor = graphicsDevice.ScissorRectangle;
+        spriteBatch.End();
         graphicsDevice.ScissorRectangle = _contentViewportBounds;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
 
         UiPanel.Draw(spriteBatch, _pixel, _appearanceBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _displayBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
@@ -190,7 +192,9 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         DrawRunSeedPanel(spriteBatch);
         DrawNotesPanel(spriteBatch);
 
+        spriteBatch.End();
         graphicsDevice.ScissorRectangle = previousScissor;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
 
         DrawContentFrameOverlay(spriteBatch);
         DrawScrollbar(spriteBatch);

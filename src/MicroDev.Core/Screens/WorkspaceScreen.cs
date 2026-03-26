@@ -14,6 +14,21 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private const float CardBodyScale = UiTypography.Caption;
     private const float BodyScale = UiTypography.Body;
     private const float SmallScale = UiTypography.Caption;
+    private const int FreelanceCardHeight = 118;
+    private const int FreelanceCardGap = 14;
+    private const int FreelanceBoardContentPadding = 12;
+    private static readonly FoodChoice[] FoodChoices =
+    [
+        FoodChoice.Burger,
+        FoodChoice.Burrito,
+        FoodChoice.Pizza,
+        FoodChoice.Dumplings,
+        FoodChoice.Ramen,
+        FoodChoice.RiceBowl,
+        FoodChoice.SkilletPasta,
+        FoodChoice.MealPrepChili,
+    ];
+    private static readonly FreelanceGigType[] FreelanceGigOrder = Enum.GetValues<FreelanceGigType>();
 
     private SpriteFont _font;
     private readonly Texture2D _pixel;
@@ -27,6 +42,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _sleepButton = new("Sleep");
     private readonly UiButton _upgradesButton = new("Upgrades");
     private readonly UiButton _bankAppButton = new("Banking");
+    private readonly UiButton _versionControlButton = new("Version Control");
+    private readonly UiButton _projectStudioButton = new("Build Studio");
     private readonly UiButton _guideButton = new("Guide");
     private readonly UiButton _newRunButton = new("New Run");
     private readonly UiButton _optionsButton = new("Options");
@@ -36,10 +53,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _restartButton = new("Restart Run");
     private readonly UiButton _breakCoinButton = new("Break Frame");
     private readonly UiButton _acceptEvictionButton = new("Let Go");
+    private readonly UiButton _deskDistractionFocusButton = new("Refocus");
+    private readonly UiButton _deskDistractionQuickFixButton = new("Quick Fix");
     private readonly UiButton _burgerButton = new("Burger");
     private readonly UiButton _burritoButton = new("Burrito");
     private readonly UiButton _pizzaButton = new("Pizza");
     private readonly UiButton _dumplingsButton = new("Dumplings");
+    private readonly UiButton _ramenButton = new("Ramen");
+    private readonly UiButton _riceBowlButton = new("Rice Bowl");
     private readonly UiButton _skilletPastaButton = new("Pasta");
     private readonly UiButton _mealPrepChiliButton = new("Chili");
     private readonly UiButton _doubleCheckOrderButton = new("Check Details: OFF");
@@ -49,6 +70,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _closeBankAppButton = new("Close");
     private readonly UiButton _closeFreelanceBoardButton = new("Close");
     private readonly UiButton _closeUpgradesButton = new("Close");
+    private readonly UiButton _closeVersionControlButton = new("Close");
+    private readonly UiButton _closeProjectStudioButton = new("Close");
+    private readonly UiButton _commitChangesButton = new("Commit Changes");
+    private readonly UiButton _branchButton = new("Create Branch");
+    private readonly UiButton _mergeButton = new("Merge Branch");
+    private readonly UiButton _projectTypeButton = new("Type");
+    private readonly UiButton _projectThemeButton = new("Theme");
+    private readonly UiButton _projectToneButton = new("Tone");
+    private readonly UiButton _projectPlatformButton = new("Platform");
+    private readonly UiButton _projectBusinessButton = new("Business");
+    private readonly UiButton _projectRerollButton = new("Reroll Title");
+    private readonly UiButton _buyHouseButton = new("Buy House");
+    private readonly UiButton _startFamilyButton = new("Start Family");
     private readonly UiButton _openApplicationButton = new("Continue");
     private readonly UiButton _closeApplicationButton = new("Close");
     private readonly UiButton _tutorialBackButton = new("Back");
@@ -67,6 +101,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         new UiButton(string.Empty),
     ];
     private readonly UiButton[] _foodModifierButtons =
+    [
+        new UiButton(string.Empty),
+        new UiButton(string.Empty),
+        new UiButton(string.Empty),
+    ];
+    private readonly UiButton[] _mergeConflictOptionButtons =
     [
         new UiButton(string.Empty),
         new UiButton(string.Empty),
@@ -95,8 +135,23 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private Rectangle _foodSummaryPanelBounds;
     private Rectangle _lifeEventBounds;
     private Rectangle _bankAppBounds;
+    private Rectangle _bankAccountBounds;
+    private Rectangle _bankRentBounds;
+    private Rectangle _bankHouseBounds;
+    private Rectangle _bankFamilyBounds;
+    private Rectangle _bankCoinBounds;
+    private Rectangle _bankLedgerBounds;
+    private Rectangle _versionControlBounds;
+    private Rectangle _projectStudioBounds;
     private Rectangle _freelanceBoardBounds;
     private Rectangle _upgradesBounds;
+    private Rectangle _projectStudioViewportBounds;
+    private Rectangle _projectStudioScrollbarTrackBounds;
+    private Rectangle _projectStudioScrollbarThumbBounds;
+    private Rectangle _freelanceBoardViewportBounds;
+    private Rectangle _freelanceBoardScrollbarTrackBounds;
+    private Rectangle _freelanceBoardScrollbarThumbBounds;
+    private Rectangle _freelanceGigEditorBounds;
     private Rectangle _upgradesViewportBounds;
     private Rectangle _upgradesScrollbarTrackBounds;
     private Rectangle _upgradesScrollbarThumbBounds;
@@ -107,12 +162,18 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly Dictionary<FreelanceGigType, Rectangle> _freelanceGigCardBounds = [];
     private bool _foodAppOpen;
     private bool _bankAppOpen;
+    private bool _versionControlOpen;
+    private bool _projectStudioOpen;
     private bool _freelanceBoardOpen;
     private bool _upgradesOpen;
     private bool _jobApplicationOpen;
     private FoodChoice _selectedFood = FoodChoice.Burger;
     private bool _doubleCheckOrder;
     private bool _expediteFoodDelivery;
+    private float _projectStudioScrollOffset;
+    private float _projectStudioMaxScrollOffset;
+    private float _freelanceBoardScrollOffset;
+    private float _freelanceBoardMaxScrollOffset;
     private float _upgradesScrollOffset;
     private float _upgradesMaxScrollOffset;
     private string? _lastCelebratedFileName;
@@ -143,7 +204,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _upgradeButtons[definition.Type] = new UiButton("Buy");
         }
 
-        foreach (var type in Enum.GetValues<FreelanceGigType>())
+        foreach (var type in FreelanceGigOrder)
         {
             _freelanceGigButtons[type] = new UiButton("Take Gig");
         }
@@ -196,6 +257,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
             _jobApplicationOpen = false;
@@ -216,6 +279,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
             _jobApplicationOpen = false;
@@ -225,6 +290,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
             _jobApplicationOpen = false;
@@ -241,6 +308,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         else if (_bankAppOpen)
         {
             HandleBankAppInput(input);
+        }
+        else if (_versionControlOpen)
+        {
+            HandleVersionControlInput(input);
+        }
+        else if (_projectStudioOpen)
+        {
+            HandleProjectStudioInput(input);
         }
         else if (_freelanceBoardOpen)
         {
@@ -272,6 +347,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         else if (_bankAppOpen && _state.Status == RunStatus.InProgress)
         {
             DrawBankAppOverlay(spriteBatch);
+        }
+        else if (_versionControlOpen && _state.Status == RunStatus.InProgress)
+        {
+            DrawVersionControlOverlay(spriteBatch);
+        }
+        else if (_projectStudioOpen && _state.Status == RunStatus.InProgress)
+        {
+            DrawProjectStudioOverlay(spriteBatch);
         }
         else if (_freelanceBoardOpen && _state.Status == RunStatus.InProgress)
         {
@@ -350,6 +433,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _sleepButton.AccentColor = UiTheme.Warning;
         _upgradesButton.AccentColor = UiTheme.Success;
         _bankAppButton.AccentColor = UiTheme.Accent;
+        _versionControlButton.AccentColor = UiTheme.Accent;
+        _projectStudioButton.AccentColor = UiTheme.Success;
         _guideButton.AccentColor = UiTheme.Accent;
         _newRunButton.AccentColor = UiTheme.Success;
         _optionsButton.AccentColor = UiTheme.Warning;
@@ -359,6 +444,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _restartButton.AccentColor = UiTheme.Warning;
         _breakCoinButton.AccentColor = UiTheme.Warning;
         _acceptEvictionButton.AccentColor = UiTheme.Danger;
+        _deskDistractionFocusButton.AccentColor = UiTheme.Accent;
+        _deskDistractionQuickFixButton.AccentColor = UiTheme.Warning;
         _burgerButton.AccentColor = UiTheme.Warning;
         _burritoButton.AccentColor = UiTheme.Warning;
         _pizzaButton.AccentColor = UiTheme.Warning;
@@ -372,6 +459,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _closeBankAppButton.AccentColor = UiTheme.Warning;
         _closeFreelanceBoardButton.AccentColor = UiTheme.Warning;
         _closeUpgradesButton.AccentColor = UiTheme.Warning;
+        _closeVersionControlButton.AccentColor = UiTheme.Warning;
+        _closeProjectStudioButton.AccentColor = UiTheme.Warning;
+        _commitChangesButton.AccentColor = UiTheme.Success;
+        _branchButton.AccentColor = UiTheme.Accent;
+        _mergeButton.AccentColor = UiTheme.Warning;
+        _projectTypeButton.AccentColor = UiTheme.Accent;
+        _projectThemeButton.AccentColor = UiTheme.Accent;
+        _projectToneButton.AccentColor = UiTheme.Accent;
+        _projectPlatformButton.AccentColor = UiTheme.Accent;
+        _projectBusinessButton.AccentColor = UiTheme.Accent;
+        _projectRerollButton.AccentColor = UiTheme.Warning;
+        _buyHouseButton.AccentColor = UiTheme.Success;
+        _startFamilyButton.AccentColor = UiTheme.Success;
         _openApplicationButton.AccentColor = UiTheme.Accent;
         _closeApplicationButton.AccentColor = UiTheme.Warning;
         _tutorialBackButton.AccentColor = UiTheme.Warning;
@@ -394,7 +494,22 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             button.HorizontalPadding = 12;
         }
 
+        foreach (var choice in FoodChoices)
+        {
+            var button = GetFoodButton(choice);
+            button.HorizontalPadding = 10;
+            button.TextScale = UiTypography.Body;
+            button.WrapText = true;
+            button.MaxTextLines = 2;
+        }
+
         foreach (var button in _lifeEventOptionButtons)
+        {
+            button.TextAlignment = UiTextAlignment.Left;
+            button.HorizontalPadding = 12;
+        }
+
+        foreach (var button in _mergeConflictOptionButtons)
         {
             button.TextAlignment = UiTextAlignment.Left;
             button.HorizontalPadding = 12;
@@ -413,6 +528,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeBankAppButton;
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
+        yield return _closeVersionControlButton;
+        yield return _closeProjectStudioButton;
         yield return _closeApplicationButton;
         yield return _tutorialCloseButton;
     }
@@ -432,6 +549,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _sleepButton;
         yield return _upgradesButton;
         yield return _bankAppButton;
+        yield return _versionControlButton;
+        yield return _projectStudioButton;
         yield return _guideButton;
         yield return _newRunButton;
         yield return _optionsButton;
@@ -441,6 +560,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _restartButton;
         yield return _breakCoinButton;
         yield return _acceptEvictionButton;
+        yield return _deskDistractionFocusButton;
+        yield return _deskDistractionQuickFixButton;
         yield return _burgerButton;
         yield return _burritoButton;
         yield return _pizzaButton;
@@ -454,6 +575,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeBankAppButton;
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
+        yield return _closeVersionControlButton;
+        yield return _closeProjectStudioButton;
+        yield return _commitChangesButton;
+        yield return _branchButton;
+        yield return _mergeButton;
+        yield return _projectTypeButton;
+        yield return _projectThemeButton;
+        yield return _projectToneButton;
+        yield return _projectPlatformButton;
+        yield return _projectBusinessButton;
+        yield return _projectRerollButton;
+        yield return _buyHouseButton;
+        yield return _startFamilyButton;
         yield return _openApplicationButton;
         yield return _closeApplicationButton;
         yield return _tutorialBackButton;
@@ -475,6 +609,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             yield return button;
         }
 
+        foreach (var button in _mergeConflictOptionButtons)
+        {
+            yield return button;
+        }
+
         foreach (var button in _upgradeButtons.Values)
         {
             yield return button;
@@ -492,6 +631,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _freelanceButton;
         yield return _bankAppButton;
         yield return _upgradesButton;
+        yield return _versionControlButton;
+        yield return _projectStudioButton;
         yield return _sleepButton;
     }
 
@@ -518,6 +659,37 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return;
         }
 
+        if (_state.ActiveCatInterruption is not null)
+        {
+            if (_deskDistractionFocusButton.Update(input))
+            {
+                if (_simulation.SpendFocusOnDistraction(_state))
+                {
+                    _audio.PlayButtonClick();
+                }
+                else
+                {
+                    _audio.PlayFailure();
+                }
+
+                return;
+            }
+
+            if (_deskDistractionQuickFixButton.Update(input))
+            {
+                if (_simulation.QuickResolveDistraction(_state))
+                {
+                    _audio.PlayButtonClick();
+                }
+                else
+                {
+                    _audio.PlayFailure();
+                }
+
+                return;
+            }
+        }
+
         if (_optionsButton.Update(input))
         {
             _audio.PlayButtonClick();
@@ -530,6 +702,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _jobApplicationOpen = true;
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
             _audio.PlayButtonClick();
@@ -545,6 +719,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _foodAppOpen = true;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
             _audio.PlayButtonClick();
@@ -556,6 +732,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _freelanceBoardOpen = true;
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _upgradesOpen = false;
             _audio.PlayButtonClick();
             return;
@@ -565,6 +743,32 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _bankAppOpen = true;
             _foodAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
+            _freelanceBoardOpen = false;
+            _upgradesOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_versionControlButton.Update(input))
+        {
+            _versionControlOpen = true;
+            _foodAppOpen = false;
+            _bankAppOpen = false;
+            _projectStudioOpen = false;
+            _freelanceBoardOpen = false;
+            _upgradesOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_projectStudioButton.Update(input))
+        {
+            _projectStudioOpen = true;
+            _foodAppOpen = false;
+            _bankAppOpen = false;
+            _versionControlOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
             _audio.PlayButtonClick();
@@ -576,6 +780,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _upgradesOpen = true;
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _versionControlOpen = false;
+            _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _audio.PlayButtonClick();
             return;
@@ -668,39 +874,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return;
         }
 
-        if (_burgerButton.Update(input))
+        foreach (var choice in FoodChoices)
         {
-            SetSelectedFood(FoodChoice.Burger);
-            return;
-        }
+            if (!GetFoodButton(choice).Update(input))
+            {
+                continue;
+            }
 
-        if (_burritoButton.Update(input))
-        {
-            SetSelectedFood(FoodChoice.Burrito);
-            return;
-        }
-
-        if (_pizzaButton.Update(input))
-        {
-            SetSelectedFood(FoodChoice.Pizza);
-            return;
-        }
-
-        if (_dumplingsButton.Update(input))
-        {
-            SetSelectedFood(FoodChoice.Dumplings);
-            return;
-        }
-
-        if (_skilletPastaButton.Update(input))
-        {
-            SetSelectedFood(FoodChoice.SkilletPasta);
-            return;
-        }
-
-        if (_mealPrepChiliButton.Update(input))
-        {
-            SetSelectedFood(FoodChoice.MealPrepChili);
+            SetSelectedFood(choice);
             return;
         }
 
@@ -756,11 +937,197 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _bankAppOpen = false;
             _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_buyHouseButton.Update(input))
+        {
+            var moved = !_state.HasApartment
+                ? _simulation.MoveToApartment(_state)
+                : _simulation.BuyHouse(_state);
+            if (moved)
+            {
+                _audio.PlaySuccess();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+
+            return;
+        }
+
+        if (_startFamilyButton.Update(input))
+        {
+            if (_simulation.StartFamily(_state))
+            {
+                _bankAppOpen = false;
+                _audio.PlaySuccess();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+        }
+    }
+
+    private void HandleVersionControlInput(InputSnapshot input)
+    {
+        if (_closeVersionControlButton.Update(input))
+        {
+            _versionControlOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_state.VersionControl.ActiveMergeConflict is not null)
+        {
+            for (var index = 0; index < _mergeConflictOptionButtons.Length; index++)
+            {
+                if (!_mergeConflictOptionButtons[index].Update(input))
+                {
+                    continue;
+                }
+
+                if (_simulation.ResolveMergeConflictOption(_state, index))
+                {
+                    _audio.PlayButtonClick();
+                }
+                else
+                {
+                    _audio.PlayFailure();
+                }
+
+                return;
+            }
+
+            return;
+        }
+
+        if (_commitChangesButton.Update(input))
+        {
+            if (_simulation.CommitChanges(_state))
+            {
+                _audio.PlayButtonClick();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+
+            return;
+        }
+
+        if (_branchButton.Update(input))
+        {
+            if (_simulation.ToggleFeatureBranch(_state))
+            {
+                _audio.PlayButtonClick();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+
+            return;
+        }
+
+        if (_mergeButton.Update(input))
+        {
+            if (_simulation.MergeFeatureBranch(_state))
+            {
+                _audio.PlayButtonClick();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+        }
+    }
+
+    private void HandleProjectStudioInput(InputSnapshot input)
+    {
+        if (_projectStudioMaxScrollOffset > 0f &&
+            input.ScrollWheelDelta != 0 &&
+            _projectStudioBounds.Contains(input.MousePosition))
+        {
+            _projectStudioScrollOffset = Math.Clamp(
+                _projectStudioScrollOffset - (input.ScrollWheelDelta * 0.36f),
+                0f,
+                _projectStudioMaxScrollOffset);
+            UpdateButtons();
+        }
+
+        if (_closeProjectStudioButton.Update(input))
+        {
+            _projectStudioOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_projectTypeButton.Update(input))
+        {
+            PlayProjectStudioResult(_simulation.AdvanceProjectBlueprintField(_state, ProjectPlanField.ProductType));
+            return;
+        }
+
+        if (_projectThemeButton.Update(input))
+        {
+            PlayProjectStudioResult(_simulation.AdvanceProjectBlueprintField(_state, ProjectPlanField.Theme));
+            return;
+        }
+
+        if (_projectToneButton.Update(input))
+        {
+            PlayProjectStudioResult(_simulation.AdvanceProjectBlueprintField(_state, ProjectPlanField.Tone));
+            return;
+        }
+
+        if (_projectPlatformButton.Update(input))
+        {
+            PlayProjectStudioResult(_simulation.AdvanceProjectBlueprintField(_state, ProjectPlanField.Platform));
+            return;
+        }
+
+        if (_projectBusinessButton.Update(input))
+        {
+            PlayProjectStudioResult(_simulation.AdvanceProjectBlueprintField(_state, ProjectPlanField.BusinessModel));
+            return;
+        }
+
+        if (_projectRerollButton.Update(input))
+        {
+            PlayProjectStudioResult(_simulation.RerollProjectBlueprint(_state));
+        }
+    }
+
+    private void PlayProjectStudioResult(bool applied)
+    {
+        if (applied)
+        {
+            _audio.PlayButtonClick();
+        }
+        else
+        {
+            _audio.PlayFailure();
         }
     }
 
     private void HandleFreelanceBoardInput(InputSnapshot input)
     {
+        if (_state.ActiveFreelanceGig is null &&
+            _freelanceBoardMaxScrollOffset > 0f &&
+            input.ScrollWheelDelta != 0 &&
+            _freelanceBoardBounds.Contains(input.MousePosition))
+        {
+            var scrollStep = FreelanceCardHeight + FreelanceCardGap;
+            _freelanceBoardScrollOffset = Math.Clamp(
+                _freelanceBoardScrollOffset - (Math.Sign(input.ScrollWheelDelta) * scrollStep),
+                0f,
+                _freelanceBoardMaxScrollOffset);
+            UpdateButtons();
+        }
+
         if (_closeFreelanceBoardButton.Update(input))
         {
             _freelanceBoardOpen = false;
@@ -768,7 +1135,42 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return;
         }
 
-        foreach (var type in Enum.GetValues<FreelanceGigType>())
+        if (_state.ActiveFreelanceGig is not null)
+        {
+            if (!input.IsLeftClickInside(_freelanceGigEditorBounds))
+            {
+                return;
+            }
+
+            if (_state.ActiveCatInterruption is not null)
+            {
+                var petted = _simulation.ApplyAction(_state, PlayerAction.PetCat);
+                if (petted)
+                {
+                    _audio.PlayButtonClick();
+                }
+                else
+                {
+                    _audio.PlayFailure();
+                }
+
+                return;
+            }
+
+            var worked = _simulation.WorkOnFreelanceGig(_state);
+            if (worked)
+            {
+                _audio.PlayWriteKey();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+
+            return;
+        }
+
+        foreach (var type in FreelanceGigOrder)
         {
             var button = _freelanceGigButtons[type];
             if (!button.Update(input))
@@ -776,10 +1178,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 continue;
             }
 
-            var taken = _simulation.TakeFreelanceGig(_state, type);
+            var taken = _simulation.BeginFreelanceGig(_state, type);
             if (taken)
             {
-                _freelanceBoardOpen = false;
                 _audio.PlayButtonClick();
             }
             else
@@ -1004,7 +1405,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         spriteBatch.Draw(_pixel, new Rectangle(_sidebarBounds.X + 1, _sidebarBounds.Y + 1, _sidebarBounds.Width - 2, 4), UiTheme.WithOpacity(UiTheme.Success, 0.9f));
 
         UiLabel.Draw(spriteBatch, _font, "Micro Dev Workspace", new Vector2(_editorPanelBounds.X + 18, _editorPanelBounds.Y + 12), UiTheme.TextPrimary, UiTypography.Title);
-        UiLabel.Draw(spriteBatch, _font, $"Day {_state.Day}  {_state.ClockText}", new Vector2(_editorPanelBounds.Right - 194, _editorPanelBounds.Y + 16), UiTheme.TextMuted, UiTypography.Section);
+        var clockText = $"Day {_state.Day}  {_state.ClockText}";
+        var clockTextWidth = _font.MeasureString(clockText).X * UiTypography.Section;
+        UiLabel.Draw(spriteBatch, _font, clockText, new Vector2(_editorPanelBounds.Right - 18 - clockTextWidth, _editorPanelBounds.Y + 16), UiTheme.TextMuted, UiTypography.Section);
 
         DrawCodeEditor(spriteBatch);
         DrawSidebar(spriteBatch);
@@ -1054,16 +1457,6 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             ? $"Release {releaseNumber}  |  File {Math.Min(fileIndex, totalPrograms)}/{totalPrograms}"
             : $"File {fileIndex}/ENDLESS";
         var projectMetaSize = _font.MeasureString(projectMeta) * SmallScale;
-        var projectTitleMaxWidth = Math.Max(220, headerRight - contentX - 18 - projectMetaSize.X);
-
-        DrawFittedLabel(
-            spriteBatch,
-            program.ProjectName,
-            new Vector2(contentX, titleY),
-            projectTitleMaxWidth,
-            UiTheme.Accent,
-            0.92f,
-            0.78f);
 
         UiLabel.Draw(
             spriteBatch,
@@ -1075,7 +1468,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         DrawFirstCoinFrame(spriteBatch);
 
-        var descriptionY = titleY + 30;
+        var descriptionY = titleY + 12;
         var descriptionHeight = UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -1191,23 +1584,26 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_state.ActiveCatInterruption is not null)
         {
+            var distraction = _state.ActiveCatInterruption;
             UiPanel.Draw(spriteBatch, _pixel, _catOverlayBounds, new Color(80, 45, 24, 232), UiTheme.CatAccent, 3);
-            UiLabel.Draw(spriteBatch, _font, "Desk Cat Event", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 18), UiTheme.CatAccent, 1.0f);
+            UiLabel.Draw(spriteBatch, _font, distraction.Title, new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 18), UiTheme.CatAccent, 1.0f);
             UiTextBlock.DrawWrapped(
                 spriteBatch,
                 _font,
-                "The cat decided your keyboard is warmer than any bed. Pet it away before it times out, trashes part of the draft, and keeps typing nonsense into the editor.",
+                distraction.Description,
                 new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 56),
                 _catOverlayBounds.Width - 48,
                 UiTheme.TextPrimary,
                 0.76f,
                 2f,
                 3);
-            UiLabel.Draw(spriteBatch, _font, $"Pet clicks remaining: {_state.ActiveCatInterruption.PatsRemaining}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 136), UiTheme.TextPrimary, 0.78f);
-            UiLabel.Draw(spriteBatch, _font, $"Leaves in: {FormatRemainingTime(_state.ActiveCatInterruption.RemainingInGameMinutes)}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 164), UiTheme.TextMuted, 0.76f);
-            UiLabel.Draw(spriteBatch, _font, $"Deletion risk: {_state.ActiveCatInterruption.LinesDeletionPenalty} LoC", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 192), UiTheme.Warning, 0.76f);
-            UiLabel.Draw(spriteBatch, _font, $"Phantom bugs typed: {_state.ActiveCatInterruption.PhantomBugCount}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 220), UiTheme.Danger, 0.72f);
-            UiLabel.Draw(spriteBatch, _font, $"Gibberish lines on screen: {_state.ActiveCatInterruption.GibberishLinesTyped}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 246), UiTheme.CatAccent, 0.72f);
+            UiLabel.Draw(spriteBatch, _font, $"Manual clears remaining: {distraction.PatsRemaining}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 136), UiTheme.TextPrimary, 0.78f);
+            UiLabel.Draw(spriteBatch, _font, $"Leaves in: {FormatRemainingTime(distraction.RemainingInGameMinutes)}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 164), UiTheme.TextMuted, 0.76f);
+            UiLabel.Draw(spriteBatch, _font, $"Deletion risk: {distraction.LinesDeletionPenalty} LoC", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 192), UiTheme.Warning, 0.76f);
+            UiLabel.Draw(spriteBatch, _font, $"Phantom bugs typed: {distraction.PhantomBugCount}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 220), UiTheme.Danger, 0.72f);
+            UiLabel.Draw(spriteBatch, _font, $"Gibberish lines on screen: {distraction.GibberishLinesTyped}", new Vector2(_catOverlayBounds.X + 24, _catOverlayBounds.Y + 246), UiTheme.CatAccent, 0.72f);
+            _deskDistractionFocusButton.Draw(spriteBatch, _pixel, _font);
+            _deskDistractionQuickFixButton.Draw(spriteBatch, _pixel, _font);
         }
     }
 
@@ -1341,7 +1737,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     {
         UiPanel.Draw(spriteBatch, _pixel, bounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiLabel.Draw(spriteBatch, _font, label, new Vector2(bounds.X + 10, bounds.Y + 8), UiTheme.TextMuted, 0.68f);
-        UiLabel.Draw(spriteBatch, _font, value, new Vector2(bounds.X + 10, bounds.Y + 28), valueColor, 0.94f);
+        DrawFittedLabel(spriteBatch, value, new Vector2(bounds.X + 10, bounds.Y + 28), bounds.Width - 20, valueColor, 0.94f, 0.6f);
     }
 
     private void DrawProgressBars(SpriteBatch spriteBatch)
@@ -1392,7 +1788,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             fill = new Color(82, 56, 28);
             border = UiTheme.CatAccent;
             textColor = UiTheme.CatAccent;
-            message = $"Cat blocking the keyboard for {FormatRemainingTime(_state.ActiveCatInterruption.RemainingInGameMinutes)}. {_state.ActiveCatInterruption.PhantomBugCount} bug bursts and {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines are on screen.";
+            message = $"{_state.ActiveCatInterruption.Title} is chewing through the desk for {FormatRemainingTime(_state.ActiveCatInterruption.RemainingInGameMinutes)}. {_state.ActiveCatInterruption.PhantomBugCount} bug bursts and {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines are already on screen.";
         }
         else if (_state.ActiveFoodDelivery is not null)
         {
@@ -1404,6 +1800,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 ? "cooking"
                 : _state.ActiveFoodDelivery.Expedited ? "rushing over" : "on the way";
             message = $"{_simulation.GetFoodOption(_state, foodChoice).Name} is {prepMode}. ETA {FormatRemainingTime(_state.ActiveFoodDelivery.RemainingInGameMinutes)}.";
+        }
+        else if (_state.VersionControl.ActiveMergeConflict is not null)
+        {
+            fill = new Color(84, 34, 34);
+            border = UiTheme.Danger;
+            textColor = UiTheme.Danger;
+            message = $"Merge conflict active in {_state.VersionControl.ActiveMergeConflict.FileName}. Open Version Control and resolve it before the release can move.";
         }
         else if (_simulation.RequiresSleep(_state))
         {
@@ -1456,6 +1859,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             textColor = UiTheme.Success;
             message = $"Release ready to ship. Publish for ${_simulation.Config.PublishAppFundsMin:0}-${_simulation.Config.PublishAppFundsMax:0} and roll the next snippet batch.";
         }
+        else if (PortfolioWorkspace.IsCurrentBatchComplete(_state))
+        {
+            fill = new Color(84, 64, 26);
+            border = UiTheme.Warning;
+            textColor = UiTheme.Warning;
+            message = $"The build is done, but the repo is not clean on main. Pending dirty lines: {_state.VersionControl.PendingChangeLines}.";
+        }
         else if (_simulation.HasPublishedApps(_state) &&
                  _state.NextPublishedAppSaleDeskMinute < double.PositiveInfinity)
         {
@@ -1471,6 +1881,48 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             border = UiTheme.Success;
             textColor = UiTheme.Success;
             message = $"{_state.PartnerName} is in your corner. Passive sanity support is buying back {(_simulation.Config.FoundLovePassiveSanityRegenPerInGameMinute * 60):0.0} sanity per in-game hour.";
+        }
+        else if (_simulation.IsInCorporateOfficeHours(_state))
+        {
+            fill = new Color(72, 46, 58);
+            border = UiTheme.Warning;
+            textColor = UiTheme.Warning;
+            message = $"Office hours are live. { _state.BossName } and the rest of the floor are actively draining sanity while you hold the day together.";
+        }
+        else if (_state.HasApartment && !_state.HasHouse)
+        {
+            fill = new Color(27, 55, 46);
+            border = UiTheme.Success;
+            textColor = UiTheme.Success;
+            message = "You made it out of the basement. Banking now points toward the house goal instead of just raw survival.";
+        }
+        else if (_state.HasHouse && !_state.HasStartedFamily)
+        {
+            fill = new Color(27, 55, 46);
+            border = UiTheme.Success;
+            textColor = UiTheme.Success;
+            message = "House purchased. Banking now holds the long-term family finish line if the relationship and savings both hold together.";
+        }
+        else if (_state.GameplayMode == GameplayLoopMode.Corporate)
+        {
+            fill = new Color(66, 44, 58);
+            border = UiTheme.Warning;
+            textColor = UiTheme.Warning;
+            message = $"{_state.BossName} is a {ProceduralRunContent.GetBossDispositionLabel(_state.BossDisposition).ToLowerInvariant()} boss. Corporate standing is {_state.CorporateStanding}.";
+        }
+        else if (_state.GameplayMode == GameplayLoopMode.Founder && !string.IsNullOrWhiteSpace(_state.StudioName))
+        {
+            fill = new Color(56, 44, 24);
+            border = UiTheme.CoinAccent;
+            textColor = UiTheme.CoinAccent;
+            message = $"{_state.StudioName} is still bootstrapping. Founder Mode survives on shipped work, freelance cash, and staying solvent long enough to reach the apartment milestone.";
+        }
+        else if (_state.GameplayMode == GameplayLoopMode.Indie)
+        {
+            fill = new Color(27, 55, 46);
+            border = UiTheme.Success;
+            textColor = UiTheme.Success;
+            message = "Indie studio rhythm is active. Sanity pressure is lighter, but focus recovery is weaker, so food, sleep, and timing matter more.";
         }
         else if (_state.ActiveJobListing is not null)
         {
@@ -1510,6 +1962,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _freelanceButton.Draw(spriteBatch, _pixel, _font);
         _bankAppButton.Draw(spriteBatch, _pixel, _font);
         _upgradesButton.Draw(spriteBatch, _pixel, _font);
+        _versionControlButton.Draw(spriteBatch, _pixel, _font);
+        _projectStudioButton.Draw(spriteBatch, _pixel, _font);
         _sleepButton.Draw(spriteBatch, _pixel, _font);
     }
 
@@ -1597,14 +2051,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var titleWidth = _jobListingCardBounds.Width - 20 - _applyForJobButton.Bounds.Width - 8;
         DrawFittedLabel(
             spriteBatch,
-            listing.Title,
+            $"{listing.Title}  |  {listing.CompanyName}",
             new Vector2(_jobListingCardBounds.X + 10, _jobListingCardBounds.Y + 8),
             titleWidth,
             UiTheme.Success,
             0.72f,
             0.62f);
         var requirements =
-            $"{listing.TechStack}  |  {_simulation.GetResumeTrackLabel(listing.ResumeTrack)} proof {_simulation.GetResumeProof(_state, listing.ResumeTrack)}/{listing.RequiredResumeProof}  |  {FormatRemainingTime(listing.RemainingInGameMinutes)} left";
+            $"{listing.TechStack}  |  {(listing.OfferMode == GameplayLoopMode.Indie ? "Indie studio" : "Corporate team")}  |  {_simulation.GetResumeTrackLabel(listing.ResumeTrack)} proof {_simulation.GetResumeProof(_state, listing.ResumeTrack)}/{listing.RequiredResumeProof}  |  {FormatRemainingTime(listing.RemainingInGameMinutes)} left";
         var bodyTop = GetAlertCardBodyTop(_jobListingCardBounds);
         UiTextBlock.DrawWrapped(
             spriteBatch,
@@ -1639,7 +2093,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var totalLines = application.CodeLines.Count(line => !string.IsNullOrWhiteSpace(line));
         var body = application.TakeHomeComplete
             ? $"Interview {Math.Min(application.CurrentQuestionIndex + 1, application.Questions.Count)}/{application.Questions.Count}. Correct {application.CorrectAnswers}/{application.MinimumCorrectAnswers} needed."
-            : $"Take-home {revealedLines}/{totalLines} lines. Prep notes {application.PrepPoints}. Need {application.MinimumCorrectAnswers}/{application.Questions.Count} correct in the interview.";
+            : $"Take-home {revealedLines}/{totalLines} lines for {application.CompanyName}. Prep notes {application.PrepPoints}. Need {application.MinimumCorrectAnswers}/{application.Questions.Count} correct in the interview.";
         var bodyTop = GetAlertCardBodyTop(_applicationCardBounds);
         UiTextBlock.DrawWrapped(
             spriteBatch,
@@ -1656,21 +2110,26 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private void DrawPublishCard(SpriteBatch spriteBatch)
     {
         var publishReady = _simulation.IsPortfolioPublishReady(_state);
+        var batchComplete = PortfolioWorkspace.IsCurrentBatchComplete(_state);
         var fill = publishReady
             ? new Color(28, 60, 49)
-            : new Color(35, 45, 64);
+            : batchComplete
+                ? new Color(70, 48, 30)
+                : new Color(35, 45, 64);
         var border = publishReady
             ? UiTheme.Success
-            : UiTheme.Accent;
+            : batchComplete ? UiTheme.Warning : UiTheme.Accent;
         var accent = publishReady
             ? UiTheme.Success
-            : UiTheme.Accent;
+            : batchComplete ? UiTheme.Warning : UiTheme.Accent;
 
         UiPanel.Draw(spriteBatch, _pixel, _publishCardBounds, fill, border, 2);
 
         var title = publishReady
             ? $"Release {_state.PublishedAppCount + 1} Ready"
-            : "Published Apps";
+            : batchComplete
+                ? "Release Blocked"
+                : "Published Apps";
         var titleWidth = _publishCardBounds.Width - 20 - (_publishAppButton.Bounds == Rectangle.Empty ? 0 : _publishAppButton.Bounds.Width + 8);
         DrawFittedLabel(
             spriteBatch,
@@ -1691,6 +2150,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             : "Storefront payouts will start rolling in once this build is live.";
         var body = publishReady
             ? $"All {PortfolioWorkspace.GetProgramCount(_state)} files for the current release are complete. Publish now for a randomized ${_simulation.Config.PublishAppFundsMin:0}-${_simulation.Config.PublishAppFundsMax:0}, then roll straight into the next snippet pack. {nextSaleText}"
+            : batchComplete
+                ? $"The release itself is finished, but the repo is not ready. Dirty lines: {_state.VersionControl.PendingChangeLines}. Branch: {_state.VersionControl.CurrentBranchName}. Clean that up in Version Control, then ship."
             : $"{_state.PublishedAppCount} shipped app{(_state.PublishedAppCount == 1 ? string.Empty : "s")} are live. {nextSaleText}";
         var bodyTop = GetAlertCardBodyTop(_publishCardBounds);
         UiTextBlock.DrawWrapped(
@@ -1779,8 +2240,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiLabel.Draw(spriteBatch, _font, "Run Controls", new Vector2(_runControlsBounds.X + 12, _runControlsBounds.Y + 10), UiTheme.TextPrimary, 0.74f);
 
         var seedModeText = _state.RunSeed > 0
-            ? $"Seed {_state.RunSeed} live. Restart replays this run; New Run rolls the current seed setting."
-            : "Restart replays the current setup; New Run rolls the current seed setting.";
+            ? $"Seed {_state.RunSeed}  |  Restart repeats this run  |  New Run rerolls from settings."
+            : "Restart repeats this run. New Run rerolls from settings.";
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -1788,9 +2249,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             new Vector2(_runControlsBounds.X + 12, _runControlsBounds.Y + 32),
             _runControlsBounds.Width - 24,
             UiTheme.TextMuted,
-            0.58f,
+            0.54f,
             1f,
-            3);
+            2);
 
         _guideButton.Draw(spriteBatch, _pixel, _font);
         _restartButton.Draw(spriteBatch, _pixel, _font);
@@ -1818,6 +2279,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var introText = activeDelivery is null
             ? "Mix delivery and home cooking to manage time, cash, and recovery. Takeout lands faster, but cooking is cheaper, steadier, and better for long micromanagement runs."
             : "Your meal loop is already active. Keep an eye on the ETA here or from the desk strip while the timer runs down.";
+        var mealIntroText = activeDelivery is null
+            ? "Delivery speed versus home-cooked stability."
+            : "Meal locked until the timer resolves.";
         var orderStateText = activeDelivery is null
             ? penaltyMinutes <= 0
                 ? "Details locked. This meal should land clean with no sluggish penalty."
@@ -1825,6 +2289,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                     ? $"Partial cleanup. Expected sluggishness falls to {FormatRemainingTime(penaltyMinutes)} after delivery."
                     : $"Messy order. Expect the full {FormatRemainingTime(option.SluggishMinutesWhenUnchecked)} sluggish hit when it arrives."
             : $"{option.Name} is {(_simulation.IsHomeCooked(activeDelivery.Choice) ? "cooking" : activeDelivery.Expedited ? "expedited" : "on standard delivery")} with {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)} left before the stats land.";
+        var summaryDescriptionText = activeDelivery is null
+            ? option.Description
+            : $"{option.Description} The driver will apply the focus and sanity bump only when the food actually arrives.";
+        var summarySupportText = activeDelivery is null
+            ? _simulation.IsHomeCooked(option.Choice)
+                ? "Home cooking is slower, cheaper, and calmer than takeout. It still clears hunger only when the meal is ready."
+                : "Delivery clears hunger on arrival. Sleep is slower, but it is still the only full reset."
+            : $"Expected on arrival: sanity {option.SanityGain:+0;-0;0}, hunger reset, and {(penaltyMinutes <= 0 ? "no sluggishness" : $"{FormatRemainingTime(penaltyMinutes)} sluggishness")}.";
 
         DrawOverlayHeaderLabel(
             spriteBatch,
@@ -1849,19 +2321,20 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiPanel.Draw(spriteBatch, _pixel, _foodChoicePanelBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _foodModifierPanelBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiLabel.Draw(spriteBatch, _font, "Meals", new Vector2(_foodChoicePanelBounds.X + 14, _foodChoicePanelBounds.Y + 14), UiTheme.TextPrimary, 0.8f);
-        UiLabel.Draw(
+        UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            activeDelivery is null ? "Delivery speed versus home-cooked stability." : "Meal locked until the timer resolves.",
+            mealIntroText,
             new Vector2(_foodChoicePanelBounds.X + 14, _foodChoicePanelBounds.Y + 38),
+            _foodChoicePanelBounds.Width - 28,
             UiTheme.TextMuted,
-            0.62f);
-        _burgerButton.Draw(spriteBatch, _pixel, _font);
-        _burritoButton.Draw(spriteBatch, _pixel, _font);
-        _pizzaButton.Draw(spriteBatch, _pixel, _font);
-        _dumplingsButton.Draw(spriteBatch, _pixel, _font);
-        _skilletPastaButton.Draw(spriteBatch, _pixel, _font);
-        _mealPrepChiliButton.Draw(spriteBatch, _pixel, _font);
+            0.62f,
+            2f,
+            2);
+        foreach (var choice in FoodChoices)
+        {
+            GetFoodButton(choice).Draw(spriteBatch, _pixel, _font);
+        }
 
         UiPanel.Draw(spriteBatch, _pixel, _foodSummaryPanelBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
@@ -1870,39 +2343,51 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _confirmFoodOrderButton.Draw(spriteBatch, _pixel, _font);
         _closeFoodAppButton.Draw(spriteBatch, _pixel, _font);
 
-        UiLabel.Draw(spriteBatch, _font, $"Selected meal: {option.Name}", new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 14), UiTheme.TextPrimary, 0.82f);
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
+            $"Selected meal: {option.Name}",
+            new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 14),
+            _foodSummaryPanelBounds.Width - 32,
+            UiTheme.TextPrimary,
+            0.82f,
+            0.62f);
+        DrawFittedLabel(
+            spriteBatch,
             activeDelivery is null
                 ? $"Cost: ${_simulation.GetFoodTotalCost(_state, option.Choice, expedited):0}   ETA: {FormatRemainingTime(_simulation.GetFoodDeliveryDuration(_state, option.Choice, expedited))}   Focus on arrival: +{option.FocusGain:0}"
                 : $"Paid: ${activeDelivery.TotalFundsCost:0}   ETA: {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)}   Mode: {(_simulation.IsHomeCooked(activeDelivery.Choice) ? "Home Cook" : activeDelivery.Expedited ? "Expedited" : "Delivery")}",
             new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 42),
+            _foodSummaryPanelBounds.Width - 32,
             UiTheme.Warning,
-            0.74f);
+            0.74f,
+            0.58f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            activeDelivery is null
-                ? option.Description
-                : $"{option.Description} The driver will apply the focus and sanity bump only when the food actually arrives.",
-            new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 72),
+            summaryDescriptionText,
+            new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 76),
             _foodSummaryPanelBounds.Width - 32,
             UiTheme.TextMuted,
             0.68f,
             2f,
-            2);
-        UiLabel.Draw(
+            3);
+        var supportTextY = _foodSummaryPanelBounds.Y + 76 + UiTextBlock.MeasureWrappedHeight(
+            _font,
+            summaryDescriptionText,
+            _foodSummaryPanelBounds.Width - 32,
+            0.68f,
+            2f,
+            3) + 10;
+        var supportTextHeight = UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            activeDelivery is null
-                ? _simulation.IsHomeCooked(option.Choice)
-                    ? "Home cooking is slower, cheaper, and calmer than takeout. It still clears hunger only when the meal is ready."
-                    : "Delivery clears hunger on arrival. Sleep is slower, but it is still the only full reset."
-                : $"Expected on arrival: sanity {option.SanityGain:+0;-0;0}, hunger reset, and {(penaltyMinutes <= 0 ? "no sluggishness" : $"{FormatRemainingTime(penaltyMinutes)} sluggishness")}.",
-            new Vector2(_foodSummaryPanelBounds.X + 16, _foodSummaryPanelBounds.Y + 108),
+            summarySupportText,
+            new Vector2(_foodSummaryPanelBounds.X + 16, supportTextY),
+            _foodSummaryPanelBounds.Width - 32,
             UiTheme.TextMuted,
-            0.62f);
+            0.62f,
+            2f,
+            3);
         UiLabel.Draw(spriteBatch, _font, "Order Details", new Vector2(_foodModifierPanelBounds.X + 14, _foodModifierPanelBounds.Y + 14), UiTheme.TextPrimary, 0.8f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
@@ -1931,7 +2416,18 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 0.58f);
         }
 
-        var noteBounds = new Rectangle(_foodSummaryPanelBounds.X + 14, _foodSummaryPanelBounds.Bottom - 46, _foodSummaryPanelBounds.Width - 28, 34);
+        var noteTextHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            orderStateText,
+            _foodSummaryPanelBounds.Width - 48,
+            0.62f,
+            1f,
+            3);
+        var noteBounds = new Rectangle(
+            _foodSummaryPanelBounds.X + 14,
+            (int)Math.Ceiling(supportTextY + supportTextHeight + 10),
+            _foodSummaryPanelBounds.Width - 28,
+            Math.Max(34, (int)Math.Ceiling(noteTextHeight) + 12));
         UiPanel.Draw(
             spriteBatch,
             _pixel,
@@ -1979,14 +2475,17 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2f,
             3);
 
-        var cardWidth = (_bankAppBounds.Width - 72) / 2;
-        var accountBounds = new Rectangle(_bankAppBounds.X + 24, _bankAppBounds.Y + 118, cardWidth, 128);
-        var rentBounds = new Rectangle(accountBounds.Right + 24, _bankAppBounds.Y + 118, cardWidth, 128);
-        var coinBounds = new Rectangle(_bankAppBounds.X + 24, _bankAppBounds.Y + 260, _bankAppBounds.Width - 48, 84);
-        var ledgerBounds = new Rectangle(_bankAppBounds.X + 24, _bankAppBounds.Y + 360, _bankAppBounds.Width - 48, _bankAppBounds.Height - 384);
+        var accountBounds = _bankAccountBounds;
+        var rentBounds = _bankRentBounds;
+        var houseBounds = _bankHouseBounds;
+        var familyBounds = _bankFamilyBounds;
+        var coinBounds = _bankCoinBounds;
+        var ledgerBounds = _bankLedgerBounds;
 
         UiPanel.Draw(spriteBatch, _pixel, accountBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, rentBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, houseBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, familyBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(
             spriteBatch,
             _pixel,
@@ -1996,13 +2495,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2);
         UiPanel.Draw(spriteBatch, _pixel, ledgerBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
-        var runwayBills = _simulation.Config.DailyBillAmount <= 0
+        var dailyBill = _simulation.GetCurrentDailyBillAmount(_state);
+        var runwayBills = dailyBill <= 0
             ? 0
-            : Math.Max(0, (int)Math.Floor(_state.Funds / _simulation.Config.DailyBillAmount));
+            : Math.Max(0, (int)Math.Floor(_state.Funds / dailyBill));
         var billMinutesRemaining = Math.Max(1d, SimulationConfig.MinutesPerDay - _state.TimeOfDayMinutes);
 
         UiLabel.Draw(spriteBatch, _font, "Available Cash", new Vector2(accountBounds.X + 16, accountBounds.Y + 14), UiTheme.TextMuted, 0.72f);
-        UiLabel.Draw(spriteBatch, _font, $"${_state.Funds:0}", new Vector2(accountBounds.X + 16, accountBounds.Y + 40), UiTheme.Warning, 1.16f);
+        DrawFittedLabel(spriteBatch, $"${_state.Funds:0}", new Vector2(accountBounds.X + 16, accountBounds.Y + 40), accountBounds.Width - 32, UiTheme.Warning, 1.16f, 0.76f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -2012,20 +2512,21 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             UiTheme.TextMuted,
             0.68f,
             2f,
-            2);
+            3);
 
         UiLabel.Draw(spriteBatch, _font, "Rent Pressure", new Vector2(rentBounds.X + 16, rentBounds.Y + 14), UiTheme.TextMuted, 0.72f);
-        UiLabel.Draw(
+        DrawFittedLabel(
             spriteBatch,
-            _font,
             $"Next bill in {FormatRemainingTime(billMinutesRemaining)}",
             new Vector2(rentBounds.X + 16, rentBounds.Y + 40),
+            rentBounds.Width - 32,
             UiTheme.TextPrimary,
-            0.88f);
+            0.88f,
+            0.62f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"Daily bill: -${_simulation.Config.DailyBillAmount:0}. Difficulty: {_state.Difficulty}. Seed: {_state.RunSeed}.",
+            $"Daily bill: -${dailyBill:0}. Difficulty: {_state.Difficulty}. Seed: {_state.RunSeed}.",
             new Vector2(rentBounds.X + 16, rentBounds.Y + 78),
             rentBounds.Width - 32,
             UiTheme.TextMuted,
@@ -2033,13 +2534,57 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2f,
             2);
 
+        var housingHeadline = GetHousingTrackHeadline();
+        var housingBody = GetHousingTrackDescription();
+        UiLabel.Draw(spriteBatch, _font, "Housing Track", new Vector2(houseBounds.X + 16, houseBounds.Y + 14), UiTheme.TextMuted, 0.72f);
+        DrawFittedLabel(
+            spriteBatch,
+            housingHeadline,
+            new Vector2(houseBounds.X + 16, houseBounds.Y + 40),
+            houseBounds.Width - 32,
+            _state.HasHouse ? UiTheme.Success : UiTheme.TextPrimary,
+            0.86f,
+            0.62f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            housingBody,
+            new Vector2(houseBounds.X + 16, houseBounds.Y + 68),
+            houseBounds.Width - 32,
+            UiTheme.TextMuted,
+            0.64f,
+            2f,
+            4);
+        _buyHouseButton.Draw(spriteBatch, _pixel, _font);
+
+        var familyHeadline = GetFamilyGoalHeadline();
+        var familyBody = GetFamilyGoalDescription();
+        UiLabel.Draw(spriteBatch, _font, "Family Goal", new Vector2(familyBounds.X + 16, familyBounds.Y + 14), UiTheme.TextMuted, 0.72f);
+        DrawFittedLabel(
+            spriteBatch,
+            familyHeadline,
+            new Vector2(familyBounds.X + 16, familyBounds.Y + 40),
+            familyBounds.Width - 32,
+            _state.HasStartedFamily ? UiTheme.Success : UiTheme.TextPrimary,
+            0.86f,
+            0.62f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            familyBody,
+            new Vector2(familyBounds.X + 16, familyBounds.Y + 68),
+            familyBounds.Width - 32,
+            UiTheme.TextMuted,
+            0.64f,
+            2f,
+            4);
+        _startFamilyButton.Draw(spriteBatch, _pixel, _font);
+
         UiLabel.Draw(spriteBatch, _font, "Emergency Buffer", new Vector2(coinBounds.X + 16, coinBounds.Y + 14), _state.HasFirstCoin ? UiTheme.CoinAccent : UiTheme.TextMuted, 0.78f);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            _state.HasFirstCoin
-                ? $"The framed first coin is still intact. It steadies sanity and can still rescue one missed rent cycle for +${_simulation.Config.FirstCoinEmergencyFundsGain:0}."
-                : "The first coin rescue has already been spent. There is no second emergency buffer on this desk.",
+            GetEmergencyBufferDescription(),
             new Vector2(coinBounds.X + 16, coinBounds.Y + 40),
             coinBounds.Width - 32,
             _state.HasFirstCoin ? UiTheme.TextPrimary : UiTheme.TextMuted,
@@ -2053,6 +2598,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         foreach (var entry in GetRecentMoneyEntries())
         {
             var height = UiTextBlock.MeasureWrappedHeight(_font, entry, transactionWidth, 0.7f, 2f, 2);
+            if (transactionY + height > ledgerBounds.Bottom - 14)
+            {
+                break;
+            }
+
             UiTextBlock.DrawWrapped(
                 spriteBatch,
                 _font,
@@ -2064,13 +2614,296 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 2f,
                 2);
             transactionY += height + 8f;
-            if (transactionY > ledgerBounds.Bottom - 26)
-            {
-                break;
-            }
         }
 
         _closeBankAppButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawVersionControlOverlay(SpriteBatch spriteBatch)
+    {
+        var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
+        UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
+
+        UiPanel.Draw(spriteBatch, _pixel, _versionControlBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_versionControlBounds.X + 1, _versionControlBounds.Y + 1, _versionControlBounds.Width - 2, 4), UiTheme.Accent);
+
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Version Control",
+            new Vector2(_versionControlBounds.X + 24, _versionControlBounds.Y + 18),
+            _closeVersionControlButton.Bounds,
+            _versionControlBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.86f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Commit changes, branch features, merge work back to main, and survive the occasional conflict before a release can ship.",
+            new Vector2(_versionControlBounds.X + 24, _versionControlBounds.Y + 52),
+            _versionControlBounds.Width - 48,
+            UiTheme.TextMuted,
+            0.76f,
+            2f,
+            3);
+
+        var cardWidth = (_versionControlBounds.Width - 84) / 4;
+        var summaryY = _versionControlBounds.Y + 120;
+        DrawStatCard(spriteBatch, new Rectangle(_versionControlBounds.X + 24, summaryY, cardWidth, 62), "Branch", _state.VersionControl.CurrentBranchName, UiTheme.Accent);
+        DrawStatCard(spriteBatch, new Rectangle(_versionControlBounds.X + 36 + cardWidth, summaryY, cardWidth, 62), "Commits", _state.VersionControl.CommitCount.ToString(), UiTheme.TextPrimary);
+        DrawStatCard(spriteBatch, new Rectangle(_versionControlBounds.X + 48 + (cardWidth * 2), summaryY, cardWidth, 62), "Dirty LoC", _state.VersionControl.PendingChangeLines.ToString(), UiTheme.Warning);
+        DrawStatCard(
+            spriteBatch,
+            new Rectangle(_versionControlBounds.X + 60 + (cardWidth * 3), summaryY, cardWidth, 62),
+            "Release Gate",
+            _state.VersionControl.ActiveMergeConflict is not null
+                ? "Conflict"
+                : _state.VersionControl.HasFeatureBranch
+                    ? "Feature Branch"
+                    : _state.VersionControl.PendingChangeLines > 0 ? "Uncommitted" : "Clean",
+            _state.VersionControl.ActiveMergeConflict is not null ? UiTheme.Danger : UiTheme.Success);
+
+        var bodyBounds = new Rectangle(_versionControlBounds.X + 24, summaryY + 78, _versionControlBounds.Width - 48, 198);
+        UiPanel.Draw(spriteBatch, _pixel, bodyBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+
+        if (_state.VersionControl.ActiveMergeConflict is not null)
+        {
+            var conflict = _state.VersionControl.ActiveMergeConflict;
+            var conflictTitle = $"Merge Conflict  {conflict.FileName}";
+            var (displayConflictTitle, conflictTitleScale) = UiTextBlock.FitText(_font, conflictTitle, bodyBounds.Width - 32, 0.84f, 0.68f);
+            UiLabel.Draw(spriteBatch, _font, displayConflictTitle, new Vector2(bodyBounds.X + 16, bodyBounds.Y + 14), UiTheme.Danger, conflictTitleScale);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"{conflict.Summary} Severity {conflict.Severity}. Pick a resolution path below. The cleanest option changes by conflict, so there is some real guesswork here.",
+                new Vector2(bodyBounds.X + 16, bodyBounds.Y + 46),
+                bodyBounds.Width - 32,
+                UiTheme.TextMuted,
+                0.7f,
+                2f,
+                5);
+
+            foreach (var button in _mergeConflictOptionButtons)
+            {
+                button.Draw(spriteBatch, _pixel, _font);
+            }
+        }
+        else
+        {
+            var lastCommit = string.IsNullOrWhiteSpace(_state.VersionControl.LastCommitSummary)
+                ? "No commit yet."
+                : $"Last commit: {_state.VersionControl.LastCommitSummary}";
+            var publishGate = _simulation.IsPortfolioPublishReady(_state)
+                ? (_state.VersionControl.PendingChangeLines == 0 && !_state.VersionControl.HasFeatureBranch
+                    ? "Release can ship as soon as you hit Publish."
+                    : "Release is ready, but source control still blocks the ship button.")
+                : "Keep building until the release is complete, then source control becomes the final gate.";
+
+            UiLabel.Draw(spriteBatch, _font, "Repository State", new Vector2(bodyBounds.X + 16, bodyBounds.Y + 14), UiTheme.TextPrimary, 0.84f);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"{lastCommit} Dirty lines: {_state.VersionControl.PendingChangeLines}. Publish lane: {publishGate}",
+                new Vector2(bodyBounds.X + 16, bodyBounds.Y + 46),
+                bodyBounds.Width - 32,
+                UiTheme.TextMuted,
+                0.7f,
+                2f,
+                5);
+
+            _commitChangesButton.Draw(spriteBatch, _pixel, _font);
+            _branchButton.Draw(spriteBatch, _pixel, _font);
+            _mergeButton.Draw(spriteBatch, _pixel, _font);
+        }
+
+        _closeVersionControlButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawProjectStudioOverlay(SpriteBatch spriteBatch)
+    {
+        var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
+        UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
+
+        UiPanel.Draw(spriteBatch, _pixel, _projectStudioBounds, UiTheme.PanelFill, UiTheme.Success, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_projectStudioBounds.X + 1, _projectStudioBounds.Y + 1, _projectStudioBounds.Width - 2, 4), UiTheme.Success);
+
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Build Studio",
+            new Vector2(_projectStudioBounds.X + 24, _projectStudioBounds.Y + 18),
+            _closeProjectStudioButton.Bounds,
+            _projectStudioBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.86f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Choose whether the next release is an app or a game, then tune the theme, tone, platform, and business model before typing begins.",
+            new Vector2(_projectStudioBounds.X + 24, _projectStudioBounds.Y + 52),
+            _projectStudioBounds.Width - 48,
+            UiTheme.TextMuted,
+            0.76f,
+            2f,
+            3);
+
+        UiPanel.Draw(spriteBatch, _pixel, _projectStudioViewportBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+
+        var previewPrograms = PortfolioWorkspace.GetProjectPreviewPrograms(_state, 5);
+        var contentX = _projectStudioViewportBounds.X;
+        var contentWidth = _projectStudioViewportBounds.Width;
+        var contentTop = _projectStudioViewportBounds.Y - (int)MathF.Round(_projectStudioScrollOffset);
+        var titleBounds = new Rectangle(contentX, contentTop, contentWidth, 112);
+        var optionWidth = (contentWidth - 24) / 2;
+        var leftX = contentX;
+        var rightX = leftX + optionWidth + 24;
+        const int rowHeight = 74;
+        const int rowGap = 12;
+        var topY = titleBounds.Bottom + 18;
+        var productBounds = new Rectangle(leftX, topY, optionWidth, rowHeight);
+        var themeBounds = new Rectangle(rightX, topY, optionWidth, rowHeight);
+        var toneBounds = new Rectangle(leftX, topY + rowHeight + rowGap, optionWidth, rowHeight);
+        var platformBounds = new Rectangle(rightX, topY + rowHeight + rowGap, optionWidth, rowHeight);
+        var businessBounds = new Rectangle(leftX, topY + ((rowHeight + rowGap) * 2), optionWidth, rowHeight);
+        var rerollBounds = new Rectangle(rightX, topY + ((rowHeight + rowGap) * 2), optionWidth, rowHeight);
+        var previewBounds = new Rectangle(contentX, businessBounds.Bottom + 18, contentWidth, 176);
+        var economyBounds = new Rectangle(contentX, previewBounds.Bottom + 16, contentWidth, 98);
+        var lockMessageBounds = new Rectangle(contentX, economyBounds.Bottom + 16, contentWidth, 68);
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var previousScissor = graphicsDevice.ScissorRectangle;
+        spriteBatch.End();
+        graphicsDevice.ScissorRectangle = _projectStudioViewportBounds;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
+
+        UiPanel.Draw(spriteBatch, _pixel, titleBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        DrawFittedLabel(
+            spriteBatch,
+            _state.CurrentProjectBlueprint.Title,
+            new Vector2(titleBounds.X + 16, titleBounds.Y + 14),
+            titleBounds.Width - 32,
+            UiTheme.Success,
+            0.96f,
+            0.7f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            $"{_state.CurrentProjectBlueprint.Pitch} Publish x{_state.CurrentProjectBlueprint.PublishIncomeMultiplier:0.00}  |  Store x{_state.CurrentProjectBlueprint.SaleIncomeMultiplier:0.00}",
+            new Vector2(titleBounds.X + 16, titleBounds.Y + 44),
+            titleBounds.Width - 32,
+            UiTheme.TextMuted,
+            0.68f,
+            2f,
+            3);
+
+        DrawProjectOptionCard(spriteBatch, productBounds, "Product", _state.CurrentProjectBlueprint.ProductType.ToString(), _projectTypeButton);
+        DrawProjectOptionCard(spriteBatch, themeBounds, "Theme", _state.CurrentProjectBlueprint.Theme, _projectThemeButton);
+        DrawProjectOptionCard(spriteBatch, toneBounds, "Tone", _state.CurrentProjectBlueprint.Tone, _projectToneButton);
+        DrawProjectOptionCard(spriteBatch, platformBounds, "Platform", _state.CurrentProjectBlueprint.Platform, _projectPlatformButton);
+        DrawProjectOptionCard(spriteBatch, businessBounds, "Business Model", _state.CurrentProjectBlueprint.BusinessModel, _projectBusinessButton);
+
+        UiPanel.Draw(spriteBatch, _pixel, rerollBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, "Concept Reroll", new Vector2(rerollBounds.X + 16, rerollBounds.Y + 12), UiTheme.TextMuted, 0.72f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Keep the same plan shape, but reroll the actual title and flavor to chase a fresher pitch.",
+            new Vector2(rerollBounds.X + 16, rerollBounds.Y + 34),
+            rerollBounds.Width - 150,
+            UiTheme.TextMuted,
+            0.62f,
+            2f,
+            3);
+        _projectRerollButton.Draw(spriteBatch, _pixel, _font);
+
+        UiPanel.Draw(spriteBatch, _pixel, previewBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, "Planned Files", new Vector2(previewBounds.X + 16, previewBounds.Y + 14), UiTheme.TextPrimary, 0.82f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            _state.CurrentProjectBlueprint.ProductType == ProjectProductType.Game
+                ? "The current plan now spins up gameplay-facing files so the code pass reads like a real game build."
+                : "The current plan now spins up app-facing files so the code pass reads like a real product instead of a random snippet pile.",
+            new Vector2(previewBounds.X + 16, previewBounds.Y + 40),
+            previewBounds.Width - 32,
+            UiTheme.TextMuted,
+            0.66f,
+            2f,
+            2);
+
+        var previewY = previewBounds.Y + 84f;
+        foreach (var program in previewPrograms)
+        {
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"{program.FileName}  |  {program.ProjectName}",
+                new Vector2(previewBounds.X + 16, previewY),
+                previewBounds.Width - 32,
+                UiTheme.Accent,
+                0.66f,
+                2f,
+                1);
+            previewY += 22f;
+        }
+
+        UiPanel.Draw(spriteBatch, _pixel, economyBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, "Release Economy", new Vector2(economyBounds.X + 16, economyBounds.Y + 14), UiTheme.TextPrimary, 0.82f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            BuildProjectStudioEconomyText(),
+            new Vector2(economyBounds.X + 16, economyBounds.Y + 40),
+            economyBounds.Width - 32,
+            UiTheme.Warning,
+            0.66f,
+            2f,
+            3);
+
+        UiPanel.Draw(spriteBatch, _pixel, lockMessageBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            _simulation.CanEditProjectBlueprint(_state)
+                ? "Planning is unlocked because this batch has not started yet. Once you type project code, the plan locks until the next fresh release."
+                : "Planning is locked for the current batch. Ship this release, keep the repo clean, then open Build Studio before the next coding pass.",
+            new Vector2(lockMessageBounds.X + 16, lockMessageBounds.Y + 16),
+            lockMessageBounds.Width - 32,
+            _simulation.CanEditProjectBlueprint(_state) ? UiTheme.TextPrimary : UiTheme.Warning,
+            0.66f,
+            2f,
+            2);
+
+        spriteBatch.End();
+        graphicsDevice.ScissorRectangle = previousScissor;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
+
+        if (_projectStudioMaxScrollOffset > 0f)
+        {
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _projectStudioScrollbarTrackBounds,
+                UiTheme.WithOpacity(UiTheme.PanelMuted, 0.78f),
+                UiTheme.PanelBorder,
+                1);
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _projectStudioScrollbarThumbBounds,
+                UiTheme.Success,
+                UiTheme.TextPrimary,
+                1);
+        }
+
+        _closeProjectStudioButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawProjectOptionCard(SpriteBatch spriteBatch, Rectangle bounds, string label, string value, UiButton button)
+    {
+        UiPanel.Draw(spriteBatch, _pixel, bounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, label, new Vector2(bounds.X + 16, bounds.Y + 12), UiTheme.TextMuted, 0.72f);
+        DrawFittedLabel(spriteBatch, value, new Vector2(bounds.X + 16, bounds.Y + 38), bounds.Width - 148, UiTheme.TextPrimary, 0.82f, 0.62f);
+        button.Draw(spriteBatch, _pixel, _font);
     }
 
     private void DrawFreelanceBoardOverlay(SpriteBatch spriteBatch)
@@ -2093,7 +2926,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Each gig trades time, focus, and sanity for cash. Hover the buttons to compare the damage before you accept.",
+            _state.ActiveFreelanceGig is null
+                ? $"Each contract is seeded off the current build so the board feels less generic. You need at least {_simulation.Config.FreelanceMinimumFocusRequired:0} focus to start any gig, and the money only lands after you finish the contract file."
+                : "Contract in progress. Click inside the contract editor to finish the requested file, bank the payout, and clear the board slot.",
             new Vector2(_freelanceBoardBounds.X + 24, _freelanceBoardBounds.Y + 52),
             _freelanceBoardBounds.Width - 48,
             UiTheme.TextMuted,
@@ -2101,31 +2936,127 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             2f,
             3);
 
-        foreach (var type in Enum.GetValues<FreelanceGigType>())
+        if (_state.ActiveFreelanceGig is not null)
         {
-            var gig = _simulation.GetFreelanceGig(type);
+            var gig = _state.ActiveFreelanceGig;
+            var summaryBounds = new Rectangle(_freelanceBoardViewportBounds.X, _freelanceBoardViewportBounds.Y, _freelanceBoardViewportBounds.Width, 90);
+            UiPanel.Draw(spriteBatch, _pixel, summaryBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+            DrawFittedLabel(
+                spriteBatch,
+                gig.Title,
+                new Vector2(summaryBounds.X + 16, summaryBounds.Y + 14),
+                summaryBounds.Width - 32,
+                UiTheme.TextPrimary,
+                0.84f,
+                0.66f);
+            UiLabel.Draw(
+                spriteBatch,
+                _font,
+                $"{gig.ClientName}  |  {gig.FileName}",
+                new Vector2(summaryBounds.X + 16, summaryBounds.Y + 40),
+                UiTheme.Accent,
+                0.68f);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"{gig.Brief} Finish the file for +${gig.FundsGain:0}, -{gig.FocusCost:0} focus, -{gig.SanityCost:0} sanity, +{gig.CodeQualityGain:0.#} quality after {FormatRemainingTime(gig.DurationMinutes)}.",
+                new Vector2(summaryBounds.X + 16, summaryBounds.Y + 58),
+                summaryBounds.Width - 32,
+                UiTheme.Warning,
+                0.64f,
+                2f,
+                2);
+
+            UiPanel.Draw(spriteBatch, _pixel, _freelanceGigEditorBounds, UiTheme.EditorFill, UiTheme.EditorBorder, 2);
+            UiLabel.Draw(spriteBatch, _font, gig.FileName, new Vector2(_freelanceGigEditorBounds.X + 16, _freelanceGigEditorBounds.Y + 12), UiTheme.Success, 0.82f);
+            UiLabel.Draw(
+                spriteBatch,
+                _font,
+                $"{gig.VisibleLineCount}/{gig.CodeLines.Count} lines revealed",
+                new Vector2(_freelanceGigEditorBounds.X + 16, _freelanceGigEditorBounds.Y + 40),
+                UiTheme.TextMuted,
+                0.66f);
+
+            var visibleLines = BuildDisplayedCodeLines(_simulation.GetVisibleFreelanceGigLines(_state));
+            var lineHeight = (_font.LineSpacing * CodeScale) + 3f;
+            var lineY = _freelanceGigEditorBounds.Y + 72f;
+            var codeWidth = _freelanceGigEditorBounds.Width - 64;
+            for (var index = 0; index < visibleLines.Count && lineY < _freelanceGigEditorBounds.Bottom - 44; index++)
+            {
+                var lineNumber = $"{index + 1,2}";
+                UiLabel.Draw(spriteBatch, _font, lineNumber, new Vector2(_freelanceGigEditorBounds.X + 14, lineY), UiTheme.TextMuted, CodeScale);
+                spriteBatch.DrawString(
+                    _font,
+                    UiTextBlock.TrimToWidth(_font, visibleLines[index], codeWidth, CodeScale),
+                    new Vector2(_freelanceGigEditorBounds.X + 54, lineY),
+                    GetCodeLineColor(visibleLines[index]),
+                    0f,
+                    Vector2.Zero,
+                    CodeScale,
+                    SpriteEffects.None,
+                    0f);
+                lineY += lineHeight;
+            }
+
+            var footer = _state.ActiveCatInterruption is not null
+                ? $"{_state.ActiveCatInterruption.Title} is all over the contract. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to clear it while the freelance file stays noisy."
+                : _simulation.CanWorkOnFreelanceGig(_state)
+                    ? "Click inside the contract editor to keep shipping this freelance file."
+                    : $"You need enough focus to keep contract work moving. Current focus {_state.Focus:0}, minimum board requirement {_simulation.Config.FreelanceMinimumFocusRequired:0}.";
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                footer,
+                new Vector2(_freelanceGigEditorBounds.X + 16, _freelanceGigEditorBounds.Bottom - 28),
+                _freelanceGigEditorBounds.Width - 32,
+                _state.ActiveCatInterruption is not null ? UiTheme.CatAccent : UiTheme.TextMuted,
+                0.66f,
+                2f,
+                2);
+
+            _closeFreelanceBoardButton.Draw(spriteBatch, _pixel, _font);
+            return;
+        }
+
+        UiPanel.Draw(spriteBatch, _pixel, _freelanceBoardViewportBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var previousScissor = graphicsDevice.ScissorRectangle;
+        spriteBatch.End();
+        graphicsDevice.ScissorRectangle = _freelanceBoardViewportBounds;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
+
+        foreach (var type in FreelanceGigOrder)
+        {
+            var gig = _simulation.GetFreelanceGig(_state, type);
             var cardBounds = _freelanceGigCardBounds[type];
             var contentWidth = cardBounds.Width - 168;
             var railBounds = new Rectangle(cardBounds.Right - 132, cardBounds.Y + 12, 118, cardBounds.Height - 24);
             UiPanel.Draw(spriteBatch, _pixel, cardBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
             UiPanel.Draw(spriteBatch, _pixel, railBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 1);
-            UiLabel.Draw(spriteBatch, _font, gig.Name, new Vector2(cardBounds.X + 14, cardBounds.Y + 14), UiTheme.TextPrimary, 0.8f);
+            DrawFittedLabel(
+                spriteBatch,
+                gig.Name,
+                new Vector2(cardBounds.X + 14, cardBounds.Y + 14),
+                contentWidth,
+                UiTheme.TextPrimary,
+                0.8f,
+                0.62f);
             UiLabel.Draw(
                 spriteBatch,
                 _font,
                 UiTextBlock.TrimToWidth(
                     _font,
-                    $"{FormatRemainingTime(gig.DurationMinutes)}  |  +${gig.FundsGain:0}  |  -{gig.FocusCost:0} focus  |  -{gig.SanityCost:0} sanity",
+                    $"{gig.DurationMinutes:0}m  |  +${gig.FundsGain:0}  |  -{gig.FocusCost:0} focus  |  -{gig.SanityCost:0} sanity",
                     contentWidth,
                     0.66f),
-                new Vector2(cardBounds.X + 14, cardBounds.Y + 42),
+                new Vector2(cardBounds.X + 14, cardBounds.Y + 40),
                 UiTheme.Warning,
                 0.66f);
             UiTextBlock.DrawWrapped(
                 spriteBatch,
                 _font,
                 gig.Description,
-                new Vector2(cardBounds.X + 14, cardBounds.Y + 68),
+                new Vector2(cardBounds.X + 14, cardBounds.Y + 62),
                 contentWidth,
                 UiTheme.TextMuted,
                 0.68f,
@@ -2164,6 +3095,28 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _freelanceGigButtons[type].Draw(spriteBatch, _pixel, _font);
         }
 
+        spriteBatch.End();
+        graphicsDevice.ScissorRectangle = previousScissor;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
+
+        if (_freelanceBoardMaxScrollOffset > 0f)
+        {
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _freelanceBoardScrollbarTrackBounds,
+                UiTheme.WithOpacity(UiTheme.PanelMuted, 0.78f),
+                UiTheme.PanelBorder,
+                1);
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _freelanceBoardScrollbarThumbBounds,
+                UiTheme.Accent,
+                UiTheme.TextPrimary,
+                1);
+        }
+
         _closeFreelanceBoardButton.Draw(spriteBatch, _pixel, _font);
     }
 
@@ -2197,7 +3150,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
         var previousScissor = graphicsDevice.ScissorRectangle;
+        spriteBatch.End();
         graphicsDevice.ScissorRectangle = _upgradesViewportBounds;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
 
         foreach (var definition in EfficiencyUpgradeCatalog.All)
         {
@@ -2275,7 +3230,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _upgradeButtons[definition.Type].Draw(spriteBatch, _pixel, _font);
         }
 
+        spriteBatch.End();
         graphicsDevice.ScissorRectangle = previousScissor;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
 
         if (_upgradesMaxScrollOffset > 0f)
         {
@@ -2388,7 +3345,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             }
 
             var footer = _state.ActiveCatInterruption is not null
-                ? $"Cat on the take-home keyboard. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to clear it while {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines stay smeared across the solution."
+                ? $"{_state.ActiveCatInterruption.Title} is on top of the take-home. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to clear it while {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines stay smeared across the solution."
                 : "Click inside the take-home editor to reveal the solution one real line at a time, or close this panel and come back after you recover.";
             UiTextBlock.DrawWrapped(
                 spriteBatch,
@@ -2509,6 +3466,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var borderColor = lifeEvent.Type switch
         {
             IncidentType.ComputerFreeze => UiTheme.Warning,
+            IncidentType.BossCheckIn => UiTheme.Warning,
             IncidentType.OnlineMatch or IncidentType.PartnerCheckIn => UiTheme.Success,
             _ => UiTheme.Accent,
         };
@@ -2544,9 +3502,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             UiLabel.Draw(
                 spriteBatch,
                 _font,
-                _state.HasFoundLove
-                    ? $"{_state.PartnerName} | relationship strength {_state.RelationshipProgress}"
-                    : $"Relationship progress: {_state.RelationshipProgress}/{_simulation.Config.RelationshipProgressNeededForLove}",
+                lifeEvent.Type == IncidentType.OnlineMatch
+                    ? $"Dating round {lifeEvent.StageIndex + 1}/3  |  score {lifeEvent.ProgressScore}/{Math.Max(1, lifeEvent.TargetScore)}"
+                    : _state.HasFoundLove
+                        ? $"{_state.PartnerName} | relationship strength {_state.RelationshipProgress}"
+                        : $"Relationship progress: {_state.RelationshipProgress}/{_simulation.Config.RelationshipProgressNeededForLove}",
                 new Vector2(_lifeEventBounds.X + 28, _lifeEventBounds.Y + 264),
                 UiTheme.Success,
                 0.7f);
@@ -2572,7 +3532,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         var (title, titleColor) = _state.Status switch
         {
-            RunStatus.Won => ("Hired", UiTheme.Success),
+            RunStatus.Won => (_state.HasStartedFamily ? "Home" : "Hired", UiTheme.Success),
             RunStatus.Evicted => ("Evicted", UiTheme.Warning),
             _ => ("Burned Out", UiTheme.Danger),
         };
@@ -2622,7 +3582,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiPanel.Draw(spriteBatch, _pixel, _tutorialBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
         spriteBatch.Draw(_pixel, new Rectangle(_tutorialBounds.X + 1, _tutorialBounds.Y + 1, _tutorialBounds.Width - 2, 4), UiTheme.Accent);
 
-        UiLabel.Draw(spriteBatch, _font, "How To Survive The Week", new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 24), UiTheme.TextPrimary, 1.08f);
+        UiLabel.Draw(spriteBatch, _font, "How To Survive The Run", new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 24), UiTheme.TextPrimary, 1.08f);
         UiLabel.Draw(
             spriteBatch,
             _font,
@@ -2702,8 +3662,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _foodAppButton.Enabled = _state.Status == RunStatus.InProgress;
         _foodAppButton.Text = hasActiveFoodDelivery ? "Track Order" : "Food + Kitchen";
         _freelanceButton.Enabled = _state.Status == RunStatus.InProgress;
+        _freelanceButton.Text = _state.ActiveFreelanceGig is null ? "Freelance Board" : "Resume Gig";
         _bankAppButton.Enabled = _state.Status == RunStatus.InProgress;
         _bankAppButton.Text = "Banking";
+        _versionControlButton.Enabled = _state.Status == RunStatus.InProgress;
+        _projectStudioButton.Enabled = _state.Status == RunStatus.InProgress;
+        _projectStudioButton.Text = "Build Studio";
         _sleepButton.Enabled = _simulation.CanApplyAction(_state, PlayerAction.Sleep);
         _sleepButton.Text = _simulation.RequiresSleep(_state) ? "Sleep Now" : "Sleep";
         _sleepButton.IsSelected = _simulation.RequiresSleep(_state);
@@ -2720,22 +3684,91 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _publishAppButton.Text = "Publish";
         _restartButton.Enabled = true;
         _restartButton.Text = _state.Status == RunStatus.InProgress ? "Restart" : "Restart Run";
+        _deskDistractionFocusButton.Enabled = _simulation.CanSpendFocusOnDistraction(_state);
+        _deskDistractionQuickFixButton.Enabled = _simulation.CanQuickResolveDistraction(_state);
+        _commitChangesButton.Enabled = _simulation.CanCommitChanges(_state);
+        _branchButton.Enabled = _simulation.CanToggleFeatureBranch(_state);
+        _mergeButton.Enabled = _simulation.CanMergeFeatureBranch(_state);
+        _buyHouseButton.Enabled = _simulation.CanBuyHouse(_state);
+        if (!_state.HasApartment)
+        {
+            _buyHouseButton.Enabled = _simulation.CanMoveToApartment(_state);
+        }
+        _startFamilyButton.Enabled = _simulation.CanStartFamily(_state);
+        var canEditProjectBlueprint = _simulation.CanEditProjectBlueprint(_state);
+        _projectTypeButton.Enabled = canEditProjectBlueprint;
+        _projectThemeButton.Enabled = canEditProjectBlueprint;
+        _projectToneButton.Enabled = canEditProjectBlueprint;
+        _projectPlatformButton.Enabled = canEditProjectBlueprint;
+        _projectBusinessButton.Enabled = canEditProjectBlueprint;
+        _projectRerollButton.Enabled = canEditProjectBlueprint;
         _openApplicationButton.Enabled = _state.ActiveJobApplication is not null;
         _openApplicationButton.Text = _state.ActiveJobApplication is not null && _state.ActiveJobApplication.TakeHomeComplete
             ? "Interview"
             : "Continue";
+        _projectTypeButton.Text = canEditProjectBlueprint ? "Cycle" : "Locked";
+        _projectThemeButton.Text = canEditProjectBlueprint ? "Cycle" : "Locked";
+        _projectToneButton.Text = canEditProjectBlueprint ? "Cycle" : "Locked";
+        _projectPlatformButton.Text = canEditProjectBlueprint ? "Cycle" : "Locked";
+        _projectBusinessButton.Text = canEditProjectBlueprint ? "Cycle" : "Locked";
+        _projectRerollButton.Text = canEditProjectBlueprint ? "Reroll" : "Locked";
+        var canCloseEmptyFeatureBranch = _state.VersionControl.HasFeatureBranch &&
+                                         _state.VersionControl.FeatureBranchCommitCount == 0 &&
+                                         _state.VersionControl.PendingChangeLines == 0 &&
+                                         _state.VersionControl.ActiveMergeConflict is null;
+        _buyHouseButton.Text = _state.HasHouse
+            ? "Owned"
+            : _state.HasApartment
+                ? "Buy House"
+                : "Move Out";
+        _startFamilyButton.Text = _state.HasStartedFamily ? "Complete" : "Start Family";
+        _branchButton.Text = !_state.VersionControl.HasFeatureBranch
+            ? "Branch"
+            : canCloseEmptyFeatureBranch
+                ? "Back To Main"
+                : "On Branch";
 
         _optionsButton.Bounds = new Rectangle(_sidebarBounds.Right - 112, _sidebarBounds.Y + 10, 96, 30);
         _foodAppButton.Bounds = new Rectangle(contentX, actionButtonsY, halfWidth, 34);
         _freelanceButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY, halfWidth, 34);
         _bankAppButton.Bounds = new Rectangle(contentX, actionButtonsY + 40, halfWidth, 34);
         _upgradesButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY + 40, halfWidth, 34);
-        _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 80, contentWidth, 34);
+        _versionControlButton.Bounds = new Rectangle(contentX, actionButtonsY + 80, halfWidth, 34);
+        _projectStudioButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY + 80, halfWidth, 34);
+        _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 120, contentWidth, 34);
 
         _coinFrameBounds = new Rectangle(_editorViewportBounds.Right - 148, _editorViewportBounds.Y + 6, 128, 86);
         _runControlsBounds = _state.Status == RunStatus.InProgress
             ? new Rectangle(_logBounds.Right - 350, _logBounds.Y + 10, 334, _logBounds.Height - 20)
             : Rectangle.Empty;
+        _deskDistractionFocusButton.Bounds = Rectangle.Empty;
+        _deskDistractionQuickFixButton.Bounds = Rectangle.Empty;
+        _buyHouseButton.Bounds = Rectangle.Empty;
+        _startFamilyButton.Bounds = Rectangle.Empty;
+        _commitChangesButton.Bounds = Rectangle.Empty;
+        _branchButton.Bounds = Rectangle.Empty;
+        _mergeButton.Bounds = Rectangle.Empty;
+        _closeVersionControlButton.Bounds = Rectangle.Empty;
+        _closeProjectStudioButton.Bounds = Rectangle.Empty;
+        _projectStudioViewportBounds = Rectangle.Empty;
+        _projectStudioScrollbarTrackBounds = Rectangle.Empty;
+        _projectStudioScrollbarThumbBounds = Rectangle.Empty;
+        _freelanceBoardViewportBounds = Rectangle.Empty;
+        _freelanceBoardScrollbarTrackBounds = Rectangle.Empty;
+        _freelanceBoardScrollbarThumbBounds = Rectangle.Empty;
+        _freelanceGigEditorBounds = Rectangle.Empty;
+        _projectTypeButton.Bounds = Rectangle.Empty;
+        _projectThemeButton.Bounds = Rectangle.Empty;
+        _projectToneButton.Bounds = Rectangle.Empty;
+        _projectPlatformButton.Bounds = Rectangle.Empty;
+        _projectBusinessButton.Bounds = Rectangle.Empty;
+        _projectRerollButton.Bounds = Rectangle.Empty;
+
+        foreach (var button in _mergeConflictOptionButtons)
+        {
+            button.Bounds = Rectangle.Empty;
+            button.Enabled = false;
+        }
 
         _alertsPanelBounds = new Rectangle(contentX, alertsTop, contentWidth, _sidebarBounds.Bottom - alertsTop - 16);
 
@@ -2769,7 +3802,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             activeCards.Add("application");
         }
 
-        if (_simulation.IsPortfolioPublishReady(_state) || _simulation.HasPublishedApps(_state))
+        if (PortfolioWorkspace.IsCurrentBatchComplete(_state) || _simulation.HasPublishedApps(_state))
         {
             activeCards.Add("publish");
         }
@@ -2826,6 +3859,17 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _publishAppButton.Bounds = new Rectangle(_publishCardBounds.Right - 94, _publishCardBounds.Y + 8, 84, 24);
         }
 
+        if (_state.ActiveCatInterruption is not null)
+        {
+            var distraction = _state.ActiveCatInterruption;
+            var buttonY = _catOverlayBounds.Bottom - 44;
+            var buttonWidth = (_catOverlayBounds.Width - 66) / 2;
+            _deskDistractionFocusButton.Bounds = new Rectangle(_catOverlayBounds.X + 24, buttonY, buttonWidth, 30);
+            _deskDistractionQuickFixButton.Bounds = new Rectangle(_deskDistractionFocusButton.Bounds.Right + 18, buttonY, buttonWidth, 30);
+            _deskDistractionFocusButton.Text = $"{distraction.FocusActionLabel} (-{distraction.FocusActionFocusCost:0} focus)";
+            _deskDistractionQuickFixButton.Text = $"{distraction.QuickResolveLabel} (-${distraction.QuickResolveFundsCost:0})";
+        }
+
         if (_runControlsBounds != Rectangle.Empty)
         {
             var runButtonY = _runControlsBounds.Bottom - 38;
@@ -2874,13 +3918,17 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             }
         }
 
-        var foodWidth = Math.Min(_editorViewportBounds.Width - 48, 820);
+        var foodWidth = Math.Min(_editorViewportBounds.Width - 48, 940);
         var topPanelsGap = 20;
-        var choiceWidth = 300;
         var foodContentWidth = foodWidth - 48;
+        var choiceWidth = Math.Clamp(((foodContentWidth - topPanelsGap) / 2) - 18, 340, 390);
         var modifierWidth = foodContentWidth - choiceWidth - topPanelsGap;
         var selectedFoodForOverlay = activeDelivery?.Choice ?? _selectedFood;
+        var selectedFoodOption = _simulation.GetFoodOption(_state, selectedFoodForOverlay);
         var modifierOptions = _simulation.GetFoodOrderModifiers(_state, selectedFoodForOverlay);
+        var mealIntroText = activeDelivery is null
+            ? "Delivery speed versus home-cooked stability."
+            : "Meal locked until the timer resolves.";
         var modifierIntroHeight = UiTextBlock.MeasureWrappedHeight(
             _font,
             GetFoodModifierIntroText(activeDelivery),
@@ -2888,12 +3936,22 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             0.64f,
             2f,
             3);
-        const int mealButtonHeight = 40;
-        const int mealButtonGap = 12;
+        var mealIntroHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            mealIntroText,
+            choiceWidth - 28,
+            0.62f,
+            2f,
+            2);
+        const int mealButtonHeight = 44;
+        const int mealButtonGap = 10;
         const int modifierButtonHeight = 30;
         const int modifierRowGap = 40;
         const int baseTopPanelsHeight = 182;
-        var requiredChoicePanelHeight = 52 + (mealButtonHeight * 3) + (mealButtonGap * 2) + 18;
+        const int baseSummaryPanelHeight = 178;
+        var mealRows = (int)Math.Ceiling(FoodChoices.Length / 2f);
+        var mealHeaderHeight = 20 + (int)Math.Ceiling(_font.LineSpacing * 0.8f) + 8 + (int)Math.Ceiling(mealIntroHeight) + 14;
+        var requiredChoicePanelHeight = mealHeaderHeight + (mealButtonHeight * mealRows) + (mealButtonGap * Math.Max(0, mealRows - 1)) + 18;
         var requiredModifierPanelHeight = 50 + (int)Math.Ceiling(modifierIntroHeight) + 10 + modifierButtonHeight + 18;
         if (modifierOptions.Count > 1)
         {
@@ -2901,9 +3959,48 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         }
 
         var topPanelsHeight = Math.Max(baseTopPanelsHeight, Math.Max(requiredChoicePanelHeight, requiredModifierPanelHeight));
-        var foodHeight = Math.Min(_editorViewportBounds.Height - 20, 566 + (topPanelsHeight - baseTopPanelsHeight));
-        var foodX = _editorViewportBounds.X + ((_editorViewportBounds.Width - foodWidth) / 2);
+        IReadOnlyCollection<FoodOrderModifier> selectedModifiers = activeDelivery is not null
+            ? activeDelivery.SelectedModifiers
+            : _selectedFoodModifiers;
+        var reviewReceipt = activeDelivery?.ReviewReceipt ?? _doubleCheckOrder;
+        var penaltyMinutes = _simulation.GetFoodOrderPenaltyMinutes(selectedFoodOption.Choice, selectedModifiers, reviewReceipt);
+        var orderStateText = activeDelivery is null
+            ? penaltyMinutes <= 0
+                ? "Details locked. This meal should land clean with no sluggish penalty."
+                : penaltyMinutes < selectedFoodOption.SluggishMinutesWhenUnchecked
+                    ? $"Partial cleanup. Expected sluggishness falls to {FormatRemainingTime(penaltyMinutes)} after delivery."
+                    : $"Messy order. Expect the full {FormatRemainingTime(selectedFoodOption.SluggishMinutesWhenUnchecked)} sluggish hit when it arrives."
+            : $"{selectedFoodOption.Name} is {(_simulation.IsHomeCooked(activeDelivery.Choice) ? "cooking" : activeDelivery.Expedited ? "expedited" : "on standard delivery")} with {FormatRemainingTime(activeDelivery.RemainingInGameMinutes)} left before the stats land.";
+        var summaryDescriptionText = activeDelivery is null
+            ? selectedFoodOption.Description
+            : $"{selectedFoodOption.Description} The driver will apply the focus and sanity bump only when the food actually arrives.";
+        var summarySupportText = activeDelivery is null
+            ? _simulation.IsHomeCooked(selectedFoodOption.Choice)
+                ? "Home cooking is slower, cheaper, and calmer than takeout. It still clears hunger only when the meal is ready."
+                : "Delivery clears hunger on arrival. Sleep is slower, but it is still the only full reset."
+            : $"Expected on arrival: sanity {selectedFoodOption.SanityGain:+0;-0;0}, hunger reset, and {(penaltyMinutes <= 0 ? "no sluggishness" : $"{FormatRemainingTime(penaltyMinutes)} sluggishness")}.";
+        var summaryWidth = foodContentWidth - 32;
+        var descriptionHeight = UiTextBlock.MeasureWrappedHeight(_font, summaryDescriptionText, summaryWidth, 0.68f, 2f, 3);
+        var supportHeight = UiTextBlock.MeasureWrappedHeight(_font, summarySupportText, summaryWidth, 0.62f, 2f, 3);
+        var noteHeight = Math.Max(34, (int)Math.Ceiling(UiTextBlock.MeasureWrappedHeight(_font, orderStateText, summaryWidth - 16, 0.62f, 1f, 3)) + 12);
+        var requiredSummaryPanelHeight =
+            14 +
+            (int)Math.Ceiling(_font.LineSpacing * 0.82f) +
+            10 +
+            (int)Math.Ceiling(_font.LineSpacing * 0.74f) +
+            12 +
+            (int)Math.Ceiling(descriptionHeight) +
+            10 +
+            (int)Math.Ceiling(supportHeight) +
+            10 +
+            noteHeight +
+            14;
         var foodY = _editorViewportBounds.Y + 12;
+        var foodX = _editorViewportBounds.X + ((_editorViewportBounds.Width - foodWidth) / 2);
+        var maxFoodHeight = _virtualResolution.Y - foodY - 18;
+        var foodHeight = Math.Min(
+            maxFoodHeight,
+            206 + topPanelsHeight + Math.Max(baseSummaryPanelHeight, requiredSummaryPanelHeight));
         _foodAppBounds = new Rectangle(foodX, foodY, foodWidth, foodHeight);
         var foodContentX = _foodAppBounds.X + 24;
         var topPanelsY = _foodAppBounds.Y + 122;
@@ -2912,13 +4009,18 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         var mealButtonWidth = (_foodChoicePanelBounds.Width - 48) / 2;
         var mealButtonX = _foodChoicePanelBounds.X + 18;
-        var mealButtonY = _foodChoicePanelBounds.Y + 52;
-        _burgerButton.Bounds = new Rectangle(mealButtonX, mealButtonY, mealButtonWidth, mealButtonHeight);
-        _burritoButton.Bounds = new Rectangle(mealButtonX + mealButtonWidth + mealButtonGap, mealButtonY, mealButtonWidth, mealButtonHeight);
-        _pizzaButton.Bounds = new Rectangle(mealButtonX, mealButtonY + mealButtonHeight + mealButtonGap, mealButtonWidth, mealButtonHeight);
-        _dumplingsButton.Bounds = new Rectangle(mealButtonX + mealButtonWidth + mealButtonGap, mealButtonY + mealButtonHeight + mealButtonGap, mealButtonWidth, mealButtonHeight);
-        _skilletPastaButton.Bounds = new Rectangle(mealButtonX, mealButtonY + ((mealButtonHeight + mealButtonGap) * 2), mealButtonWidth, mealButtonHeight);
-        _mealPrepChiliButton.Bounds = new Rectangle(mealButtonX + mealButtonWidth + mealButtonGap, mealButtonY + ((mealButtonHeight + mealButtonGap) * 2), mealButtonWidth, mealButtonHeight);
+        var mealButtonY = _foodChoicePanelBounds.Y + mealHeaderHeight;
+        for (var index = 0; index < FoodChoices.Length; index++)
+        {
+            var button = GetFoodButton(FoodChoices[index]);
+            var column = index % 2;
+            var row = index / 2;
+            button.Bounds = new Rectangle(
+                mealButtonX + (column * (mealButtonWidth + mealButtonGap)),
+                mealButtonY + (row * (mealButtonHeight + mealButtonGap)),
+                mealButtonWidth,
+                mealButtonHeight);
+        }
 
         var foodActionsY = _foodAppBounds.Bottom - 52;
         _doubleCheckOrderButton.Bounds = new Rectangle(_foodAppBounds.X + 24, foodActionsY, 208, 34);
@@ -2954,8 +4056,103 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 : _selectedFoodModifiers.Contains(option.Modifier);
         }
 
-        _bankAppBounds = new Rectangle(_editorViewportBounds.X + 100, _editorViewportBounds.Y + 34, 700, 468);
+        const int bankWidth = 812;
+        var bankX = _editorViewportBounds.X + 54;
+        var bankY = _editorViewportBounds.Y + 12;
+        var bankCardWidth = (bankWidth - 72) / 2;
+        var housingBody = GetHousingTrackDescription();
+        var familyBody = GetFamilyGoalDescription();
+        var emergencyBody = GetEmergencyBufferDescription();
+        var housingBodyHeight = UiTextBlock.MeasureWrappedHeight(_font, housingBody, bankCardWidth - 32, 0.64f, 2f, 4);
+        var familyBodyHeight = UiTextBlock.MeasureWrappedHeight(_font, familyBody, bankCardWidth - 32, 0.64f, 2f, 4);
+        var lowerCardHeight = Math.Max(
+            132,
+            (int)MathF.Ceiling(68f + Math.Max(housingBodyHeight, familyBodyHeight) + 12f + 28f + 16f));
+        var coinHeight = Math.Max(
+            76,
+            (int)MathF.Ceiling(40f + UiTextBlock.MeasureWrappedHeight(_font, emergencyBody, bankWidth - 80, 0.7f, 2f, 3) + 16f));
+        var ledgerPreviewHeight = 42f;
+        foreach (var entry in GetRecentMoneyEntries().Take(3))
+        {
+            ledgerPreviewHeight += UiTextBlock.MeasureWrappedHeight(_font, entry, bankWidth - 80, 0.7f, 2f, 2) + 8f;
+        }
+
+        var ledgerHeight = Math.Max(108, (int)MathF.Ceiling(ledgerPreviewHeight + 10f));
+        var desiredBankHeight = 118 + 124 + 16 + lowerCardHeight + 16 + coinHeight + 16 + ledgerHeight + 24;
+        var maxBankHeight = _virtualResolution.Y - bankY - 18;
+        var bankHeight = Math.Min(maxBankHeight, desiredBankHeight);
+        _bankAppBounds = new Rectangle(bankX, bankY, bankWidth, bankHeight);
         _closeBankAppButton.Bounds = new Rectangle(_bankAppBounds.Right - 112, _bankAppBounds.Y + 18, 88, 30);
+        _bankAccountBounds = new Rectangle(_bankAppBounds.X + 24, _bankAppBounds.Y + 118, bankCardWidth, 124);
+        _bankRentBounds = new Rectangle(_bankAccountBounds.Right + 24, _bankAppBounds.Y + 118, bankCardWidth, 124);
+        _bankHouseBounds = new Rectangle(_bankAppBounds.X + 24, _bankAccountBounds.Bottom + 16, bankCardWidth, lowerCardHeight);
+        _bankFamilyBounds = new Rectangle(_bankHouseBounds.Right + 24, _bankHouseBounds.Y, bankCardWidth, lowerCardHeight);
+        _bankCoinBounds = new Rectangle(_bankAppBounds.X + 24, _bankHouseBounds.Bottom + 16, _bankAppBounds.Width - 48, coinHeight);
+        _bankLedgerBounds = new Rectangle(
+            _bankAppBounds.X + 24,
+            _bankCoinBounds.Bottom + 16,
+            _bankAppBounds.Width - 48,
+            _bankAppBounds.Bottom - (_bankCoinBounds.Bottom + 40));
+        _buyHouseButton.Bounds = new Rectangle(_bankHouseBounds.Right - 124, _bankHouseBounds.Bottom - 44, 108, 28);
+        _startFamilyButton.Bounds = new Rectangle(_bankFamilyBounds.Right - 140, _bankFamilyBounds.Bottom - 44, 124, 28);
+
+        _versionControlBounds = new Rectangle(_editorViewportBounds.X + 76, _editorViewportBounds.Y + 44, 752, 452);
+        _closeVersionControlButton.Bounds = new Rectangle(_versionControlBounds.Right - 112, _versionControlBounds.Y + 18, 88, 30);
+        var vcsButtonY = _versionControlBounds.Bottom - 48;
+        var vcsButtonWidth = (_versionControlBounds.Width - 80) / 3;
+        _commitChangesButton.Bounds = new Rectangle(_versionControlBounds.X + 24, vcsButtonY, vcsButtonWidth, 32);
+        _branchButton.Bounds = new Rectangle(_commitChangesButton.Bounds.Right + 16, vcsButtonY, vcsButtonWidth, 32);
+        _mergeButton.Bounds = new Rectangle(_branchButton.Bounds.Right + 16, vcsButtonY, vcsButtonWidth, 32);
+        _commitChangesButton.Text = "Commit";
+        _mergeButton.Text = "Merge";
+
+        var conflictButtonY = _versionControlBounds.Bottom - 48;
+        for (var index = 0; index < _mergeConflictOptionButtons.Length; index++)
+        {
+            _mergeConflictOptionButtons[index].Bounds = new Rectangle(
+                _versionControlBounds.X + 24 + (index * (vcsButtonWidth + 16)),
+                conflictButtonY,
+                vcsButtonWidth,
+                32);
+            _mergeConflictOptionButtons[index].Enabled = _simulation.CanResolveMergeConflictOption(_state, index);
+        }
+
+        _mergeConflictOptionButtons[0].Text = "Keep Stable Side";
+        _mergeConflictOptionButtons[1].Text = "Hand Merge Carefully";
+        _mergeConflictOptionButtons[2].Text = "Force Feature Side";
+
+        _projectStudioBounds = new Rectangle(_editorViewportBounds.X + 44, _editorViewportBounds.Y + 14, 812, 568);
+        _closeProjectStudioButton.Bounds = new Rectangle(_projectStudioBounds.Right - 112, _projectStudioBounds.Y + 18, 88, 30);
+        _projectStudioViewportBounds = new Rectangle(_projectStudioBounds.X + 24, _projectStudioBounds.Y + 118, _projectStudioBounds.Width - 64, _projectStudioBounds.Height - 150);
+        _projectStudioScrollbarTrackBounds = new Rectangle(_projectStudioBounds.Right - 26, _projectStudioViewportBounds.Y, 10, _projectStudioViewportBounds.Height);
+        const int studioRowHeight = 74;
+        const int studioRowGap = 12;
+        const int projectStudioContentHeight = 768;
+        _projectStudioMaxScrollOffset = Math.Max(0f, projectStudioContentHeight - _projectStudioViewportBounds.Height);
+        _projectStudioScrollOffset = Math.Clamp(_projectStudioScrollOffset, 0f, _projectStudioMaxScrollOffset);
+        var studioOptionWidth = (_projectStudioViewportBounds.Width - 24) / 2;
+        var studioLeftX = _projectStudioViewportBounds.X;
+        var studioRightX = studioLeftX + studioOptionWidth + 24;
+        var studioContentTop = _projectStudioViewportBounds.Y - (int)MathF.Round(_projectStudioScrollOffset);
+        var studioTitleBounds = new Rectangle(_projectStudioViewportBounds.X, studioContentTop, _projectStudioViewportBounds.Width, 112);
+        var studioTopY = studioTitleBounds.Bottom + 18;
+        _projectTypeButton.Bounds = new Rectangle(studioLeftX + studioOptionWidth - 122, studioTopY + 20, 106, 30);
+        _projectThemeButton.Bounds = new Rectangle(studioRightX + studioOptionWidth - 122, studioTopY + 20, 106, 30);
+        _projectToneButton.Bounds = new Rectangle(studioLeftX + studioOptionWidth - 122, studioTopY + studioRowHeight + studioRowGap + 20, 106, 30);
+        _projectPlatformButton.Bounds = new Rectangle(studioRightX + studioOptionWidth - 122, studioTopY + studioRowHeight + studioRowGap + 20, 106, 30);
+        _projectBusinessButton.Bounds = new Rectangle(studioLeftX + studioOptionWidth - 122, studioTopY + ((studioRowHeight + studioRowGap) * 2) + 20, 106, 30);
+        _projectRerollButton.Bounds = new Rectangle(studioRightX + studioOptionWidth - 122, studioTopY + ((studioRowHeight + studioRowGap) * 2) + 20, 106, 30);
+        if (_projectStudioMaxScrollOffset <= 0f)
+        {
+            _projectStudioScrollbarThumbBounds = _projectStudioScrollbarTrackBounds;
+        }
+        else
+        {
+            var thumbHeight = Math.Max(54, (int)MathF.Round(_projectStudioScrollbarTrackBounds.Height * (_projectStudioViewportBounds.Height / (float)projectStudioContentHeight)));
+            var thumbTravel = _projectStudioScrollbarTrackBounds.Height - thumbHeight;
+            var thumbY = _projectStudioScrollbarTrackBounds.Y + (int)MathF.Round((_projectStudioScrollOffset / _projectStudioMaxScrollOffset) * thumbTravel);
+            _projectStudioScrollbarThumbBounds = new Rectangle(_projectStudioScrollbarTrackBounds.X, thumbY, _projectStudioScrollbarTrackBounds.Width, thumbHeight);
+        }
 
         _applicationBounds = new Rectangle(_editorViewportBounds.X + 70, _editorViewportBounds.Y + 16, 774, 566);
         _applicationEditorBounds = new Rectangle(_applicationBounds.X + 24, _applicationBounds.Y + 174, _applicationBounds.Width - 48, _applicationBounds.Height - 198);
@@ -2967,6 +4164,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _tutorialBackButton.Enabled = _tutorialPageIndex > 0;
         _tutorialNextButton.Enabled = true;
         _tutorialNextButton.Text = _tutorialPageIndex >= GetTutorialPageCount() - 1 ? "Begin Run" : "Next";
+        _tutorialCloseButton.Text = "Skip";
         var optionY = _applicationEditorBounds.Bottom - 144;
         for (var index = 0; index < _interviewOptionButtons.Length; index++)
         {
@@ -2993,24 +4191,63 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             }
         }
 
-        _freelanceBoardBounds = new Rectangle(_editorViewportBounds.X + 92, _editorViewportBounds.Y + 24, 724, 530);
+        _freelanceBoardBounds = new Rectangle(_editorViewportBounds.X + 72, _editorViewportBounds.Y + 18, 768, 556);
         _closeFreelanceBoardButton.Bounds = new Rectangle(_freelanceBoardBounds.Right - 112, _freelanceBoardBounds.Y + 18, 88, 30);
-
-        var freelanceCardX = _freelanceBoardBounds.X + 24;
-        var freelanceCardY = _freelanceBoardBounds.Y + 126;
-        var freelanceCardWidth = _freelanceBoardBounds.Width - 48;
-        var freelanceCardHeight = 118;
-
-        _freelanceGigCardBounds[FreelanceGigType.QuickBugfix] = new Rectangle(freelanceCardX, freelanceCardY, freelanceCardWidth, freelanceCardHeight);
-        _freelanceGigCardBounds[FreelanceGigType.UIPolishPass] = new Rectangle(freelanceCardX, freelanceCardY + freelanceCardHeight + 14, freelanceCardWidth, freelanceCardHeight);
-        _freelanceGigCardBounds[FreelanceGigType.PipelineRescue] = new Rectangle(freelanceCardX, freelanceCardY + ((freelanceCardHeight + 14) * 2), freelanceCardWidth, freelanceCardHeight);
-
-        foreach (var type in Enum.GetValues<FreelanceGigType>())
+        _freelanceBoardViewportBounds = new Rectangle(_freelanceBoardBounds.X + 24, _freelanceBoardBounds.Y + 126, _freelanceBoardBounds.Width - 64, _freelanceBoardBounds.Height - 150);
+        _freelanceBoardScrollbarTrackBounds = new Rectangle(_freelanceBoardBounds.Right - 26, _freelanceBoardViewportBounds.Y, 10, _freelanceBoardViewportBounds.Height);
+        _freelanceGigEditorBounds = Rectangle.Empty;
+        _freelanceGigCardBounds.Clear();
+        var freelanceCardWidth = _freelanceBoardViewportBounds.Width;
+        if (_state.ActiveFreelanceGig is not null)
         {
-            var button = _freelanceGigButtons[type];
-            button.Enabled = _simulation.CanTakeFreelanceGig(_state, type);
-            var cardBounds = _freelanceGigCardBounds[type];
-            button.Bounds = new Rectangle(cardBounds.Right - 120, cardBounds.Bottom - 42, 110, 30);
+            _freelanceBoardMaxScrollOffset = 0f;
+            _freelanceBoardScrollOffset = 0f;
+            _freelanceBoardScrollbarThumbBounds = _freelanceBoardScrollbarTrackBounds;
+            _freelanceGigEditorBounds = new Rectangle(
+                _freelanceBoardViewportBounds.X,
+                _freelanceBoardViewportBounds.Y + 106,
+                _freelanceBoardViewportBounds.Width,
+                _freelanceBoardViewportBounds.Height - 106);
+
+            foreach (var type in FreelanceGigOrder)
+            {
+                _freelanceGigButtons[type].Enabled = false;
+                _freelanceGigButtons[type].Bounds = Rectangle.Empty;
+            }
+        }
+        else
+        {
+            var freelanceContentHeight =
+                (FreelanceGigOrder.Length * FreelanceCardHeight) +
+                (Math.Max(0, FreelanceGigOrder.Length - 1) * FreelanceCardGap) +
+                (FreelanceBoardContentPadding * 2);
+            _freelanceBoardMaxScrollOffset = Math.Max(0f, freelanceContentHeight - _freelanceBoardViewportBounds.Height);
+            _freelanceBoardScrollOffset = Math.Clamp(_freelanceBoardScrollOffset, 0f, _freelanceBoardMaxScrollOffset);
+            for (var index = 0; index < FreelanceGigOrder.Length; index++)
+            {
+                var type = FreelanceGigOrder[index];
+                var y = _freelanceBoardViewportBounds.Y +
+                        FreelanceBoardContentPadding +
+                        (index * (FreelanceCardHeight + FreelanceCardGap)) -
+                        (int)MathF.Round(_freelanceBoardScrollOffset);
+                var cardBounds = new Rectangle(_freelanceBoardViewportBounds.X, y, freelanceCardWidth, FreelanceCardHeight);
+                _freelanceGigCardBounds[type] = cardBounds;
+                var button = _freelanceGigButtons[type];
+                button.Enabled = _simulation.CanTakeFreelanceGig(_state, type);
+                button.Bounds = new Rectangle(cardBounds.Right - 120, cardBounds.Bottom - 42, 110, 30);
+            }
+
+            if (_freelanceBoardMaxScrollOffset <= 0f)
+            {
+                _freelanceBoardScrollbarThumbBounds = _freelanceBoardScrollbarTrackBounds;
+            }
+            else
+            {
+                var thumbHeight = Math.Max(54, (int)MathF.Round(_freelanceBoardScrollbarTrackBounds.Height * (_freelanceBoardViewportBounds.Height / (float)freelanceContentHeight)));
+                var thumbTravel = _freelanceBoardScrollbarTrackBounds.Height - thumbHeight;
+                var thumbY = _freelanceBoardScrollbarTrackBounds.Y + (int)MathF.Round((_freelanceBoardScrollOffset / _freelanceBoardMaxScrollOffset) * thumbTravel);
+                _freelanceBoardScrollbarThumbBounds = new Rectangle(_freelanceBoardScrollbarTrackBounds.X, thumbY, _freelanceBoardScrollbarTrackBounds.Width, thumbHeight);
+            }
         }
 
         var upgradesWidth = Math.Min(_editorViewportBounds.Width - 48, 992);
@@ -3063,25 +4300,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             button.Bounds = new Rectangle(cardBounds.Right - 126, cardBounds.Bottom - 42, 112, 30);
         }
 
-        _burgerButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Burger).Name;
-        _burritoButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Burrito).Name;
-        _pizzaButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Pizza).Name;
-        _dumplingsButton.Text = _simulation.GetFoodOption(_state, FoodChoice.Dumplings).Name;
-        _skilletPastaButton.Text = _simulation.GetFoodOption(_state, FoodChoice.SkilletPasta).Name;
-        _mealPrepChiliButton.Text = _simulation.GetFoodOption(_state, FoodChoice.MealPrepChili).Name;
-
-        _burgerButton.IsSelected = _selectedFood == FoodChoice.Burger;
-        _burgerButton.Enabled = !hasActiveFoodDelivery;
-        _burritoButton.IsSelected = _selectedFood == FoodChoice.Burrito;
-        _burritoButton.Enabled = !hasActiveFoodDelivery;
-        _pizzaButton.IsSelected = _selectedFood == FoodChoice.Pizza;
-        _pizzaButton.Enabled = !hasActiveFoodDelivery;
-        _dumplingsButton.IsSelected = _selectedFood == FoodChoice.Dumplings;
-        _dumplingsButton.Enabled = !hasActiveFoodDelivery;
-        _skilletPastaButton.IsSelected = _selectedFood == FoodChoice.SkilletPasta;
-        _skilletPastaButton.Enabled = !hasActiveFoodDelivery;
-        _mealPrepChiliButton.IsSelected = _selectedFood == FoodChoice.MealPrepChili;
-        _mealPrepChiliButton.Enabled = !hasActiveFoodDelivery;
+        foreach (var choice in FoodChoices)
+        {
+            var button = GetFoodButton(choice);
+            button.Text = _simulation.GetFoodOption(_state, choice).Name;
+            button.IsSelected = _selectedFood == choice;
+            button.Enabled = !hasActiveFoodDelivery;
+        }
         _doubleCheckOrderButton.Enabled = !hasActiveFoodDelivery;
         _doubleCheckOrderButton.IsSelected = reviewReceiptEnabled;
         _doubleCheckOrderButton.Text = reviewReceiptEnabled ? "Check Details: ON" : "Check Details: OFF";
@@ -3110,6 +4335,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _tutorialPageIndex = 0;
         _foodAppOpen = false;
         _bankAppOpen = false;
+        _versionControlOpen = false;
+        _projectStudioOpen = false;
         _freelanceBoardOpen = false;
         _upgradesOpen = false;
         _jobApplicationOpen = false;
@@ -3133,6 +4360,10 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _selectedFoodModifiers.Clear();
         _doubleCheckOrder = false;
         _expediteFoodDelivery = false;
+        _projectStudioScrollOffset = 0f;
+        _projectStudioMaxScrollOffset = 0f;
+        _freelanceBoardScrollOffset = 0f;
+        _freelanceBoardMaxScrollOffset = 0f;
         _upgradesScrollOffset = 0f;
         _upgradesMaxScrollOffset = 0f;
         _lastCelebratedFileName = null;
@@ -3147,96 +4378,115 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private int GetTutorialPageCount()
     {
-        return 6;
+        return 7;
     }
 
     private TutorialPage GetTutorialPage(int pageIndex)
     {
+        var dailyBill = _simulation.GetCurrentDailyBillAmount(_state);
+        var apartmentCost = _simulation.GetApartmentCost(_state);
+        var houseCost = _simulation.GetHouseCost(_state);
+        var familyCost = _simulation.GetFamilyStartCost(_state);
+
         return pageIndex switch
         {
             0 => new TutorialPage(
                 "What A Run Actually Is",
-                $"You start the week on Day {_state.Day} with ${_state.Funds:0}, focus {_state.Focus:0}, sanity {_state.Sanity:0}, and bills hitting every in-game midnight for ${_simulation.Config.DailyBillAmount:0}. Your goal is to keep money, focus, and sanity from collapsing long enough to ship code, earn income, and grow your career.",
+                $"You start on Day {_state.Day} with ${_state.Funds:0}, focus {_state.Focus:0}, sanity {_state.Sanity:0}, and a daily bill currently landing for ${dailyBill:0} at in-game midnight. Micro Dev is now a branching life-and-career sim: Interview is the seven-day opener, and the other main modes keep running indefinitely.",
                 [
                     new TutorialSection(
                         "How you lose",
-                        "If bills push funds below zero and you refuse or cannot cover the deficit, the run ends. You can also burn out if sanity crashes too hard. Survival comes from preventing small problems from stacking into a disaster."),
+                        "If bills push funds below zero and you cannot cover them, the run ends in eviction. You can also burn out if sanity collapses. Most losses come from stacking small mistakes: low focus, ignored hunger, skipped sleep, and panic spending."),
                     new TutorialSection(
                         "How you win",
-                        "Build portfolio files, keep code quality respectable, and convert that work into better job outcomes. Publishing apps and answering recruiter opportunities are the main path toward stability and a successful run."),
+                        "Interview Mode can end on the job offer, but the long-form victory path is bigger now: move out of the basement, reach an apartment, then a house, then start a family. Corporate, Indie, and Founder keep building toward that life-sim finish line."),
                     new TutorialSection(
                         "First-day mindset",
-                        "Do not spend the opening hour chasing everything at once. Write code, watch focus and hunger, and protect enough cash so the next bill is not a panic button.")
+                        "Do not chase every button at once. Stabilize the desk first, keep enough runway for the next bill, and only take side opportunities when your focus and sanity can absorb them.")
                 ]),
             1 => new TutorialPage(
+                "Interview Mode: The First Loop",
+                "Interview Mode is the seven-day opening sprint. The whole job here is to build proof, survive the week, and reach a company offer before the deadline closes the route.",
+                [
+                    new TutorialSection(
+                        "What the sprint asks for",
+                        "Build enough portfolio lines, keep code quality healthy, and answer recruiter windows without letting bills, hunger, or sleep debt blow the run up first. Interview Mode is not indefinite: it is the pressure-cooker opener."),
+                    new TutorialSection(
+                        "How branching works",
+                        "Once you land an offer, the company route decides the next career lane. Some offers branch into Corporate, some into Indie. You can also reject the offer path and spin the momentum into Founder Mode instead."),
+                    new TutorialSection(
+                        "What counts as success",
+                        "You can end the run on the interview win, or treat it as the prologue and continue into the longer housing-and-family game. If the seven days expire before you land the offer, Interview Mode burns out.")
+                ]),
+            2 => new TutorialPage(
+                "Corporate, Indie, And Founder",
+                "The long-form modes are built to feel different instead of being cosmetic labels. They all aim at apartment, house, and family progression, but the day-to-day pressure comes from different places.",
+                [
+                    new TutorialSection(
+                        "Corporate",
+                        $"Corporate Mode has office hours from {FormatRemainingTime(_simulation.Config.CorporateOfficeHoursStartMinutes)} to {FormatRemainingTime(_simulation.Config.CorporateOfficeHoursEndMinutes)}. Boss check-ins, coworkers, and office events drain sanity harder, but salary and standing make the housing climb more stable if you survive the pressure."),
+                    new TutorialSection(
+                        "Indie",
+                        "Indie Mode is looser and friendlier on sanity than Corporate, but focus is harder to recover and the income floor is thinner. Shipping, storefront payouts, and occasional freelance work keep the run alive when there is no safety net."),
+                    new TutorialSection(
+                        "Founder",
+                        "Founder Mode starts in the basement with your own studio name, lower cash, and no employer to catch you. It is the most self-directed route: freelance to stay solvent, ship your own work, and try to turn a struggling studio into a real company.")
+                ]),
+            3 => new TutorialPage(
                 "Core Desk Loop",
-                "Most of the run is a rhythm: click the editor to write code, finish files, publish finished batches, and react to whatever the desk throws back at you. Every click trades focus for progress, so efficiency matters.",
+                "Most of the run is still a desk rhythm: click the editor to write code, finish files, publish the batch, and react to whatever chaos hits the workspace. Every click trades focus for progress, so efficiency and timing matter.",
                 [
                     new TutorialSection(
                         "Writing code",
-                        $"Click inside the editor to type. Each click currently spends about {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus for {_simulation.GetCurrentWriteLinesPerClick(_state)} line{(_simulation.GetCurrentWriteLinesPerClick(_state) == 1 ? string.Empty : "s")}, while quality slowly rises with steady work."),
+                        $"Click inside the editor to type. Each click currently spends about {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus for {_simulation.GetCurrentWriteLinesPerClick(_state)} line{(_simulation.GetCurrentWriteLinesPerClick(_state) == 1 ? string.Empty : "s")}, while steady work keeps pushing code quality upward."),
                     new TutorialSection(
-                        "Finishing files",
-                        "Each run serves coherent project-related snippets instead of random filler. Completing a file advances the portfolio track, and finishing the whole batch unlocks a publish window for a cash payout and the next set of snippets."),
+                        "Build Studio and coherent snippets",
+                        "Each batch is now tied to a project plan. Before you start typing, Build Studio lets you decide whether you are making an app or a game and tune the theme, tone, platform, and business model so the snippets stay related to the actual project."),
                     new TutorialSection(
-                        "Alerts matter",
-                        "Bug cards, recruiter cards, and publish prompts appear in Alerts & Inbox. Ignore them too long and your run leaks value, but chasing them too early can starve the core portfolio loop.")
+                        "Version Control matters",
+                        "Publishing now wants a clean repo on main. Commit dirty work, branch for riskier changes, and resolve merge conflicts before shipping. If the build is done but the repo is messy, release money waits.")
                 ]),
-            2 => new TutorialPage(
-                "Food, Sleep, And Staying Functional",
-                "The sim is built around micromanagement, so maintenance is not flavor text. Hunger, fatigue, sluggish meals, and sanity regen all shape whether the next hour feels smooth or catastrophic.",
+            4 => new TutorialPage(
+                "Food, Sleep, And Freelance",
+                "The sim leans hard into micromanagement, so upkeep is real strategy rather than flavor text. Hunger, fatigue, sluggish meals, and focus thresholds all decide whether the next hour works.",
                 [
                     new TutorialSection(
                         "Food + Kitchen",
-                        $"Takeout lands fast, and expedited delivery can cut ETA to about {FormatRemainingTime(_simulation.Config.ExpeditedFoodDeliveryDurationMinutes)} for a tip. Home-cooked meals take longer but cost less and usually hit with calmer recovery. Eat before hunger turns into an ongoing sanity bleed."),
+                        $"Takeout lands faster, and expedited delivery can cut ETA to about {FormatRemainingTime(_simulation.Config.ExpeditedFoodDeliveryDurationMinutes)} for a tip. Home-cooked meals take longer, cost less, and usually recover you more calmly over longer runs."),
                     new TutorialSection(
-                        "Sleep is a hard gate",
-                        $"Sleep lasts {FormatRemainingTime(_simulation.Config.SleepDurationMinutes)} and fully resets the worst fatigue. If you stay awake too long, coding, gigs, and interviews eventually lock behind sleep, so do not wait until the desk is already falling apart."),
+                        "Sleep is a real gate",
+                        $"Sleep lasts {FormatRemainingTime(_simulation.Config.SleepDurationMinutes)} and clears the worst fatigue. If you keep pushing past the limit, coding, gigs, and interviews eventually lock behind rest, so sleep before the desk is already collapsing."),
                     new TutorialSection(
-                        "Survival rule of thumb",
-                        $"If focus is low, hunger is climbing toward {FormatRemainingTime(_simulation.Config.HungryAfterMinutes)}, or you are close to the forced-sleep window, recover early. A stable run beats a heroic collapse every time.")
+                        "Freelance board",
+                        $"Freelance gigs now require at least {_simulation.Config.FreelanceMinimumFocusRequired:0} focus to begin. They are emergency money, not free spam. Use them when the budget needs it and your focus bar can still survive the hit.")
                 ]),
-            3 => new TutorialPage(
-                "Money And Runway",
-                "Cash is pressure, not score. You need enough runway to absorb bills, buy smart upgrades, and cover life-event choices without turning every decision into a desperate short-term patch.",
+            5 => new TutorialPage(
+                "Money, Housing, And Family",
+                "Money is pressure, not score. Banking is where the long-term life-sim progression becomes readable, from basement survival through apartment, house, and family milestones.",
                 [
                     new TutorialSection(
-                        "Banking",
-                        "Open Banking to see current funds, the next bill timer, and whether the framed first coin is still available as an emergency rescue. Use it when you need to decide whether you can afford a meal, upgrade, or time-consuming detour."),
+                        "Basement to apartment",
+                        $"The first visible housing goal is moving out. Once you can cover the apartment buy-in of about ${apartmentCost:0}, the Banking app flips the run from basement survival into the next longer housing track."),
                     new TutorialSection(
-                        "Three income lanes",
-                        "Published apps create payouts, freelance gigs deliver immediate cash for time and stress, and job applications can end the run successfully. Mix them based on what the current week can support rather than forcing one plan every time."),
+                        "Apartment to house",
+                        $"After that, the next major milestone is the house at about ${houseCost:0}. Corporate standing helps a little here, but every route still has to earn its way into real stability."),
                     new TutorialSection(
-                        "First coin triage",
-                        $"If you still have the first coin, it passively steadies sanity and can break for +${_simulation.Config.FirstCoinEmergencyFundsGain:0} once. Treat it like a last-resort buffer, not your normal rent strategy.")
-                ]),
-            4 => new TutorialPage(
-                "Opportunities, Relationships, And Chaos",
-                "Runs are meant to feel alive. Bugs, recruiter pings, partner moments, random events, and project variation all push and pull on your schedule, so the interesting choice is usually about timing rather than a single best button.",
-                [
-                    new TutorialSection(
-                        "Recruiter loop",
-                        "Listings care about portfolio proof, quality, and follow-through. Start applications only when you can afford the focus and time; half-committing at the wrong moment can leave the whole desk weaker."),
-                    new TutorialSection(
-                        "Upgrades pay back time",
-                        "Use the upgrades list to reduce focus drain, smooth food logistics, improve typing efficiency, and make repeated actions less punishing. The right upgrade can be stronger than one more emergency gig."),
-                    new TutorialSection(
-                        "Relationships and life events",
-                        $"Relationship scenes now stay coherent within a run. They can restore sanity and make the world feel less mechanical, but they still cost time or focus. Treat them as part of the schedule, not separate from it.")
+                        "Family as the long win",
+                        $"Starting a family needs a house, a relationship, and about ${familyCost:0} in savings. That is the visible life-sim finish line for the indefinite routes, so the run keeps expanding instead of stopping after one good week.")
                 ]),
             _ => new TutorialPage(
-                "Using Seeds, Restart, And New Run",
-                $"This run is currently using seed {_state.RunSeed}. The seed drives project order, event timing, food flavor, names, and other procedural details so a restart can replay the same scenario while a fresh run can feel new.",
+                "Seeds, Restart, And New Run",
+                $"This run is using seed {_state.RunSeed}. The seed drives project order, names, timing, food flavor, relationship threads, and career variance, so the same seed can be replayed while a new one feels genuinely different.",
                 [
                     new TutorialSection(
                         "Restart",
-                        "Restart replays the current run seed from the opening state. Use it when you want to test a different strategy against the exact same project order, event cadence, and relationship thread."),
+                        "Restart replays the exact same seed from the opening state. Use it when you want to test a new plan against the same interview branch, project order, boss personality, or event cadence."),
                     new TutorialSection(
                         "New Run",
-                        "New Run starts over using the seed rules from Options. If seed mode is random, you get a fresh scenario. If seed mode is manual, New Run keeps using that manual value until you change it."),
+                        "New Run starts over using the current seed rules from Options. Random mode rolls a fresh scenario. Manual mode keeps replaying the chosen seed until you change it."),
                     new TutorialSection(
                         "Good opening plan",
-                        "Read Alerts & Inbox, write until the first real resource warning appears, secure food before hunger snowballs, and keep enough cash for bills. Once the desk is stable, start reaching for gigs, upgrades, and recruiter momentum.")
+                        "Read Alerts & Inbox, write until the first real resource warning appears, lock in food before hunger spikes, and keep enough cash for the next bill. Once the desk is stable, start reaching for gigs, upgrades, applications, or release momentum.")
                 ]),
         };
     }
@@ -3255,7 +4505,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _editorViewportBounds = new Rectangle(_editorPanelBounds.X + 16, _editorPanelBounds.Y + 58, _editorPanelBounds.Width - 32, _editorPanelBounds.Height - 76);
         _sidebarBounds = new Rectangle(_editorPanelBounds.Right + gap, margin, sidebarWidth, contentHeight);
         _logBounds = new Rectangle(margin, _editorPanelBounds.Bottom + gap, _virtualResolution.X - (margin * 2), logHeight);
-        _catOverlayBounds = new Rectangle(_editorViewportBounds.X + 144, _editorViewportBounds.Y + 108, _editorViewportBounds.Width - 288, 284);
+        _catOverlayBounds = new Rectangle(_editorViewportBounds.X + 144, _editorViewportBounds.Y + 108, _editorViewportBounds.Width - 288, 334);
     }
 
     private Rectangle GetSidebarStatusStripBounds()
@@ -3275,7 +4525,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private int GetSidebarAlertsTop()
     {
-        return GetSidebarActionButtonsTop() + 126;
+        return GetSidebarActionButtonsTop() + 166;
     }
 
     private void DrawOverlayHeaderLabel(
@@ -3360,34 +4610,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     {
         if (_foodAppOpen)
         {
-            if (_burgerButton.IsHovered)
+            foreach (var choice in FoodChoices)
             {
-                return BuildFoodTooltip(FoodChoice.Burger);
-            }
-
-            if (_burritoButton.IsHovered)
-            {
-                return BuildFoodTooltip(FoodChoice.Burrito);
-            }
-
-            if (_pizzaButton.IsHovered)
-            {
-                return BuildFoodTooltip(FoodChoice.Pizza);
-            }
-
-            if (_dumplingsButton.IsHovered)
-            {
-                return BuildFoodTooltip(FoodChoice.Dumplings);
-            }
-
-            if (_skilletPastaButton.IsHovered)
-            {
-                return BuildFoodTooltip(FoodChoice.SkilletPasta);
-            }
-
-            if (_mealPrepChiliButton.IsHovered)
-            {
-                return BuildFoodTooltip(FoodChoice.MealPrepChili);
+                if (GetFoodButton(choice).IsHovered)
+                {
+                    return BuildFoodTooltip(choice);
+                }
             }
 
             if (_doubleCheckOrderButton.IsHovered)
@@ -3432,12 +4660,128 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_freelanceBoardOpen)
         {
-            foreach (var type in Enum.GetValues<FreelanceGigType>())
+            if (_state.ActiveFreelanceGig is not null)
+            {
+                if (_freelanceGigEditorBounds.Contains(_mousePosition))
+                {
+                    return (
+                        _state.ActiveFreelanceGig.Title,
+                        $"Resume the contract editor for {_state.ActiveFreelanceGig.ClientName}. Finish {_state.ActiveFreelanceGig.FileName} to cash out the gig.");
+                }
+
+                return null;
+            }
+
+            foreach (var type in FreelanceGigOrder)
             {
                 if (_freelanceGigButtons[type].IsHovered)
                 {
                     return BuildFreelanceTooltip(type);
                 }
+            }
+
+            return null;
+        }
+
+        if (_bankAppOpen)
+        {
+            if (_buyHouseButton.IsHovered)
+            {
+                return (
+                    _state.HasHouse
+                        ? "Housing Complete"
+                        : _state.HasApartment ? "Buy House" : "Move Out",
+                    _state.HasHouse
+                        ? "This milestone is already complete."
+                        : _state.HasApartment
+                            ? $"Spend ${_simulation.GetHouseCost(_state):0} to lock in the house milestone and gain a stronger long-term stability cushion."
+                            : $"Spend ${_simulation.GetApartmentCost(_state):0} to get out of the basement and unlock the next housing step toward the house.");
+            }
+
+            if (_startFamilyButton.IsHovered)
+            {
+                return (
+                    "Start Family",
+                    _state.HasStartedFamily
+                        ? "This long-term victory path is already complete."
+                        : $"Requires a house, a stable relationship, and ${_simulation.GetFamilyStartCost(_state):0} in savings. This ends the run on the life-sim finish line.");
+            }
+
+            return null;
+        }
+
+        if (_versionControlOpen)
+        {
+            if (_state.VersionControl.ActiveMergeConflict is not null)
+            {
+                if (_mergeConflictOptionButtons[0].IsHovered)
+                {
+                    return ("Keep Stable Side", "Bias toward main. Safest-looking option, but not always the right one for the actual conflict.");
+                }
+
+                if (_mergeConflictOptionButtons[1].IsHovered)
+                {
+                    return ("Hand Merge Carefully", "A middle path that can preserve the best of both sides if this is the conflict that wants it.");
+                }
+
+                if (_mergeConflictOptionButtons[2].IsHovered)
+                {
+                    return ("Force Feature Side", "Push the branch version through. Good when the feature rewrite is the real source of truth, terrible when it is not.");
+                }
+
+                return null;
+            }
+
+            if (_commitChangesButton.IsHovered)
+            {
+                return ("Commit", $"Snapshot {_state.VersionControl.PendingChangeLines} dirty lines into a clean commit before you try to ship.");
+            }
+
+            if (_branchButton.IsHovered)
+            {
+                return _branchButton.Text == "Back To Main"
+                    ? ("Back To Main", "Close an empty clean feature branch so a finished release cannot get stuck behind the wrong branch name.")
+                    : ("Branch", "Split work off main so the release can pick up merge-risk and version-control flavor.");
+            }
+
+            if (_mergeButton.IsHovered)
+            {
+                return ("Merge", "Bring the feature branch back to main. Bigger branches, games, and corporate micromanagement all make conflicts more likely.");
+            }
+
+            return null;
+        }
+
+        if (_projectStudioOpen)
+        {
+            if (_projectTypeButton.IsHovered)
+            {
+                return ("Product", "Cycle between building an app or a game for the current release.");
+            }
+
+            if (_projectThemeButton.IsHovered)
+            {
+                return ("Theme", "Change the main design lane. This feeds project flavor, snippet naming, and some payout shaping.");
+            }
+
+            if (_projectToneButton.IsHovered)
+            {
+                return ("Tone", "Shift the aesthetic mood of the release.");
+            }
+
+            if (_projectPlatformButton.IsHovered)
+            {
+                return ("Platform", "Choose where the release is aimed. This changes the pitch and generated flavor.");
+            }
+
+            if (_projectBusinessButton.IsHovered)
+            {
+                return ("Business Model", "Choose how this project tries to make money.");
+            }
+
+            if (_projectRerollButton.IsHovered)
+            {
+                return ("Concept Reroll", "Keep the same plan shape but reroll the actual title and flavor for a fresh pitch.");
             }
 
             return null;
@@ -3473,7 +4817,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_freelanceButton.IsHovered)
         {
-            return ("Freelance Board", "Choose between short bugfixes, medium polish work, or a brutal pipeline rescue for bigger cash.");
+            return _state.ActiveFreelanceGig is null
+                ? ("Freelance Board", $"Choose between seeded contracts that match the current project flavor. Every gig now needs at least {_simulation.Config.FreelanceMinimumFocusRequired:0} focus to start, and the payout only lands after you finish the contract file.")
+                : ("Resume Gig", $"Jump back into {_state.ActiveFreelanceGig.Title} for {_state.ActiveFreelanceGig.ClientName}. The money is waiting on the finished file, not the accept click.");
         }
 
         if (_upgradesButton.IsHovered)
@@ -3484,6 +4830,16 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         if (_bankAppButton.IsHovered)
         {
             return ("Banking", "Open a clean finance view with runway, rent countdown, and first-coin emergency status.");
+        }
+
+        if (_versionControlButton.IsHovered)
+        {
+            return ("Version Control", "Commit dirty code, split onto a feature branch, merge back to main, and clear conflicts before a release can ship.");
+        }
+
+        if (_projectStudioButton.IsHovered)
+        {
+            return ("Build Studio", "Pick whether the next release is an app or a game, then tune its theme, tone, platform, and business model before typing starts. The studio panel now scrolls and previews the planned file set.");
         }
 
         if (_guideButton.IsHovered)
@@ -3539,7 +4895,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             var payoutWindow = $"${_simulation.Config.PublishAppFundsMin:0}-${_simulation.Config.PublishAppFundsMax:0}";
             return (
                 "Publish App",
-                $"Ship the completed release for a randomized {payoutWindow} payout, then roll into the next batch of snippets. Storefront sales will continue landing on a bounded random timer.");
+                $"Ship the completed release for a randomized {payoutWindow} payout, then roll into the next batch of snippets. The repo must be clean on main with no open merge conflict before shipping.");
         }
 
         if (_openApplicationButton.IsHovered && _state.ActiveJobApplication is not null)
@@ -3568,10 +4924,39 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private (string Title, string Body) BuildFreelanceTooltip(FreelanceGigType type)
     {
-        var gig = _simulation.GetFreelanceGig(type);
+        var gig = _simulation.GetFreelanceGig(_state, type);
         return (
             gig.Name,
-            $"{gig.Description} Duration {FormatRemainingTime(gig.DurationMinutes)}. Funds +${gig.FundsGain:0}, focus -{gig.FocusCost:0}, sanity -{gig.SanityCost:0}, quality {FormatSigned(gig.CodeQualityGain)}.");
+            $"{gig.Description} Needs at least {_simulation.Config.FreelanceMinimumFocusRequired:0} focus to start. Duration {FormatRemainingTime(gig.DurationMinutes)}. Funds +${gig.FundsGain:0}, focus -{gig.FocusCost:0}, sanity -{gig.SanityCost:0}, quality {FormatSigned(gig.CodeQualityGain)}.");
+    }
+
+    private string BuildProjectStudioEconomyText()
+    {
+        var blueprint = _state.CurrentProjectBlueprint;
+        var routeText = _state.GameplayMode switch
+        {
+            GameplayLoopMode.Indie => $"Indie path: every completed file can now drip ${_simulation.Config.IndieProjectProgressFundsMin:0}-${_simulation.Config.IndieProjectProgressFundsMax:0} before release, scaled by this plan.",
+            GameplayLoopMode.Founder => "Founder path: the plan leans harder on publish and storefront upside because there is no employer safety net underneath it.",
+            GameplayLoopMode.Corporate => "Corporate path: the project still matters, but salary and standing cushion the run more than speculative release money.",
+            _ => "Interview path: this batch is mostly about portfolio proof, but publish and store multipliers still shape the cash ceiling if you ship.",
+        };
+
+        return $"{routeText} Publish x{blueprint.PublishIncomeMultiplier:0.00}, store x{blueprint.SaleIncomeMultiplier:0.00}, business model {blueprint.BusinessModel.ToLowerInvariant()}.";
+    }
+
+    private UiButton GetFoodButton(FoodChoice choice)
+    {
+        return choice switch
+        {
+            FoodChoice.Burrito => _burritoButton,
+            FoodChoice.Pizza => _pizzaButton,
+            FoodChoice.Dumplings => _dumplingsButton,
+            FoodChoice.Ramen => _ramenButton,
+            FoodChoice.RiceBowl => _riceBowlButton,
+            FoodChoice.SkilletPasta => _skilletPastaButton,
+            FoodChoice.MealPrepChili => _mealPrepChiliButton,
+            _ => _burgerButton,
+        };
     }
 
     private string GetLifeEventDecisionText(PendingLifeEvent lifeEvent)
@@ -3581,9 +4966,22 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             IncidentType.ComputerFreeze =>
                 $"The machine is dead until you deal with it. Fixing it yourself burns {FormatRemainingTime(_simulation.Config.ComputerFreezeSelfRepairDurationMinutes)} and sanity. Tech support is faster but costs ${_simulation.Config.ComputerFreezeTechSupportFundsCost:0}. The repair shop is the slowest and most expensive, but least mentally brutal.",
             IncidentType.OnlineMatch =>
-                $"{lifeEvent.SubjectName} looks like an actual human possibility, not just algorithm filler. Message them for a smaller time hit, spend ${_simulation.Config.OnlineDateFundsCost:0} to actually go out, or let the whole thing die and keep grinding. Finding love adds passive sanity support.",
+                lifeEvent.StageIndex switch
+                {
+                    0 => $"{lifeEvent.SubjectName} is not a one-button event anymore. Pick the opener that fits the person, not the algorithm. You need {Math.Max(1, lifeEvent.TargetScore)} good reads across three rounds to convert this into a real connection.",
+                    1 => $"{lifeEvent.SubjectName} answered. Now the minigame is about momentum: plan something that fits the vibe instead of forcing a generic script.",
+                    _ => $"{lifeEvent.SubjectName} gives you one last read. Land this round and the thread can turn into something real; miss and it probably dies here.",
+                },
             IncidentType.PartnerCheckIn =>
                 $"{lifeEvent.SubjectName} is part of the run now, not just a distraction from it. A quick reply keeps the line alive, making room for them costs ${_simulation.Config.PartnerCheckInDinnerFundsCost:0} and real time, and staying heads-down buys focus back at the cost of warmth.",
+            IncidentType.CareerPathChoice =>
+                $"Interview Mode is the seven-day sprint. This offer decides the long-form route: take the company path attached to the offer, bet on Founder Mode instead, or end the sprint on the win.",
+            IncidentType.BossCheckIn =>
+                $"{lifeEvent.SubjectName} wants a status ritual. You can over-polish the update, push back with a calm boundary, or stay late and feed the management appetite. Different bosses reward different instincts.",
+            IncidentType.CoworkerInterruption =>
+                $"{lifeEvent.SubjectName} needs something during office hours. Pairing can improve the work, deflecting protects the block at a social cost, and taking the fire drill buys money or standing by burning yourself harder.",
+            IncidentType.FounderNaming =>
+                "Founder Mode starts with choosing the studio name you are going to ship under. Pick the one that feels like something you would actually keep building when rent is due.",
             _ =>
                 $"{lifeEvent.SubjectName} is queued and autoplay is ready to steal the rest of the night. Binging buys sanity at the cost of real time, one episode is the compromise line, and shutting it off protects the schedule but feels bad in the moment.",
         };
@@ -3591,12 +4989,31 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private static string[] GetLifeEventOptionLabels(PendingLifeEvent lifeEvent)
     {
+        if (lifeEvent.OptionLabels.Length > 0)
+        {
+            return lifeEvent.OptionLabels;
+        }
+
         return lifeEvent.Type switch
         {
             IncidentType.ComputerFreeze => ["Repair Myself", "Tech Support", "Repair Shop"],
-            IncidentType.OnlineMatch => ["Send Opener", "Go On Date", "Pass"],
+            IncidentType.OnlineMatch => GetOnlineMatchOptionLabels(lifeEvent.StageIndex),
             IncidentType.PartnerCheckIn => ["Reply", "Make Time", "Stay Heads-Down"],
+            IncidentType.CareerPathChoice => ["Take Offer", "Go Founder", "End Run Here"],
+            IncidentType.BossCheckIn => ["Polish Status Deck", "Push Back Kindly", "Stay Late"],
+            IncidentType.CoworkerInterruption => ["Pair Up", "Deflect Politely", "Take The Fire Drill"],
+            IncidentType.FounderNaming => ["Studio A", "Studio B", "Studio C"],
             _ => ["Binge", "One Episode", "Turn It Off"],
+        };
+    }
+
+    private static string[] GetOnlineMatchOptionLabels(int stageIndex)
+    {
+        return stageIndex switch
+        {
+            0 => ["Ask what they're building", "Lead with a sharp joke", "Ask how their week is really going"],
+            1 => ["Coffee + walk", "Arcade + noodles", "Keep it online longer"],
+            _ => ["Be honest and make time", "Over-optimize the schedule", "Keep it playful and dodge the serious part"],
         };
     }
 
@@ -3660,9 +5077,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return "A recruiter loop is active. Keep building or recover on the desk, then reopen the take-home or interview from Alerts and Inbox when you are ready.";
         }
 
+        if (_state.VersionControl.ActiveMergeConflict is not null)
+        {
+            return $"Merge conflict active in {_state.VersionControl.ActiveMergeConflict.FileName}. Resolve it in Version Control before adding more code on top.";
+        }
+
         if (_state.ActiveCatInterruption is not null)
         {
-            return $"Cat on the keyboard. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to pet it away while {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines and {_state.ActiveCatInterruption.PhantomBugCount} bug bursts stay on screen.";
+            return $"{_state.ActiveCatInterruption.Title} is active. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to clear it while {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines and {_state.ActiveCatInterruption.PhantomBugCount} bug bursts stay on screen.";
         }
 
         if (_state.ActiveFoodDelivery is not null)
@@ -3685,6 +5107,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         if (programComplete)
         {
             return "All current portfolio files are typed out. Publish from Alerts & Inbox to cash out and unlock the next snippet batch.";
+        }
+
+        if (_simulation.CanEditProjectBlueprint(_state))
+        {
+            return $"Build Studio is still unlocked. You can pivot { _state.CurrentProjectBlueprint.Title } before the first line of this batch gets typed.";
         }
 
         if (_state.CurrentProgramVisibleLineCount == 0)
@@ -3756,19 +5183,45 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         for (var index = 0; index < bugCount; index++)
         {
-            lines.Add(GetCatBugLine(cat.VisualSeed, index));
+            lines.Add(GetDistractionBugLine(cat.Kind, cat.VisualSeed, index));
         }
 
         for (var index = 0; index < gibberishCount; index++)
         {
-            lines.Add(GetCatGibberishLine(cat.VisualSeed, index));
+            lines.Add(GetDistractionGibberishLine(cat.Kind, cat.VisualSeed, index));
         }
 
         return lines;
     }
 
-    private static string GetCatBugLine(int seed, int index)
+    private static string GetDistractionBugLine(DeskDistractionKind kind, int seed, int index)
     {
+        if (kind == DeskDistractionKind.PhoneBuzz)
+        {
+            return ((seed + index) % 6) switch
+            {
+                0 => "BUG: phone vibration stole the semicolon again",
+                1 => "warning MD2026: unread notification storm detected",
+                2 => "focusLock = false; // buzz buzz buzz",
+                3 => "if (DoNotDisturb == false) return chaos;",
+                4 => "// TODO: untangle notification-driven branch",
+                _ => "throw new PushAlertException();",
+            };
+        }
+
+        if (kind == DeskDistractionKind.NeighborNoise)
+        {
+            return ((seed + index) % 6) switch
+            {
+                0 => "BUG: wall-shaking bass invalidated the thought",
+                1 => "error CS4040: concentration not found",
+                2 => "if (headphones == null) return despair;",
+                3 => "noiseFloor++; // there goes the sentence",
+                4 => "// TODO: survive the apartment soundscape",
+                _ => "throw new NeighborNoiseException();",
+            };
+        }
+
         return ((seed + index) % 6) switch
         {
             0 => "error CS1002: ; expected after paw smash",
@@ -3780,8 +5233,38 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         };
     }
 
-    private static string GetCatGibberishLine(int seed, int index)
+    private static string GetDistractionGibberishLine(DeskDistractionKind kind, int seed, int index)
     {
+        if (kind == DeskDistractionKind.PhoneBuzz)
+        {
+            return ((seed + (index * 7)) % 8) switch
+            {
+                0 => "buzz buzz buzz /////",
+                1 => "ping(); ping(); ping();",
+                2 => "[] unread[] unread[]",
+                3 => "mute??? later??? nope???",
+                4 => "vvvvvvvv notification vvvvvvvv",
+                5 => ">>>> lock screen <<<<",
+                6 => "do_not_disturb = ???",
+                _ => "reply later reply later",
+            };
+        }
+
+        if (kind == DeskDistractionKind.NeighborNoise)
+        {
+            return ((seed + (index * 7)) % 8) switch
+            {
+                0 => "thump thump thump ////",
+                1 => "???? bassline ????",
+                2 => "wall.wall.wall.wall",
+                3 => "need headphones now",
+                4 => "vvvv apartment noise vvvv",
+                5 => "<<<< door slam >>>>",
+                6 => "focus?? not anymore??",
+                _ => "zzzzzzz not from sleep",
+            };
+        }
+
         return ((seed + (index * 7)) % 8) switch
         {
             0 => "mrrp;;;;[] [] []",
@@ -3857,6 +5340,53 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         return value >= 0
             ? $"+{value:0.#}"
             : $"{value:0.#}";
+    }
+
+    private string GetHousingTrackHeadline()
+    {
+        var apartmentCost = _simulation.GetApartmentCost(_state);
+        var houseCost = _simulation.GetHouseCost(_state);
+        return _state.HasHouse
+            ? "House Purchased"
+            : _state.HasApartment
+                ? $"House ${houseCost:0}"
+                : $"Apartment ${apartmentCost:0}";
+    }
+
+    private string GetHousingTrackDescription()
+    {
+        return _state.HasHouse
+            ? "You own a place now. The run gains a passive sanity cushion and the next visible finish line is family."
+            : _state.HasApartment
+                ? $"You are out of the basement. Save for the house next. Corporate standing {_state.CorporateStanding} still nudges the price down a little."
+                : "You are still in the basement. The first real housing win is moving into an apartment, then building toward a house.";
+    }
+
+    private string GetFamilyGoalHeadline()
+    {
+        var familyCost = _simulation.GetFamilyStartCost(_state);
+        return _state.HasStartedFamily
+            ? "Family Started"
+            : _state.HasFoundLove
+                ? $"Savings ${familyCost:0}"
+                : "Need A Partner";
+    }
+
+    private string GetFamilyGoalDescription()
+    {
+        var familyCost = _simulation.GetFamilyStartCost(_state);
+        return _state.HasStartedFamily
+            ? "This run already reached the long-term family milestone."
+            : _state.HasFoundLove
+                ? $"Requires a house, ${familyCost:0}, and a stable relationship with {_state.PartnerName}. This is a full-life victory path."
+                : "Find a steady relationship first, then use the house + savings route to complete the long-term life-sim arc.";
+    }
+
+    private string GetEmergencyBufferDescription()
+    {
+        return _state.HasFirstCoin
+            ? $"The framed first coin is still intact. It steadies sanity and can still rescue one missed rent cycle for +${_simulation.Config.FirstCoinEmergencyFundsGain:0}."
+            : "The first coin rescue has already been spent. There is no second emergency buffer on this desk.";
     }
 
     private IReadOnlyList<string> GetRecentMoneyEntries()

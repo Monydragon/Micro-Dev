@@ -1,12 +1,16 @@
 namespace MicroDev.Core.Simulation;
 
-public sealed class SimulationConfig
+public sealed record class SimulationConfig
 {
     public const int MinutesPerDay = 24 * 60;
 
     public static SimulationConfig Default { get; } = ForDifficulty(GameDifficulty.Normal);
 
     public GameDifficulty Difficulty { get; init; } = GameDifficulty.Normal;
+
+    public GameplayLoopMode GameplayMode { get; init; } = GameplayLoopMode.Interview;
+
+    public bool RealisticMode { get; init; }
 
     public int StartingDay { get; init; } = 1;
 
@@ -142,6 +146,22 @@ public sealed class SimulationConfig
 
     public double DumplingsSluggishDurationMinutes { get; init; } = 60;
 
+    public double RamenFundsCost { get; init; } = 13;
+
+    public double RamenFocusGain { get; init; } = 62;
+
+    public double RamenSanityGain { get; init; } = 10;
+
+    public double RamenSluggishDurationMinutes { get; init; } = 48;
+
+    public double RiceBowlFundsCost { get; init; } = 11;
+
+    public double RiceBowlFocusGain { get; init; } = 64;
+
+    public double RiceBowlSanityGain { get; init; } = 8;
+
+    public double RiceBowlSluggishDurationMinutes { get; init; } = 72;
+
     public double SkilletPastaFundsCost { get; init; } = 8;
 
     public double SkilletPastaFocusGain { get; init; } = 54;
@@ -274,6 +294,26 @@ public sealed class SimulationConfig
 
     public double UiPolishQualityGain { get; init; } = 0;
 
+    public double GameplayTuneDurationMinutes { get; init; } = 82;
+
+    public double GameplayTuneFundsGain { get; init; } = 48;
+
+    public double GameplayTuneFocusCost { get; init; } = 11;
+
+    public double GameplayTuneSanityCost { get; init; } = 8;
+
+    public double GameplayTuneQualityGain { get; init; } = 2;
+
+    public double DataMigrationDurationMinutes { get; init; } = 92;
+
+    public double DataMigrationFundsGain { get; init; } = 54;
+
+    public double DataMigrationFocusCost { get; init; } = 12;
+
+    public double DataMigrationSanityCost { get; init; } = 9;
+
+    public double DataMigrationQualityGain { get; init; } = 3;
+
     public double PipelineRescueDurationMinutes { get; init; } = 105;
 
     public double PipelineRescueFundsGain { get; init; } = 68;
@@ -291,6 +331,34 @@ public sealed class SimulationConfig
     public double SleepSanityGain { get; init; } = 18;
 
     public double DailyBillAmount { get; init; } = 40;
+
+    public int InterviewDeadlineDays { get; init; } = 7;
+
+    public double FreelanceMinimumFocusRequired { get; init; } = 12;
+
+    public double CorporateOfficeHoursStartMinutes { get; init; } = 9 * 60;
+
+    public double CorporateOfficeHoursEndMinutes { get; init; } = 17 * 60;
+
+    public double CorporateOfficeSanityLossPerInGameMinute { get; init; } = 0.012;
+
+    public double CorporateOfficeFocusLossPerInGameMinute { get; init; } = 0.006;
+
+    public double CorporateDailySalaryBase { get; init; } = 64;
+
+    public double IndieDailyIncomeBase { get; init; } = 28;
+
+    public double IndieProjectProgressFundsMin { get; init; } = 4;
+
+    public double IndieProjectProgressFundsMax { get; init; } = 9;
+
+    public double IndieFocusRecoveryMultiplier { get; init; } = 0.82;
+
+    public double FounderFocusRecoveryMultiplier { get; init; } = 0.74;
+
+    public double ApartmentMoveCost { get; init; } = 118;
+
+    public double ApartmentPassiveSanityRegenPerInGameMinute { get; init; } = 0.001;
 
     public int MaxEventLogEntries { get; init; } = 12;
 
@@ -367,6 +435,91 @@ public sealed class SimulationConfig
     public double FirstCoinBreakSanityLoss { get; init; } = 8;
 
     public double FirstCoinEmergencyFundsGain { get; init; } = 25;
+
+    public static SimulationConfig Create(GameDifficulty difficulty, GameplayLoopMode gameplayMode, bool realisticMode)
+    {
+        var config = ForDifficulty(difficulty) with
+        {
+            GameplayMode = gameplayMode,
+            RealisticMode = realisticMode,
+        };
+
+        config = gameplayMode switch
+        {
+            GameplayLoopMode.Corporate => config with
+            {
+                ContinueAfterSuccessfulApplication = true,
+                SuccessfulApplicationFundsReward = Math.Max(config.SuccessfulApplicationFundsReward, 72),
+                SuccessfulApplicationSanityReward = Math.Max(config.SuccessfulApplicationSanityReward, 4),
+                FirstGuaranteedJobDelayMinutes = Math.Max(150, config.FirstGuaranteedJobDelayMinutes - 120),
+                GuaranteedJobListingIntervalMinutes = Math.Max(210, config.GuaranteedJobListingIntervalMinutes - 75),
+                PublishAppFundsMin = Math.Max(24, config.PublishAppFundsMin - 6),
+                PublishAppFundsMax = Math.Max(42, config.PublishAppFundsMax - 8),
+            },
+            GameplayLoopMode.Indie => config with
+            {
+                ContinueAfterSuccessfulApplication = true,
+                SuccessfulApplicationFundsReward = Math.Max(config.SuccessfulApplicationFundsReward, 28),
+                SuccessfulApplicationSanityReward = Math.Max(config.SuccessfulApplicationSanityReward, 5),
+                FirstGuaranteedJobDelayMinutes = config.FirstGuaranteedJobDelayMinutes + 120,
+                GuaranteedJobListingIntervalMinutes = config.GuaranteedJobListingIntervalMinutes + 90,
+                PublishAppFundsMin = config.PublishAppFundsMin + 10,
+                PublishAppFundsMax = config.PublishAppFundsMax + 14,
+                PublishedAppSaleFundsMin = config.PublishedAppSaleFundsMin + 2,
+                PublishedAppSaleFundsMax = config.PublishedAppSaleFundsMax + 4,
+                PublishedAppSaleIntervalMinMinutes = Math.Max(120, config.PublishedAppSaleIntervalMinMinutes - 30),
+                PublishedAppSaleIntervalMaxMinutes = Math.Max(240, config.PublishedAppSaleIntervalMaxMinutes - 45),
+                IndieDailyIncomeBase = Math.Max(config.IndieDailyIncomeBase, 30),
+                IndieFocusRecoveryMultiplier = 0.8,
+            },
+            GameplayLoopMode.Founder => config with
+            {
+                ContinueAfterSuccessfulApplication = true,
+                SuccessfulApplicationFundsReward = Math.Max(config.SuccessfulApplicationFundsReward, 18),
+                SuccessfulApplicationSanityReward = Math.Max(config.SuccessfulApplicationSanityReward, 2),
+                StartingFunds = Math.Max(42, config.StartingFunds - 18),
+                StartingSanity = Math.Max(58, config.StartingSanity - 4),
+                FirstGuaranteedJobDelayMinutes = config.FirstGuaranteedJobDelayMinutes + 480,
+                GuaranteedJobListingIntervalMinutes = config.GuaranteedJobListingIntervalMinutes + 360,
+                PublishAppFundsMin = config.PublishAppFundsMin + 14,
+                PublishAppFundsMax = config.PublishAppFundsMax + 18,
+                PublishedAppSaleFundsMin = config.PublishedAppSaleFundsMin + 3,
+                PublishedAppSaleFundsMax = config.PublishedAppSaleFundsMax + 5,
+                PublishedAppSaleIntervalMinMinutes = Math.Max(120, config.PublishedAppSaleIntervalMinMinutes - 45),
+                PublishedAppSaleIntervalMaxMinutes = Math.Max(210, config.PublishedAppSaleIntervalMaxMinutes - 60),
+                FounderFocusRecoveryMultiplier = 0.72,
+            },
+            _ => config with
+            {
+                ContinueAfterSuccessfulApplication = false,
+                SuccessfulApplicationFundsReward = 0,
+                SuccessfulApplicationSanityReward = 0,
+            },
+        };
+
+        if (!realisticMode)
+        {
+            return config;
+        }
+
+        return config with
+        {
+            StartingFunds = Math.Max(45, config.StartingFunds - 10),
+            StartingSanity = Math.Max(56, config.StartingSanity - 6),
+            DailyBillAmount = config.DailyBillAmount + 5,
+            HungryAfterMinutes = Math.Max(8 * 60, config.HungryAfterMinutes - 60),
+            VeryHungryAfterMinutes = Math.Max(13 * 60, config.VeryHungryAfterMinutes - 60),
+            OnlineMatchMessageSanityGain = Math.Max(1, config.OnlineMatchMessageSanityGain - 1),
+            OnlineDateSanityGain = Math.Max(6, config.OnlineDateSanityGain - 2),
+            RelationshipProgressNeededForLove = config.RelationshipProgressNeededForLove + 1,
+            FirstModifierIncidentDelayMinutes = Math.Max(90, config.FirstModifierIncidentDelayMinutes - 30),
+            ModifierIncidentIntervalMinutes = Math.Max(135, config.ModifierIncidentIntervalMinutes - 30),
+            CoffeeBounceSanityGain = Math.Max(1, config.CoffeeBounceSanityGain - 1),
+            StreamingBingeSanityGain = Math.Max(4, config.StreamingBingeSanityGain - 2),
+            FoundLovePassiveSanityRegenPerInGameMinute = config.FoundLovePassiveSanityRegenPerInGameMinute + 0.001,
+            ApartmentMoveCost = config.ApartmentMoveCost + 12,
+        };
+    }
 
     public static SimulationConfig ForDifficulty(GameDifficulty difficulty)
     {

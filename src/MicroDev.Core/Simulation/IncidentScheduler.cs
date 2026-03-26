@@ -53,13 +53,14 @@ public sealed class IncidentScheduler
                 ProceduralRunContent.GetIncidentDescription(state.RunSeed, scheduledIncident.Id, incidentType)));
         }
 
-        if (config.GuaranteedJobListingIntervalMinutes > 0 &&
+        var guaranteedJobInterval = GetGuaranteedJobInterval(state, config);
+        if (guaranteedJobInterval > 0 &&
             state.NextGuaranteedJobDeskMinute <= state.DeskMinutesElapsed &&
             state.ActiveJobListing is null &&
             state.ActiveJobApplication is null)
         {
             state.GeneratedJobListingCount++;
-            state.NextGuaranteedJobDeskMinute = state.DeskMinutesElapsed + config.GuaranteedJobListingIntervalMinutes;
+            state.NextGuaranteedJobDeskMinute = state.DeskMinutesElapsed + guaranteedJobInterval;
             queued ??= [];
             queued.Add(new QueuedIncident(
                 $"job-dyn-{state.GeneratedJobListingCount}",
@@ -70,11 +71,12 @@ public sealed class IncidentScheduler
                     IncidentType.JobListing)));
         }
 
-        while (config.ModifierIncidentIntervalMinutes > 0 &&
+        var modifierInterval = GetModifierIncidentInterval(state, config);
+        while (modifierInterval > 0 &&
                state.NextModifierDeskMinute <= state.DeskMinutesElapsed)
         {
             state.GeneratedModifierIncidentCount++;
-            state.NextModifierDeskMinute += config.ModifierIncidentIntervalMinutes +
+            state.NextModifierDeskMinute += modifierInterval +
                                             GetModifierIntervalOffset(state);
             var incidentType = PickDeskEventType(state);
             queued ??= [];
@@ -135,44 +137,53 @@ public sealed class IncidentScheduler
             IncidentCategory.Warmup => PickFrom(
                 state.RunSeed,
                 $"{incident.Id}:type",
-                IncidentType.DeepWorkWindow,
-                IncidentType.CoffeeBounce,
-                IncidentType.RubberDuckInsight,
-                IncidentType.MentorNudge),
+                state.GameplayMode == GameplayLoopMode.Founder
+                    ? [IncidentType.DeepWorkWindow, IncidentType.RubberDuckInsight, IncidentType.CoffeeBounce, IncidentType.ExpenseSpike]
+                    : state.GameplayMode == GameplayLoopMode.Indie
+                    ? [IncidentType.DeepWorkWindow, IncidentType.RubberDuckInsight, IncidentType.CoffeeBounce, IncidentType.IndieFundingSwing]
+                    : state.GameplayMode == GameplayLoopMode.Corporate
+                        ? [IncidentType.BossCheckIn, IncidentType.CoworkerInterruption, IncidentType.CoffeeBounce, IncidentType.DeepWorkWindow]
+                        : [IncidentType.DeepWorkWindow, IncidentType.CoffeeBounce, IncidentType.RubberDuckInsight, IncidentType.MentorNudge]),
             IncidentCategory.Disruption => PickFrom(
                 state.RunSeed,
                 $"{incident.Id}:type",
-                IncidentType.CatInterruption,
-                IncidentType.TechDebtBug,
-                IncidentType.ContextSwitch,
-                IncidentType.DoomscrollSpiral),
+                state.GameplayMode == GameplayLoopMode.Corporate
+                    ? [IncidentType.ContextSwitch, IncidentType.TechDebtBug, IncidentType.CoworkerInterruption, IncidentType.DoomscrollSpiral]
+                    : state.GameplayMode == GameplayLoopMode.Founder
+                        ? [IncidentType.TechDebtBug, IncidentType.ExpenseSpike, IncidentType.CatInterruption, IncidentType.ContextSwitch]
+                    : [IncidentType.CatInterruption, IncidentType.TechDebtBug, IncidentType.ContextSwitch, IncidentType.DoomscrollSpiral]),
             IncidentCategory.Crisis => PickFrom(
                 state.RunSeed,
                 $"{incident.Id}:type",
-                IncidentType.ComputerFreeze,
-                IncidentType.TechDebtBug,
-                IncidentType.ExpenseSpike,
-                IncidentType.CatInterruption),
-            IncidentCategory.JobOpportunity => IncidentType.JobListing,
+                state.IsRealisticMode
+                    ? [IncidentType.ComputerFreeze, IncidentType.ExpenseSpike, IncidentType.TechDebtBug, IncidentType.CatInterruption]
+                    : [IncidentType.ComputerFreeze, IncidentType.TechDebtBug, IncidentType.ExpenseSpike, IncidentType.CatInterruption]),
+            IncidentCategory.JobOpportunity => state.GameplayMode switch
+            {
+                GameplayLoopMode.Interview => IncidentType.JobListing,
+                GameplayLoopMode.Corporate => IncidentType.CoworkerInterruption,
+                GameplayLoopMode.Indie => IncidentType.IndieFundingSwing,
+                _ => IncidentType.ExpenseSpike,
+            },
             IncidentCategory.Life => state.HasFoundLove
                 ? IncidentType.PartnerCheckIn
                 : PickFrom(
                     state.RunSeed,
                     $"{incident.Id}:type",
-                    IncidentType.StreamingBinge,
-                    IncidentType.OnlineMatch,
-                    IncidentType.StreamingBinge),
+                    state.IsRealisticMode
+                        ? [IncidentType.OnlineMatch, IncidentType.StreamingBinge, IncidentType.OnlineMatch]
+                        : [IncidentType.StreamingBinge, IncidentType.OnlineMatch, IncidentType.StreamingBinge]),
             IncidentCategory.Relationship => state.HasFoundLove
                 ? IncidentType.PartnerCheckIn
                 : IncidentType.OnlineMatch,
             _ => PickFrom(
                 state.RunSeed,
                 $"{incident.Id}:type",
-                IncidentType.DeepWorkWindow,
-                IncidentType.ContextSwitch,
-                IncidentType.MentorNudge,
-                IncidentType.MicroSale,
-                IncidentType.DoomscrollSpiral),
+                state.GameplayMode == GameplayLoopMode.Founder
+                    ? [IncidentType.DeepWorkWindow, IncidentType.ExpenseSpike, IncidentType.MicroSale, IncidentType.CoffeeBounce, IncidentType.StreamingBinge]
+                    : state.GameplayMode == GameplayLoopMode.Indie
+                    ? [IncidentType.DeepWorkWindow, IncidentType.IndieFundingSwing, IncidentType.RubberDuckInsight, IncidentType.DoomscrollSpiral, IncidentType.CoffeeBounce]
+                    : [IncidentType.DeepWorkWindow, IncidentType.ContextSwitch, IncidentType.BossCheckIn, IncidentType.CoworkerInterruption, IncidentType.DoomscrollSpiral]),
         };
     }
 
@@ -208,7 +219,92 @@ public sealed class IncidentScheduler
                 IncidentType.OnlineMatch,
             };
 
+        if (state.GameplayMode == GameplayLoopMode.Corporate)
+        {
+            choices =
+            [
+                IncidentType.BossCheckIn,
+                IncidentType.CoworkerInterruption,
+                IncidentType.ContextSwitch,
+                IncidentType.MentorNudge,
+                IncidentType.TechDebtBug,
+                IncidentType.CoffeeBounce,
+                IncidentType.ExpenseSpike,
+                IncidentType.DoomscrollSpiral,
+                state.HasFoundLove ? IncidentType.PartnerCheckIn : IncidentType.OnlineMatch,
+            ];
+        }
+        else if (state.GameplayMode == GameplayLoopMode.Indie)
+        {
+            choices =
+            [
+                IncidentType.DeepWorkWindow,
+                IncidentType.IndieFundingSwing,
+                IncidentType.RubberDuckInsight,
+                IncidentType.MicroSale,
+                IncidentType.CoffeeBounce,
+                IncidentType.CatInterruption,
+                IncidentType.StreamingBinge,
+                state.HasFoundLove ? IncidentType.PartnerCheckIn : IncidentType.OnlineMatch,
+            ];
+        }
+        else if (state.GameplayMode == GameplayLoopMode.Founder)
+        {
+            choices =
+            [
+                IncidentType.DeepWorkWindow,
+                IncidentType.ExpenseSpike,
+                IncidentType.MicroSale,
+                IncidentType.TechDebtBug,
+                IncidentType.CatInterruption,
+                IncidentType.CoffeeBounce,
+                IncidentType.StreamingBinge,
+                state.HasFoundLove ? IncidentType.PartnerCheckIn : IncidentType.OnlineMatch,
+            ];
+        }
+
         return PickFrom(state.RunSeed, $"modifier:{state.GeneratedModifierIncidentCount}", choices);
+    }
+
+    private static double GetGuaranteedJobInterval(RunState state, SimulationConfig config)
+    {
+        if (state.GameplayMode != GameplayLoopMode.Interview)
+        {
+            return 0;
+        }
+
+        var interval = config.GuaranteedJobListingIntervalMinutes;
+
+        if (state.IsRealisticMode)
+        {
+            interval += 30;
+        }
+
+        return Math.Max(120, interval);
+    }
+
+    private static double GetModifierIncidentInterval(RunState state, SimulationConfig config)
+    {
+        var interval = config.ModifierIncidentIntervalMinutes;
+        if (state.GameplayMode == GameplayLoopMode.Corporate)
+        {
+            interval -= 15;
+        }
+        else if (state.GameplayMode == GameplayLoopMode.Indie)
+        {
+            interval += 10;
+        }
+        else if (state.GameplayMode == GameplayLoopMode.Founder)
+        {
+            interval += 5;
+        }
+
+        if (state.IsRealisticMode)
+        {
+            interval -= 10;
+        }
+
+        return Math.Max(120, interval);
     }
 
     private static int GetModifierIntervalOffset(RunState state)
@@ -219,8 +315,20 @@ public sealed class IncidentScheduler
 
     private static int GetPublishedSaleInterval(RunState state, SimulationConfig config, int saleNumber)
     {
-        var minimum = (int)Math.Round(Math.Min(config.PublishedAppSaleIntervalMinMinutes, config.PublishedAppSaleIntervalMaxMinutes));
-        var maximum = (int)Math.Round(Math.Max(config.PublishedAppSaleIntervalMinMinutes, config.PublishedAppSaleIntervalMaxMinutes));
+        var saleOffset = state.GameplayMode switch
+        {
+            GameplayLoopMode.Corporate => 30,
+            GameplayLoopMode.Indie => -30,
+            GameplayLoopMode.Founder => -45,
+            _ => 0,
+        };
+        if (state.IsRealisticMode)
+        {
+            saleOffset += 15;
+        }
+
+        var minimum = (int)Math.Round(Math.Min(config.PublishedAppSaleIntervalMinMinutes, config.PublishedAppSaleIntervalMaxMinutes) + saleOffset);
+        var maximum = (int)Math.Round(Math.Max(config.PublishedAppSaleIntervalMinMinutes, config.PublishedAppSaleIntervalMaxMinutes) + saleOffset);
         if (maximum <= minimum)
         {
             return Math.Max(1, minimum);

@@ -28,6 +28,10 @@ public sealed class GameSettings
 
     public GameDifficulty SelectedDifficulty { get; set; } = GameDifficulty.Normal;
 
+    public GameplayLoopMode SelectedGameplayMode { get; set; } = GameplayLoopMode.Interview;
+
+    public bool RealisticSubModeEnabled { get; set; }
+
     public RunSeedMode RunSeedMode { get; set; } = RunSeedMode.RandomEachRun;
 
     public int ManualRunSeed { get; set; } = DefaultManualRunSeed;

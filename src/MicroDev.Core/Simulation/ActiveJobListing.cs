@@ -8,6 +8,10 @@ public sealed class ActiveJobListing
 
     public string TechStack { get; set; } = string.Empty;
 
+    public string CompanyName { get; set; } = string.Empty;
+
+    public GameplayLoopMode OfferMode { get; set; } = GameplayLoopMode.Corporate;
+
     public double RemainingInGameMinutes { get; set; }
 
     public int ResumeCostLines { get; set; }
@@ -27,6 +31,8 @@ public sealed class ActiveJobListing
             ListingId = ListingId,
             Title = Title,
             TechStack = TechStack,
+            CompanyName = CompanyName,
+            OfferMode = OfferMode,
             RemainingInGameMinutes = RemainingInGameMinutes,
             ResumeCostLines = ResumeCostLines,
             MinimumPortfolioLines = MinimumPortfolioLines,

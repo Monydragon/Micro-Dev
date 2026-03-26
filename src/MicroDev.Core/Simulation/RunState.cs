@@ -4,6 +4,10 @@ public sealed class RunState
 {
     public GameDifficulty Difficulty { get; set; } = GameDifficulty.Normal;
 
+    public GameplayLoopMode GameplayMode { get; set; } = GameplayLoopMode.Interview;
+
+    public bool IsRealisticMode { get; set; }
+
     public int RunSeed { get; set; }
 
     public int Day { get; set; }
@@ -66,6 +70,22 @@ public sealed class RunState
 
     public int RelationshipCandidateCompatibility { get; set; }
 
+    public BossDisposition BossDisposition { get; set; } = BossDisposition.Supportive;
+
+    public string BossName { get; set; } = string.Empty;
+
+    public string BossTitle { get; set; } = string.Empty;
+
+    public int CorporateStanding { get; set; }
+
+    public bool HasApartment { get; set; }
+
+    public bool HasHouse { get; set; }
+
+    public bool HasStartedFamily { get; set; }
+
+    public string StudioName { get; set; } = string.Empty;
+
     public int CurrentPortfolioLinesOfCode { get; set; }
 
     public int CurrentProgramIndex { get; set; }
@@ -98,6 +118,12 @@ public sealed class RunState
 
     public ActiveJobApplication? ActiveJobApplication { get; set; }
 
+    public ActiveFreelanceGig? ActiveFreelanceGig { get; set; }
+
+    public ProjectBlueprint CurrentProjectBlueprint { get; set; } = new();
+
+    public VersionControlState VersionControl { get; set; } = new();
+
     public List<string> EventLog { get; } = [];
 
     public List<QueuedIncident> QueuedIncidents { get; } = [];
@@ -122,6 +148,8 @@ public sealed class RunState
         var clone = new RunState
         {
             Difficulty = Difficulty,
+            GameplayMode = GameplayMode,
+            IsRealisticMode = IsRealisticMode,
             RunSeed = RunSeed,
             Day = Day,
             TimeOfDayMinutes = TimeOfDayMinutes,
@@ -153,6 +181,14 @@ public sealed class RunState
             PartnerName = PartnerName,
             RelationshipCandidateName = RelationshipCandidateName,
             RelationshipCandidateCompatibility = RelationshipCandidateCompatibility,
+            BossDisposition = BossDisposition,
+            BossName = BossName,
+            BossTitle = BossTitle,
+            CorporateStanding = CorporateStanding,
+            HasApartment = HasApartment,
+            HasHouse = HasHouse,
+            HasStartedFamily = HasStartedFamily,
+            StudioName = StudioName,
             CurrentPortfolioLinesOfCode = CurrentPortfolioLinesOfCode,
             CurrentProgramIndex = CurrentProgramIndex,
             CurrentProgramVisibleLineCount = CurrentProgramVisibleLineCount,
@@ -169,6 +205,9 @@ public sealed class RunState
             ActiveTechDebtBug = ActiveTechDebtBug?.Clone(),
             ActiveJobListing = ActiveJobListing?.Clone(),
             ActiveJobApplication = ActiveJobApplication?.Clone(),
+            ActiveFreelanceGig = ActiveFreelanceGig?.Clone(),
+            CurrentProjectBlueprint = CurrentProjectBlueprint.Clone(),
+            VersionControl = VersionControl.Clone(),
         };
 
         clone.EventLog.AddRange(EventLog);
@@ -181,6 +220,8 @@ public sealed class RunState
     public void ResetFrom(RunState other)
     {
         Difficulty = other.Difficulty;
+        GameplayMode = other.GameplayMode;
+        IsRealisticMode = other.IsRealisticMode;
         RunSeed = other.RunSeed;
         Day = other.Day;
         TimeOfDayMinutes = other.TimeOfDayMinutes;
@@ -212,6 +253,14 @@ public sealed class RunState
         PartnerName = other.PartnerName;
         RelationshipCandidateName = other.RelationshipCandidateName;
         RelationshipCandidateCompatibility = other.RelationshipCandidateCompatibility;
+        BossDisposition = other.BossDisposition;
+        BossName = other.BossName;
+        BossTitle = other.BossTitle;
+        CorporateStanding = other.CorporateStanding;
+        HasApartment = other.HasApartment;
+        HasHouse = other.HasHouse;
+        HasStartedFamily = other.HasStartedFamily;
+        StudioName = other.StudioName;
         CurrentPortfolioLinesOfCode = other.CurrentPortfolioLinesOfCode;
         CurrentProgramIndex = other.CurrentProgramIndex;
         CurrentProgramVisibleLineCount = other.CurrentProgramVisibleLineCount;
@@ -228,6 +277,9 @@ public sealed class RunState
         ActiveTechDebtBug = other.ActiveTechDebtBug?.Clone();
         ActiveJobListing = other.ActiveJobListing?.Clone();
         ActiveJobApplication = other.ActiveJobApplication?.Clone();
+        ActiveFreelanceGig = other.ActiveFreelanceGig?.Clone();
+        CurrentProjectBlueprint = other.CurrentProjectBlueprint.Clone();
+        VersionControl = other.VersionControl.Clone();
 
         EventLog.Clear();
         EventLog.AddRange(other.EventLog);

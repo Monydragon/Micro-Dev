@@ -2,20 +2,100 @@ namespace MicroDev.Core.Simulation;
 
 public static class ProceduralRunContent
 {
-    private static readonly string[] CandidateNames =
+    private static readonly string[] CandidateFirstNames =
     [
         "Alex",
-        "Jordan",
-        "Sam",
-        "Morgan",
-        "Taylor",
-        "Riley",
-        "Casey",
         "Avery",
-        "Jamie",
-        "Quinn",
+        "Bailey",
+        "Cameron",
+        "Casey",
+        "Devon",
+        "Elliot",
+        "Emerson",
         "Harper",
+        "Jamie",
+        "Jordan",
+        "Kai",
+        "Logan",
+        "Morgan",
+        "Parker",
+        "Quinn",
+        "Remy",
+        "Riley",
         "Rowan",
+        "Sage",
+        "Sam",
+        "Taylor",
+        "Wren",
+        "Zion",
+    ];
+
+    private static readonly string[] CandidateLastNames =
+    [
+        "Alden",
+        "Barlow",
+        "Bennett",
+        "Calloway",
+        "Cross",
+        "Dawes",
+        "Ellis",
+        "Fletcher",
+        "Graves",
+        "Hale",
+        "Keaton",
+        "Lane",
+        "Mercer",
+        "Monroe",
+        "Nash",
+        "Pierce",
+        "Quill",
+        "Rhodes",
+        "Sawyer",
+        "Vale",
+        "Wilder",
+        "York",
+    ];
+
+    private static readonly string[] BossFirstNames =
+    [
+        "Clara",
+        "Dominic",
+        "Elena",
+        "Graham",
+        "Imani",
+        "Jonah",
+        "Leah",
+        "Marcos",
+        "Naomi",
+        "Priya",
+        "Soren",
+        "Talia",
+    ];
+
+    private static readonly string[] BossLastNames =
+    [
+        "Bishop",
+        "Carr",
+        "Dalton",
+        "Faraday",
+        "Huxley",
+        "Iverson",
+        "Kerr",
+        "Maddox",
+        "Prescott",
+        "Rosales",
+        "Sterling",
+        "Vargas",
+    ];
+
+    private static readonly string[] BossTitles =
+    [
+        "Engineering Manager",
+        "Studio Director",
+        "Product Lead",
+        "Technical Director",
+        "Delivery Manager",
+        "Creative Ops Lead",
     ];
 
     private static readonly string[] ShowTitles =
@@ -28,6 +108,49 @@ public static class ProceduralRunContent
         "After Hours Arcade",
         "Ghost Cursor",
         "Merge Conflict Manor",
+    ];
+
+    private static readonly string[] CorporateCompanyPrefixes =
+    [
+        "Atlas",
+        "Blue Harbor",
+        "Granite",
+        "Iron Ledger",
+        "Northline",
+        "Red Signal",
+        "Summit",
+        "Vector",
+    ];
+
+    private static readonly string[] CorporateCompanySuffixes =
+    [
+        "Dynamics",
+        "Labs",
+        "Softworks",
+        "Systems",
+        "Works",
+        "Interactive",
+    ];
+
+    private static readonly string[] IndieStudioPrefixes =
+    [
+        "After Hours",
+        "Campfire",
+        "Greenlight",
+        "Little Signal",
+        "Patchwork",
+        "Soft Lantern",
+        "Tiny Yard",
+        "Wishbone",
+    ];
+
+    private static readonly string[] IndieStudioSuffixes =
+    [
+        "Collective",
+        "Games",
+        "Studio",
+        "Works",
+        "Workshop",
     ];
 
     private static readonly string[] BurgerNames =
@@ -62,6 +185,22 @@ public static class ProceduralRunContent
         "Cache Dumplings",
     ];
 
+    private static readonly string[] RamenNames =
+    [
+        "Night Shift Ramen",
+        "Focus Broth Bowl",
+        "Late Commit Ramen",
+        "Debug Noodle Cup",
+    ];
+
+    private static readonly string[] RiceBowlNames =
+    [
+        "Deploy Rice Bowl",
+        "Workday Grain Bowl",
+        "Patch Bowl",
+        "Balanced Builder Bowl",
+    ];
+
     private static readonly string[] PastaNames =
     [
         "Skillet Pasta",
@@ -78,14 +217,236 @@ public static class ProceduralRunContent
         "Curry Bean Chili",
     ];
 
+    private static readonly string[] AppThemes =
+    [
+        "Automation",
+        "Creator Tools",
+        "Delivery",
+        "Finance",
+        "Health",
+        "Productivity",
+        "Social",
+        "Studio Tools",
+        "Wellness",
+        "Workflow",
+    ];
+
+    private static readonly string[] GameThemes =
+    [
+        "Deckbuilder",
+        "Life Sim",
+        "Management",
+        "Narrative",
+        "Puzzle",
+        "Roguelite",
+        "Tactics",
+        "Tycoon",
+    ];
+
+    private static readonly string[] ProjectTones =
+    [
+        "Cozy",
+        "Grounded",
+        "Lo-fi",
+        "Neon",
+        "Offbeat",
+        "Retro",
+        "Sharp",
+        "Wholesome",
+    ];
+
+    private static readonly string[] ProjectPlatforms =
+    [
+        "Desktop",
+        "Web",
+        "Mobile",
+        "Cross-Platform",
+    ];
+
+    private static readonly string[] AppBusinessModels =
+    [
+        "Contract",
+        "Freemium",
+        "Premium",
+        "Subscription",
+    ];
+
+    private static readonly string[] GameBusinessModels =
+    [
+        "DLC Roadmap",
+        "Early Access",
+        "Free-to-Play",
+        "Premium",
+    ];
+
+    private static readonly string[] AppTitlePrefixes =
+    [
+        "Build",
+        "Desk",
+        "Flow",
+        "Frame",
+        "Merge",
+        "Minute",
+        "Pocket",
+        "Signal",
+    ];
+
+    private static readonly string[] AppTitleSuffixes =
+    [
+        "Board",
+        "Forge",
+        "Ledger",
+        "Loop",
+        "Pilot",
+        "Pulse",
+        "Stack",
+        "Studio",
+    ];
+
+    private static readonly string[] GameTitlePrefixes =
+    [
+        "Garage",
+        "Greenlight",
+        "Medium",
+        "Night",
+        "Patchwork",
+        "Signal",
+        "Tiny",
+        "Wish",
+    ];
+
+    private static readonly string[] GameTitleSuffixes =
+    [
+        "Arcade",
+        "Story",
+        "Sprint",
+        "Tycoon",
+        "Valley",
+        "Workshop",
+        "World",
+        "Yard",
+    ];
+
+    private static readonly string[] CommitVerbs =
+    [
+        "balance",
+        "clean up",
+        "document",
+        "finish",
+        "patch",
+        "polish",
+        "stabilize",
+        "untangle",
+    ];
+
+    private static readonly string[] CommitObjects =
+    [
+        "build flow",
+        "collision pass",
+        "economy tuning",
+        "input handling",
+        "save state",
+        "shipping hooks",
+        "tooltip layout",
+        "wishlist sync",
+    ];
+
+    private static readonly string[] FreelanceClientPrefixes =
+    [
+        "Blue Hour",
+        "Corner",
+        "Field Note",
+        "Northstar",
+        "Patch Bay",
+        "Quiet Signal",
+        "Sidecar",
+        "Tiny Harbor",
+    ];
+
+    private static readonly string[] FreelanceClientSuffixes =
+    [
+        "Apps",
+        "Collective",
+        "Games",
+        "Group",
+        "Lab",
+        "Studio",
+        "Works",
+    ];
+
     public static string GetRelationshipCandidateName(int runSeed)
     {
-        return Pick(runSeed, "relationship:name", CandidateNames);
+        var firstName = Pick(runSeed, "relationship:first-name", CandidateFirstNames);
+        var lastName = Pick(runSeed, "relationship:last-name", CandidateLastNames);
+        return $"{firstName} {lastName}";
     }
 
     public static int GetRelationshipCandidateCompatibility(int runSeed)
     {
-        return 62 + (CreateSeed(runSeed, "relationship:compatibility") % 37);
+        return 58 + (CreateSeed(runSeed, "relationship:compatibility") % 41);
+    }
+
+    public static string GetBossName(int runSeed)
+    {
+        var firstName = Pick(runSeed, "boss:first-name", BossFirstNames);
+        var lastName = Pick(runSeed, "boss:last-name", BossLastNames);
+        return $"{firstName} {lastName}";
+    }
+
+    public static string GetBossTitle(int runSeed)
+    {
+        return Pick(runSeed, "boss:title", BossTitles);
+    }
+
+    public static BossDisposition GetBossDisposition(int runSeed)
+    {
+        return (BossDisposition)(CreateSeed(runSeed, "boss:disposition") % 4);
+    }
+
+    public static string GetBossDispositionLabel(BossDisposition disposition)
+    {
+        return disposition switch
+        {
+            BossDisposition.Supportive => "Supportive",
+            BossDisposition.Nice => "Nice",
+            BossDisposition.Mean => "Mean",
+            _ => "Micromanager",
+        };
+    }
+
+    public static string GetBossFlavor(BossDisposition disposition, string bossName)
+    {
+        return disposition switch
+        {
+            BossDisposition.Supportive => $"{bossName} actually clears blockers when they say they will.",
+            BossDisposition.Nice => $"{bossName} is warm in tone, but still expects the work to land clean.",
+            BossDisposition.Mean => $"{bossName} frames everything like a pressure test and rarely lets the desk breathe.",
+            _ => $"{bossName} turns every feature into a status ritual, a sync, and one more tiny approval gate.",
+        };
+    }
+
+    public static string GetCoworkerName(int runSeed, string key)
+    {
+        var firstName = Pick(runSeed, $"{key}:coworker:first", CandidateFirstNames);
+        var lastName = Pick(runSeed, $"{key}:coworker:last", CandidateLastNames);
+        return $"{firstName} {lastName}";
+    }
+
+    public static string GetCompanyName(int runSeed, string key, GameplayLoopMode offerMode)
+    {
+        return offerMode == GameplayLoopMode.Indie
+            ? $"{Pick(runSeed, $"{key}:indie:prefix", IndieStudioPrefixes)} {Pick(runSeed, $"{key}:indie:suffix", IndieStudioSuffixes)}"
+            : $"{Pick(runSeed, $"{key}:corp:prefix", CorporateCompanyPrefixes)} {Pick(runSeed, $"{key}:corp:suffix", CorporateCompanySuffixes)}";
+    }
+
+    public static string[] GetFounderStudioNameChoices(int runSeed)
+    {
+        return
+        [
+            GetCompanyName(runSeed, "founder:studio:0", GameplayLoopMode.Indie),
+            GetCompanyName(runSeed, "founder:studio:1", GameplayLoopMode.Indie),
+            GetCompanyName(runSeed, "founder:studio:2", GameplayLoopMode.Indie),
+        ];
     }
 
     public static string GetShowTitle(int runSeed, string key)
@@ -100,6 +461,8 @@ public static class ProceduralRunContent
             FoodChoice.Burrito => Pick(runSeed, "food:burrito:name", BurritoNames),
             FoodChoice.Pizza => Pick(runSeed, "food:pizza:name", PizzaNames),
             FoodChoice.Dumplings => Pick(runSeed, "food:dumplings:name", DumplingNames),
+            FoodChoice.Ramen => Pick(runSeed, "food:ramen:name", RamenNames),
+            FoodChoice.RiceBowl => Pick(runSeed, "food:rice-bowl:name", RiceBowlNames),
             FoodChoice.SkilletPasta => Pick(runSeed, "food:pasta:name", PastaNames),
             FoodChoice.MealPrepChili => Pick(runSeed, "food:chili:name", ChiliNames),
             _ => Pick(runSeed, "food:burger:name", BurgerNames),
@@ -113,6 +476,8 @@ public static class ProceduralRunContent
             FoodChoice.Burrito => "Cheap, filling, and steadier than the greasiest options if you bother to lock the details in before the order flies.",
             FoodChoice.Pizza => "Big focus spike, but the post-meal drag can absolutely flatten the rest of the coding block if you let the order get sloppy.",
             FoodChoice.Dumplings => "Comfort food that helps sanity more than raw typing energy. Better for stabilizing a rough day than brute-forcing more clicks.",
+            FoodChoice.Ramen => "A warm middle ground: quicker comfort than a home-cooked meal, steadier than pizza, and forgiving if the day is already fraying.",
+            FoodChoice.RiceBowl => "Balanced fuel that trades a little raw focus for steadier recovery. Better when you need the next coding block to stay clean.",
             FoodChoice.SkilletPasta => "A faster home-cooked option. Cheaper than delivery, calmer on the stomach, and only worth it if you can wait for the pan to finish.",
             FoodChoice.MealPrepChili => "The long route. It ties the meal loop to real planning, but the sanity payoff is strong and the recovery is cleaner than takeout.",
             _ => "Reliable focus recovery at a fair price, but a messy order can still turn the next session sluggish.",
@@ -141,6 +506,18 @@ public static class ProceduralRunContent
                 new(FoodOrderModifier.SauceOnSide, "Sauce On Side", "Lets you control how messy the whole break becomes.", true),
                 new(FoodOrderModifier.SkipSoda, "Skip Soda", "Optional. Helpful, but not the core issue here.", false),
             ],
+            FoodChoice.Ramen =>
+            [
+                new(FoodOrderModifier.NoCheese, "Keep It Mild", "Too much heat turns comfort into a distraction.", true),
+                new(FoodOrderModifier.SauceOnSide, "Broth On Side", "Protects the desk from becoming a noodle disaster.", true),
+                new(FoodOrderModifier.SkipSoda, "Add Water", "Optional, but it helps avoid the salty crash.", false),
+            ],
+            FoodChoice.RiceBowl =>
+            [
+                new(FoodOrderModifier.NoCheese, "Light Sauce", "Keeps the bowl steady instead of turning it into a nap.", true),
+                new(FoodOrderModifier.SauceOnSide, "Crunch Separate", "Prevents the whole bowl from going soggy before it lands.", true),
+                new(FoodOrderModifier.SkipSoda, "Skip Soda", "Optional, but it helps the balanced meal stay balanced.", false),
+            ],
             FoodChoice.SkilletPasta =>
             [
                 new(FoodOrderModifier.NoCheese, "Salt The Water", "Skipping the basics turns cheap pasta into a morale hit.", true),
@@ -162,12 +539,165 @@ public static class ProceduralRunContent
         };
     }
 
+    public static string GetFreelanceClientName(int runSeed, FreelanceGigType type)
+    {
+        return $"{Pick(runSeed, $"freelance:{type}:client-prefix", FreelanceClientPrefixes)} {Pick(runSeed, $"freelance:{type}:client-suffix", FreelanceClientSuffixes)}";
+    }
+
+    public static (string Title, string Brief, string FileName, IReadOnlyList<string> CodeLines) CreateFreelanceAssignment(
+        int runSeed,
+        ProjectBlueprint blueprint,
+        FreelanceGigType type)
+    {
+        var themeRoot = BuildCodeLabel(blueprint.Theme, "Project");
+        var toneRoot = BuildCodeLabel(blueprint.Tone, "Tone");
+        var productLabel = blueprint.ProductType == ProjectProductType.Game ? "Game" : "App";
+
+        return type switch
+        {
+            FreelanceGigType.UIPolishPass => CreateUiPolishAssignment(blueprint, themeRoot, toneRoot, productLabel),
+            FreelanceGigType.GameplayTunePass => CreateGameplayTuneAssignment(blueprint, themeRoot, toneRoot, productLabel),
+            FreelanceGigType.DataMigration => CreateDataMigrationAssignment(blueprint, themeRoot, toneRoot, productLabel),
+            FreelanceGigType.PipelineRescue => CreatePipelineRescueAssignment(blueprint, themeRoot, toneRoot, productLabel),
+            _ => CreateQuickBugfixAssignment(blueprint, themeRoot, toneRoot, productLabel),
+        };
+    }
+
+    public static ProjectBlueprint CreateProjectBlueprint(int runSeed, GameplayLoopMode gameplayMode)
+    {
+        var preferredType = gameplayMode switch
+        {
+            GameplayLoopMode.Corporate => ProjectProductType.App,
+            GameplayLoopMode.Indie => ProjectProductType.Game,
+            _ => (ProjectProductType)(CreateSeed(runSeed, "project:type") % 2),
+        };
+
+        var theme = Pick(runSeed, "project:theme", GetProjectThemes(preferredType));
+        var tone = Pick(runSeed, "project:tone", ProjectTones);
+        var platform = Pick(runSeed, "project:platform", ProjectPlatforms);
+        var businessModel = Pick(runSeed, "project:business", GetBusinessModels(preferredType));
+        return BuildProjectBlueprint(runSeed, gameplayMode, preferredType, theme, tone, platform, businessModel, variantSeedOffset: 0);
+    }
+
+    public static ProjectBlueprint AdvanceProjectBlueprint(
+        int runSeed,
+        GameplayLoopMode gameplayMode,
+        ProjectBlueprint current,
+        ProjectPlanField field)
+    {
+        var productType = current.ProductType;
+        var theme = current.Theme;
+        var tone = current.Tone;
+        var platform = current.Platform;
+        var businessModel = current.BusinessModel;
+
+        switch (field)
+        {
+            case ProjectPlanField.ProductType:
+                productType = productType == ProjectProductType.App
+                    ? ProjectProductType.Game
+                    : ProjectProductType.App;
+                theme = CycleValue(GetProjectThemes(productType), theme, fallbackIndex: CreateSeed(runSeed, $"project:switch-theme:{current.VariantSeedOffset}") % GetProjectThemes(productType).Count);
+                businessModel = CycleValue(GetBusinessModels(productType), businessModel, fallbackIndex: CreateSeed(runSeed, $"project:switch-business:{current.VariantSeedOffset}") % GetBusinessModels(productType).Count);
+                break;
+
+            case ProjectPlanField.Theme:
+                theme = CycleValue(GetProjectThemes(productType), theme);
+                break;
+
+            case ProjectPlanField.Tone:
+                tone = CycleValue(ProjectTones, tone);
+                break;
+
+            case ProjectPlanField.Platform:
+                platform = CycleValue(ProjectPlatforms, platform);
+                break;
+
+            case ProjectPlanField.BusinessModel:
+                businessModel = CycleValue(GetBusinessModels(productType), businessModel);
+                break;
+        }
+
+        return BuildProjectBlueprint(runSeed, gameplayMode, productType, theme, tone, platform, businessModel, current.VariantSeedOffset);
+    }
+
+    public static ProjectBlueprint RerollProjectBlueprint(int runSeed, GameplayLoopMode gameplayMode, ProjectBlueprint current)
+    {
+        return BuildProjectBlueprint(
+            runSeed,
+            gameplayMode,
+            current.ProductType,
+            current.Theme,
+            current.Tone,
+            current.Platform,
+            current.BusinessModel,
+            current.VariantSeedOffset + 1);
+    }
+
+    public static IReadOnlyList<string> GetProjectThemes(ProjectProductType productType)
+    {
+        return productType == ProjectProductType.Game
+            ? GameThemes
+            : AppThemes;
+    }
+
+    public static IReadOnlyList<string> GetProjectTones()
+    {
+        return ProjectTones;
+    }
+
+    public static IReadOnlyList<string> GetProjectPlatforms()
+    {
+        return ProjectPlatforms;
+    }
+
+    public static IReadOnlyList<string> GetBusinessModels(ProjectProductType productType)
+    {
+        return productType == ProjectProductType.Game
+            ? GameBusinessModels
+            : AppBusinessModels;
+    }
+
     public static string GetPublishedAppName(int runSeed, int releaseNumber, string currentProjectName)
     {
         var stem = string.IsNullOrWhiteSpace(currentProjectName)
             ? Pick(runSeed, "publish:label", ["Patchlight", "Overnight Build", "Desk Commit", "Late Shift"])
             : currentProjectName;
         return $"{stem} Release {releaseNumber}";
+    }
+
+    public static string GetVersionControlBranchName(int runSeed, ProjectBlueprint blueprint, int branchSerial)
+    {
+        var baseLabel = blueprint.Theme.Replace(' ', '-').ToLowerInvariant();
+        var toneLabel = blueprint.Tone.Replace(' ', '-').ToLowerInvariant();
+        var suffix = 1 + (CreateSeed(runSeed, $"branch:{branchSerial}:{blueprint.Signature}") % 9);
+        return $"feature/{baseLabel}-{toneLabel}-{suffix}";
+    }
+
+    public static string GetVersionControlCommitSummary(int runSeed, ProjectBlueprint blueprint, int commitCount)
+    {
+        var verb = Pick(runSeed, $"commit:{commitCount}:verb:{blueprint.Signature}", CommitVerbs);
+        var obj = Pick(runSeed, $"commit:{commitCount}:object:{blueprint.Signature}", CommitObjects);
+        return $"{verb} {obj}";
+    }
+
+    public static ActiveMergeConflict CreateMergeConflict(int runSeed, ProjectBlueprint blueprint, string branchName, int conflictCount)
+    {
+        var fileStem = blueprint.Theme.Replace(" ", string.Empty, StringComparison.Ordinal);
+        var suffix = blueprint.ProductType == ProjectProductType.Game ? "System" : "Service";
+        var fileName = $"{fileStem}{suffix}.cs";
+        var summary = blueprint.ProductType == ProjectProductType.Game
+            ? $"{branchName} and main both rewired the game loop around {blueprint.Theme.ToLowerInvariant()} pacing."
+            : $"{branchName} and main both touched the {blueprint.Theme.ToLowerInvariant()} flow from different product directions.";
+
+        return new ActiveMergeConflict
+        {
+            FileName = fileName,
+            Summary = summary,
+            IncomingBranchName = branchName,
+            OptimalResolutionOptionIndex = CreateSeed(runSeed, $"conflict:{conflictCount}:{blueprint.Signature}") % 3,
+            Severity = 1 + (CreateSeed(runSeed, $"conflict:severity:{conflictCount}:{blueprint.Signature}") % 3),
+        };
     }
 
     public static string GetPartnerPrompt(int runSeed, string partnerName, int relationshipProgress)
@@ -194,15 +724,35 @@ public static class ProceduralRunContent
         return Pick(runSeed, $"partner:{partnerName}:{relationshipProgress}", prompts);
     }
 
+    public static string GetIndieFundingLine(int runSeed, string incidentId, ProjectBlueprint blueprint, bool positive)
+    {
+        var positiveLines = new[]
+        {
+            $"{blueprint.Title} catches a tiny algorithm bump and a few extra people finally find it.",
+            $"A small creator shout-out sends a little traffic into {blueprint.Title}.",
+            $"A quiet wish-list spike gives {blueprint.Title} a rare good day.",
+        };
+        var negativeLines = new[]
+        {
+            $"Traffic falls off and {blueprint.Title} stops paying the week by itself. Freelance work suddenly matters again.",
+            $"No funding arrives and {blueprint.Title} goes quiet. The runway tightens and contract work looks smarter.",
+            $"{blueprint.Title} hits a slow patch. The storefront cools off and survival leans back toward gigs.",
+        };
+
+        return positive
+            ? Pick(runSeed, $"{incidentId}:funding:up", positiveLines)
+            : Pick(runSeed, $"{incidentId}:funding:down", negativeLines);
+    }
+
     public static string GetIncidentDescription(int runSeed, string incidentId, IncidentType incidentType)
     {
         string[] choices = incidentType switch
         {
             IncidentType.CatInterruption =>
             [
-                "The cat launches onto the desk and claims the keyboard.",
-                "A full cat interruption lands right on top of the editor.",
-                "The cat decides your workflow is optional and your keyboard is not.",
+                "A desk distraction slams into the session and immediately starts competing with the keyboard.",
+                "Something in the room decides your workflow is optional and your focus is not.",
+                "The run picks up a fresh real-world distraction right on top of the editor.",
             ],
             IncidentType.TechDebtBug =>
             [
@@ -288,6 +838,30 @@ public static class ProceduralRunContent
                 "A relationship check-in lands right in the middle of the backlog.",
                 "The run is not just code anymore, and the timing proves it.",
             ],
+            IncidentType.BossCheckIn =>
+            [
+                "Corporate life pulls you into one more status ritual.",
+                "Your boss wants an update now, not when the work is actually ready.",
+                "A management sync appears and turns the sprint into theater.",
+            ],
+            IncidentType.CoworkerInterruption =>
+            [
+                "A co-worker suddenly needs context, help, or emotional labor right in the middle of your block.",
+                "Office hours turn into hallway-drive-by work and the schedule bends around someone else's urgency.",
+                "A co-worker interruption lands and turns a clean coding stretch into people management.",
+            ],
+            IncidentType.IndieFundingSwing =>
+            [
+                "The storefront graph twitches and the whole indie plan suddenly feels volatile again.",
+                "Funding chatter shifts and your runway now depends on whether the next wobble is up or down.",
+                "An indie revenue beat lands and reminds you how unstable self-funded work can be.",
+            ],
+            IncidentType.FounderNaming =>
+            [
+                "If you are going to bootstrap a studio from this desk, it needs a name before it needs a logo.",
+                "The company exists as soon as you decide what to call it.",
+                "The founder route starts with picking the name that will sit on the pitch deck, storefront page, and tax headache.",
+            ],
             _ =>
             [
                 "A new match shows up online and real life suddenly competes with the backlog.",
@@ -297,6 +871,109 @@ public static class ProceduralRunContent
         };
 
         return Pick(runSeed, $"{incidentId}:{incidentType}", choices);
+    }
+
+    private static ProjectBlueprint BuildProjectBlueprint(
+        int runSeed,
+        GameplayLoopMode gameplayMode,
+        ProjectProductType productType,
+        string theme,
+        string tone,
+        string platform,
+        string businessModel,
+        int variantSeedOffset)
+    {
+        var keyBase = $"{productType}:{theme}:{tone}:{platform}:{businessModel}:{variantSeedOffset}";
+        var prefixes = productType == ProjectProductType.Game ? GameTitlePrefixes : AppTitlePrefixes;
+        var suffixes = productType == ProjectProductType.Game ? GameTitleSuffixes : AppTitleSuffixes;
+        var prefix = Pick(runSeed, $"title:prefix:{keyBase}", prefixes);
+        var suffix = Pick(runSeed, $"title:suffix:{keyBase}", suffixes);
+        var title = $"{tone} {prefix} {suffix}";
+        var publishMultiplier = productType == ProjectProductType.Game ? 1.06 : 0.98;
+        var saleMultiplier = productType == ProjectProductType.Game ? 1.08 : 0.99;
+
+        if (theme.Contains("Tycoon", StringComparison.Ordinal) ||
+            title.Contains("Garage", StringComparison.Ordinal) ||
+            title.Contains("Greenlight", StringComparison.Ordinal) ||
+            title.Contains("Medium", StringComparison.Ordinal))
+        {
+            publishMultiplier += 0.03;
+            saleMultiplier += 0.04;
+        }
+
+        if (businessModel.Contains("Subscription", StringComparison.Ordinal) ||
+            businessModel.Contains("DLC", StringComparison.Ordinal) ||
+            businessModel.Contains("Free-to-Play", StringComparison.Ordinal))
+        {
+            saleMultiplier += 0.04;
+        }
+
+        if (businessModel.Contains("Premium", StringComparison.Ordinal))
+        {
+            publishMultiplier += 0.04;
+        }
+
+        if (gameplayMode == GameplayLoopMode.Corporate && productType == ProjectProductType.App)
+        {
+            publishMultiplier += 0.03;
+        }
+
+        if (gameplayMode == GameplayLoopMode.Indie && productType == ProjectProductType.Game)
+        {
+            saleMultiplier += 0.05;
+        }
+
+        if (gameplayMode == GameplayLoopMode.Founder)
+        {
+            publishMultiplier += productType == ProjectProductType.App ? 0.02 : 0.04;
+            saleMultiplier += 0.06;
+        }
+
+        return new ProjectBlueprint
+        {
+            ProductType = productType,
+            Theme = theme,
+            Tone = tone,
+            Platform = platform,
+            BusinessModel = businessModel,
+            VariantSeedOffset = variantSeedOffset,
+            Title = title,
+            Pitch = productType == ProjectProductType.Game
+                ? $"{tone} {theme.ToLowerInvariant()} game for {platform.ToLowerInvariant()} with a {businessModel.ToLowerInvariant()} plan."
+                : $"{tone} {theme.ToLowerInvariant()} app for {platform.ToLowerInvariant()} built around a {businessModel.ToLowerInvariant()} model.",
+            PublishIncomeMultiplier = publishMultiplier,
+            SaleIncomeMultiplier = saleMultiplier,
+        };
+    }
+
+    private static string CycleValue(IReadOnlyList<string> values, string current, int? fallbackIndex = null)
+    {
+        if (values.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var index = IndexOf(values, current);
+        if (index < 0)
+        {
+            var resolvedFallback = Math.Clamp(fallbackIndex ?? 0, 0, values.Count - 1);
+            return values[resolvedFallback];
+        }
+
+        return values[(index + 1) % values.Count];
+    }
+
+    private static int IndexOf(IReadOnlyList<string> values, string current)
+    {
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (string.Equals(values[index], current, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private static string Pick(int runSeed, string key, IReadOnlyList<string> values)
@@ -322,5 +999,213 @@ public static class ProceduralRunContent
 
             return seed & int.MaxValue;
         }
+    }
+
+    private static (string Title, string Brief, string FileName, IReadOnlyList<string> CodeLines) CreateQuickBugfixAssignment(
+        ProjectBlueprint blueprint,
+        string themeRoot,
+        string toneRoot,
+        string productLabel)
+    {
+        var className = $"{toneRoot}{themeRoot}BugfixPatch";
+        return (
+            blueprint.ProductType == ProjectProductType.Game
+                ? $"{blueprint.Theme} interaction bugfix"
+                : $"{blueprint.Theme} workflow bugfix",
+            blueprint.ProductType == ProjectProductType.Game
+                ? $"A client build keeps dropping state during a {blueprint.Theme.ToLowerInvariant()} interaction. Patch the hot path without widening the bug."
+                : $"A client flow keeps losing state inside a {blueprint.Theme.ToLowerInvariant()} tool. Clean up the edge case without rewriting the whole feature.",
+            $"{className}.cs",
+            [
+                "using System;",
+                "",
+                $"namespace Freelance.Contracts.{productLabel};",
+                "",
+                $"public static class {className}",
+                "{",
+                "    public static int ClampCursor(int index, int count)",
+                "    {",
+                "        if (count <= 0)",
+                "        {",
+                "            return 0;",
+                "        }",
+                "",
+                "        if (index < 0)",
+                "        {",
+                "            return 0;",
+                "        }",
+                "",
+                "        return Math.Min(index, count - 1);",
+                "    }",
+                "",
+                "    public static bool ShouldKeepSelection(bool isVisible, bool wasExplicitlyChosen)",
+                "    {",
+                "        return isVisible || wasExplicitlyChosen;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static (string Title, string Brief, string FileName, IReadOnlyList<string> CodeLines) CreateUiPolishAssignment(
+        ProjectBlueprint blueprint,
+        string themeRoot,
+        string toneRoot,
+        string productLabel)
+    {
+        var className = $"{toneRoot}{themeRoot}LayoutRules";
+        var panelLabel = blueprint.ProductType == ProjectProductType.Game ? "HUD" : "dashboard";
+        return (
+            $"{blueprint.Theme} UI polish pass",
+            $"The client wants the {panelLabel} to stop crowding itself on narrow layouts. Tighten the spacing rules without flattening the whole look.",
+            $"{className}.cs",
+            [
+                "using Microsoft.Xna.Framework;",
+                "",
+                $"namespace Freelance.Contracts.{productLabel};",
+                "",
+                $"public static class {className}",
+                "{",
+                "    public static Rectangle Inset(Rectangle bounds, int padding)",
+                "    {",
+                "        return new Rectangle(",
+                "            bounds.X + padding,",
+                "            bounds.Y + padding,",
+                "            Math.Max(0, bounds.Width - (padding * 2)),",
+                "            Math.Max(0, bounds.Height - (padding * 2)));",
+                "    }",
+                "",
+                "    public static int GetGap(int width)",
+                "    {",
+                "        return width < 960 ? 10 : 16;",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static (string Title, string Brief, string FileName, IReadOnlyList<string> CodeLines) CreateGameplayTuneAssignment(
+        ProjectBlueprint blueprint,
+        string themeRoot,
+        string toneRoot,
+        string productLabel)
+    {
+        var className = $"{toneRoot}{themeRoot}PacingProfile";
+        var actorLabel = blueprint.ProductType == ProjectProductType.Game ? "encounter" : "workflow";
+        return (
+            blueprint.ProductType == ProjectProductType.Game
+                ? $"{blueprint.Theme} encounter tuning"
+                : $"{blueprint.Theme} interaction tuning",
+            $"The client wants a steadier {actorLabel} curve. Smooth out the pacing without stripping away the identity of the feature.",
+            $"{className}.cs",
+            [
+                "using System;",
+                "",
+                $"namespace Freelance.Contracts.{productLabel};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    public int MinimumBeatDelayMs { get; init; } = 220;",
+                "",
+                "    public int MaximumBeatDelayMs { get; init; } = 540;",
+                "",
+                "    public int ResolveDelay(double intensity)",
+                "    {",
+                "        var clamped = Math.Clamp(intensity, 0d, 1d);",
+                "        return (int)Math.Round(MaximumBeatDelayMs - ((MaximumBeatDelayMs - MinimumBeatDelayMs) * clamped));",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static (string Title, string Brief, string FileName, IReadOnlyList<string> CodeLines) CreateDataMigrationAssignment(
+        ProjectBlueprint blueprint,
+        string themeRoot,
+        string toneRoot,
+        string productLabel)
+    {
+        var className = $"{toneRoot}{themeRoot}MigrationMap";
+        return (
+            $"{blueprint.Theme} save migration",
+            "A small production data shift is blocking rollout. Wire the legacy keys to the new shape before support tickets pile up.",
+            $"{className}.cs",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Freelance.Contracts.{productLabel};",
+                "",
+                $"public static class {className}",
+                "{",
+                "    public static IReadOnlyDictionary<string, string> Create()",
+                "    {",
+                "        return new Dictionary<string, string>",
+                "        {",
+                "            [\"theme.mode\"] = \"project.mode\",",
+                "            [\"theme.seed\"] = \"project.seed\",",
+                "            [\"theme.profile\"] = \"project.profile\",",
+                "        };",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static (string Title, string Brief, string FileName, IReadOnlyList<string> CodeLines) CreatePipelineRescueAssignment(
+        ProjectBlueprint blueprint,
+        string themeRoot,
+        string toneRoot,
+        string productLabel)
+    {
+        var className = $"{toneRoot}{themeRoot}BuildManifest";
+        return (
+            $"{blueprint.Theme} pipeline rescue",
+            "The release process is shedding artifacts and nobody trusts the deploy lane. Rebuild the manifest logic before the whole contract turns into an incident room.",
+            $"{className}.cs",
+            [
+                "using System.Collections.Generic;",
+                "",
+                $"namespace Freelance.Contracts.{productLabel};",
+                "",
+                $"public sealed class {className}",
+                "{",
+                "    private readonly List<string> _artifacts = [];",
+                "",
+                "    public void Add(string artifactName)",
+                "    {",
+                "        if (!_artifacts.Contains(artifactName))",
+                "        {",
+                "            _artifacts.Add(artifactName);",
+                "        }",
+                "    }",
+                "",
+                "    public string[] Snapshot()",
+                "    {",
+                "        return _artifacts.ToArray();",
+                "    }",
+                "}",
+            ]);
+    }
+
+    private static string BuildCodeLabel(string value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        var parts = value
+            .Split([' ', '-', '+', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static part =>
+            {
+                if (part.Length == 0)
+                {
+                    return string.Empty;
+                }
+
+                return part.Length == 1
+                    ? part.ToUpperInvariant()
+                    : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant();
+            })
+            .Where(static part => part.Length > 0);
+
+        var joined = string.Concat(parts);
+        return string.IsNullOrWhiteSpace(joined) ? fallback : joined;
     }
 }

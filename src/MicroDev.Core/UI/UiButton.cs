@@ -30,6 +30,10 @@ public sealed class UiButton
 
     public int HorizontalPadding { get; set; } = 14;
 
+    public bool WrapText { get; set; }
+
+    public int MaxTextLines { get; set; } = 2;
+
     public Color? AccentColor { get; set; }
 
     public void AdvanceAnimation(float elapsedSeconds)
@@ -133,29 +137,86 @@ public sealed class UiButton
 
         var maxTextWidth = Math.Max(12, drawBounds.Width - (HorizontalPadding * 2));
         var minimumScale = Math.Max(UiTypography.Small, TextScale - 0.18f);
-        var (displayText, fittedScale) = UiTextBlock.FitText(font, Text, maxTextWidth, TextScale, minimumScale);
-        var textSize = font.MeasureString(displayText) * fittedScale;
-        var positionX = TextAlignment == UiTextAlignment.Left
-            ? drawBounds.X + HorizontalPadding
-            : drawBounds.Center.X - (textSize.X / 2f);
-        var position = new Vector2(
-            positionX,
-            drawBounds.Center.Y - (textSize.Y / 2f));
+        var textColor = !Enabled
+            ? UiTheme.TextMuted
+            : IsSelected
+            ? UiTheme.Mix(UiTheme.TextPrimary, accentColor, 0.24f)
+            : UiTheme.TextPrimary;
 
-        spriteBatch.DrawString(
-            font,
-            displayText,
-            position,
-            !Enabled
-                ? UiTheme.TextMuted
-                : IsSelected
-                ? UiTheme.Mix(UiTheme.TextPrimary, accentColor, 0.24f)
-                : UiTheme.TextPrimary,
-            0f,
-            Vector2.Zero,
-            fittedScale,
-            SpriteEffects.None,
-            0f);
+        if (!WrapText)
+        {
+            var (displayText, fittedScale) = UiTextBlock.FitText(font, Text, maxTextWidth, TextScale, minimumScale);
+            var textSize = font.MeasureString(displayText) * fittedScale;
+            var positionX = TextAlignment == UiTextAlignment.Left
+                ? drawBounds.X + HorizontalPadding
+                : drawBounds.Center.X - (textSize.X / 2f);
+            var position = new Vector2(
+                positionX,
+                drawBounds.Center.Y - (textSize.Y / 2f));
+
+            spriteBatch.DrawString(
+                font,
+                displayText,
+                position,
+                textColor,
+                0f,
+                Vector2.Zero,
+                fittedScale,
+                SpriteEffects.None,
+                0f);
+
+            return;
+        }
+
+        var maxTextHeight = Math.Max(font.LineSpacing * minimumScale, drawBounds.Height - 12f);
+        var fittedWrappedScale = TextScale;
+        var wrappedText = UiTextBlock.WrapText(font, Text, maxTextWidth, fittedWrappedScale);
+        var lines = wrappedText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        while (fittedWrappedScale > minimumScale)
+        {
+            var lineCount = Math.Max(1, lines.Length);
+            var totalHeight = lineCount * (font.LineSpacing * fittedWrappedScale);
+            if (lineCount <= Math.Max(1, MaxTextLines) && totalHeight <= maxTextHeight)
+            {
+                break;
+            }
+
+            fittedWrappedScale = Math.Max(minimumScale, fittedWrappedScale - 0.02f);
+            wrappedText = UiTextBlock.WrapText(font, Text, maxTextWidth, fittedWrappedScale);
+            lines = wrappedText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        if (lines.Length == 0)
+        {
+            lines = [string.Empty];
+        }
+
+        var linesToDraw = Math.Min(lines.Length, Math.Max(1, MaxTextLines));
+        var lineHeight = font.LineSpacing * fittedWrappedScale;
+        var totalWrappedHeight = linesToDraw * lineHeight;
+        var startY = drawBounds.Center.Y - (totalWrappedHeight / 2f);
+
+        for (var index = 0; index < linesToDraw; index++)
+        {
+            var line = lines[index];
+            var lineWidth = font.MeasureString(line).X * fittedWrappedScale;
+            var lineX = TextAlignment == UiTextAlignment.Left
+                ? drawBounds.X + HorizontalPadding
+                : drawBounds.Center.X - (lineWidth / 2f);
+            var linePosition = new Vector2(lineX, startY + (index * lineHeight));
+
+            spriteBatch.DrawString(
+                font,
+                line,
+                linePosition,
+                textColor,
+                0f,
+                Vector2.Zero,
+                fittedWrappedScale,
+                SpriteEffects.None,
+                0f);
+        }
     }
 
     private void DrawDigitalPulse(SpriteBatch spriteBatch, Texture2D pixel, Rectangle bounds, Color accentColor)

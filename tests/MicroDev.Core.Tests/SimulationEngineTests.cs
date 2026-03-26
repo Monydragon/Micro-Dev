@@ -341,18 +341,39 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
-    public void TakeFreelanceGig_PipelineRescue_PaysMoreButCostsMore()
+    public void TakeFreelanceGig_PipelineRescue_PaysMoreButCostsMore_AfterContractCompletes()
     {
         var state = _engine.CreateNewRun();
 
         var taken = _engine.TakeFreelanceGig(state, FreelanceGigType.PipelineRescue);
+        var safety = 0;
+        while (state.ActiveFreelanceGig is not null && safety < 80)
+        {
+            Assert.True(_engine.WorkOnFreelanceGig(state));
+            safety++;
+        }
 
         Assert.True(taken);
+        Assert.True(safety < 80);
+        Assert.Null(state.ActiveFreelanceGig);
         Assert.Equal(143, state.Funds, 3);
         Assert.Equal("09:45", state.ClockText);
         Assert.Equal(51.375, state.Focus, 3);
         Assert.Equal(58.63, state.Sanity, 3);
         Assert.Equal(100, state.CodeQuality, 3);
+    }
+
+    [Fact]
+    public void TakeFreelanceGig_RequiresMinimumFocus()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = _engine.Config.FreelanceMinimumFocusRequired - 1;
+
+        var taken = _engine.TakeFreelanceGig(state, FreelanceGigType.QuickBugfix);
+
+        Assert.False(taken);
+        Assert.Equal(_engine.Config.FreelanceMinimumFocusRequired - 1, state.Focus, 3);
+        Assert.Contains("needs at least", state.EventLog.Last());
     }
 
     [Fact]
@@ -466,12 +487,21 @@ public sealed class SimulationEngineTests
     {
         var state = _engine.CreateNewRun();
         state.Funds = 100;
+        state.RelationshipCandidateName = "Jordan";
+        state.RelationshipCandidateCompatibility = 0;
 
         _engine.QueueIncidents(state, [new QueuedIncident("match-1", IncidentType.OnlineMatch, "Match!")]);
-        Assert.True(_engine.ResolveLifeEventOption(state, 1));
+        Assert.True(_engine.ResolveLifeEventOption(state, 0));
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.True(_engine.ResolveLifeEventOption(state, 2));
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.True(_engine.ResolveLifeEventOption(state, 0));
+        Assert.False(_engine.HasPendingLifeEvent(state));
 
         _engine.QueueIncidents(state, [new QueuedIncident("match-2", IncidentType.OnlineMatch, "Match!")]);
-        Assert.True(_engine.ResolveLifeEventOption(state, 1));
+        Assert.True(_engine.ResolveLifeEventOption(state, 0));
+        Assert.True(_engine.ResolveLifeEventOption(state, 2));
+        Assert.True(_engine.ResolveLifeEventOption(state, 0));
 
         Assert.True(state.HasFoundLove);
         Assert.NotNull(state.PartnerName);
@@ -494,8 +524,8 @@ public sealed class SimulationEngineTests
 
         Assert.Null(state.ActiveCatInterruption);
         Assert.Equal(0, state.CurrentProgramIndex);
-        Assert.Equal(5, state.LinesOfCode);
-        Assert.Contains(PortfolioWorkspace.GetVisibleLines(state), line => line.Contains("namespace ", StringComparison.Ordinal));
+        Assert.True(state.LinesOfCode < 30);
+        Assert.Equal(state.CurrentPortfolioLinesOfCode, state.LinesOfCode);
     }
 
     [Fact]
@@ -504,8 +534,9 @@ public sealed class SimulationEngineTests
         var state = _engine.CreateNewRun();
         state.LinesOfCode = 80;
         _engine.QueueIncidents(state, [new QueuedIncident("cat-1", IncidentType.CatInterruption, "Cat!")]);
+        var requiredClears = state.ActiveCatInterruption!.PatsRemaining;
 
-        for (var index = 0; index < _engine.Config.CatPatsRequired; index++)
+        for (var index = 0; index < requiredClears; index++)
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.PetCat));
         }
@@ -526,6 +557,70 @@ public sealed class SimulationEngineTests
         Assert.True(cat.PhantomBugCount >= 2);
         Assert.True(cat.GibberishLinesTyped >= 4);
         Assert.True(state.CodeQuality < 100);
+    }
+
+    [Fact]
+    public void QuickResolveDistraction_ClearsTheActiveDeskDistraction()
+    {
+        var state = _engine.CreateNewRun();
+        state.Funds = 100;
+        state.Focus = 100;
+        _engine.QueueIncidents(state, [new QueuedIncident("cat-quick", IncidentType.CatInterruption, "Desk noise!")]);
+
+        Assert.True(_engine.CanQuickResolveDistraction(state));
+        Assert.True(_engine.QuickResolveDistraction(state));
+        Assert.Null(state.ActiveCatInterruption);
+    }
+
+    [Fact]
+    public void InterviewMode_OfferBranchesIntoCareerChoiceInsteadOfEndingImmediately()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Interview, realisticMode: false));
+        var state = engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 85;
+        state.Focus = 200;
+
+        engine.QueueIncidents(state, [new QueuedIncident("job-branch", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(engine.ApplyAction(state, PlayerAction.ApplyForJob));
+
+        while (state.ActiveJobApplication is not null &&
+               !state.ActiveJobApplication.TakeHomeComplete)
+        {
+            Assert.True(engine.WorkOnJobApplication(state));
+        }
+
+        while (state.ActiveJobApplication is not null)
+        {
+            var question = state.ActiveJobApplication.Questions[state.ActiveJobApplication.CurrentQuestionIndex];
+            Assert.True(engine.AnswerInterviewQuestion(state, question.CorrectOptionIndex));
+        }
+
+        var branchChoice = Assert.IsType<PendingLifeEvent>(state.PendingLifeEvent);
+        Assert.Equal(IncidentType.CareerPathChoice, branchChoice.Type);
+        Assert.Equal(RunStatus.InProgress, state.Status);
+        var expectedRoute = branchChoice.SubjectScore == (int)GameplayLoopMode.Indie
+            ? GameplayLoopMode.Indie
+            : GameplayLoopMode.Corporate;
+
+        Assert.True(engine.ResolveLifeEventOption(state, 0));
+        Assert.Equal(expectedRoute, state.GameplayMode);
+        Assert.Equal(RunStatus.InProgress, state.Status);
+    }
+
+    [Fact]
+    public void InterviewMode_TimesOutAfterSevenDays()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Interview, realisticMode: false));
+        var state = engine.CreateNewRun();
+        state.Day = engine.Config.InterviewDeadlineDays + 1;
+
+        engine.EvaluateLossState(state);
+
+        Assert.Equal(RunStatus.BurnedOut, state.Status);
+        Assert.Contains("seven-day interview sprint", state.OutcomeMessage);
     }
 
     [Fact]
@@ -689,10 +784,12 @@ public sealed class SimulationEngineTests
             Assert.True(_engine.AnswerInterviewQuestion(state, question.CorrectOptionIndex));
         }
 
-        Assert.Equal(RunStatus.Won, state.Status);
+        var branchChoice = Assert.IsType<PendingLifeEvent>(state.PendingLifeEvent);
+        Assert.Equal(IncidentType.CareerPathChoice, branchChoice.Type);
+        Assert.Equal(RunStatus.InProgress, state.Status);
         Assert.Equal(1, state.SuccessfulApplications);
         Assert.Null(state.ActiveJobApplication);
-        Assert.Contains("landed", state.OutcomeMessage);
+        Assert.Null(state.OutcomeMessage);
     }
 
     [Fact]
@@ -824,7 +921,13 @@ public sealed class SimulationEngineTests
         var state = _engine.CreateNewRun();
         state.Sanity = 5;
 
-        _engine.TakeFreelanceGig(state, FreelanceGigType.QuickBugfix);
+        Assert.True(_engine.ApplyAction(state, PlayerAction.Freelance));
+        var safety = 0;
+        while (state.ActiveFreelanceGig is not null && safety < 80)
+        {
+            Assert.True(_engine.WorkOnFreelanceGig(state));
+            safety++;
+        }
 
         Assert.Equal(RunStatus.BurnedOut, state.Status);
         Assert.Contains("tank", state.OutcomeMessage);
@@ -899,6 +1002,165 @@ public sealed class SimulationEngineTests
         _engine.QueueIncidents(state, [new QueuedIncident("mentor-1", IncidentType.MentorNudge, "Mentor!")]);
 
         Assert.Equal(1, GetResumeProof(state, track));
+    }
+
+    [Fact]
+    public void ProjectBlueprint_CanBeReplannedBeforeTyping_ThenLocksForTheBatch()
+    {
+        var state = _engine.CreateNewRun();
+        var originalTheme = state.CurrentProjectBlueprint.Theme;
+
+        Assert.True(_engine.AdvanceProjectBlueprintField(state, ProjectPlanField.Theme));
+        Assert.NotEqual(originalTheme, state.CurrentProjectBlueprint.Theme);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+        Assert.False(_engine.AdvanceProjectBlueprintField(state, ProjectPlanField.Theme));
+    }
+
+    [Fact]
+    public void CommitingChanges_CleansTheRepoAndRestoresPublishReadiness()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 200;
+        CompleteCurrentPortfolioBatch(_engine, state);
+        state.VersionControl.PendingChangeLines = 14;
+
+        Assert.False(_engine.IsPortfolioPublishReady(state));
+        Assert.True(_engine.CommitChanges(state));
+        Assert.Equal(0, state.VersionControl.PendingChangeLines);
+        Assert.True(_engine.IsPortfolioPublishReady(state));
+    }
+
+    [Fact]
+    public void ToggleFeatureBranch_AllowsReturningToMain_WhenReleaseIsBlockedOnAnEmptyBranch()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 2000;
+        CompleteCurrentPortfolioBatch(_engine, state);
+
+        Assert.True(_engine.IsPortfolioPublishReady(state));
+        Assert.True(_engine.ToggleFeatureBranch(state));
+        Assert.False(_engine.IsPortfolioPublishReady(state));
+
+        Assert.True(_engine.ToggleFeatureBranch(state));
+        Assert.False(state.VersionControl.HasFeatureBranch);
+        Assert.Equal("main", state.VersionControl.CurrentBranchName);
+        Assert.True(_engine.IsPortfolioPublishReady(state));
+    }
+
+    [Fact]
+    public void MergeBranch_CanGenerateAConflict_AndResolveCleanly()
+    {
+        for (var seed = 1; seed <= 250; seed++)
+        {
+            var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false), () => seed);
+            var state = engine.CreateNewRun();
+
+            Assert.True(engine.CreateFeatureBranch(state));
+            state.VersionControl.PendingChangeLines = 18;
+            Assert.True(engine.CommitChanges(state));
+            Assert.True(engine.MergeFeatureBranch(state));
+
+            if (state.VersionControl.ActiveMergeConflict is null)
+            {
+                continue;
+            }
+
+            var bestOption = state.VersionControl.ActiveMergeConflict.OptimalResolutionOptionIndex;
+            Assert.True(engine.ResolveMergeConflictOption(state, bestOption));
+            Assert.Null(state.VersionControl.ActiveMergeConflict);
+            Assert.Equal("main", state.VersionControl.CurrentBranchName);
+            return;
+        }
+
+        Assert.Fail("Expected at least one deterministic seed to trigger a merge conflict.");
+    }
+
+    [Fact]
+    public void IndieMode_ProjectFileCompletion_CanPayBeforeTheReleaseShips()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false), () => 4242);
+        var state = engine.CreateNewRun();
+        state.Focus = 200;
+        var startingFunds = state.Funds;
+        var firstFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
+        var safety = 0;
+
+        while (state.RecentCompletedFileName is null && safety < 120)
+        {
+            Assert.True(engine.ApplyAction(state, PlayerAction.WriteCode));
+            safety++;
+        }
+
+        Assert.True(safety < 120);
+        Assert.Equal(firstFileName, state.RecentCompletedFileName);
+        Assert.True(state.Funds > startingFunds);
+        Assert.Contains(state.EventLog, entry => entry.Contains("Indie project progress pays out", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BankingGoals_CanEndTheRunWithHouseAndFamilyVictory()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Corporate, realisticMode: false));
+        var state = engine.CreateNewRun();
+        state.Funds = 1000;
+        state.HasFoundLove = true;
+        state.PartnerName = "Jordan";
+
+        Assert.True(engine.MoveToApartment(state));
+        Assert.True(state.HasApartment);
+        Assert.True(engine.BuyHouse(state));
+        Assert.True(state.HasHouse);
+        Assert.True(engine.StartFamily(state));
+        Assert.True(state.HasStartedFamily);
+        Assert.Equal(RunStatus.Won, state.Status);
+    }
+
+    [Fact]
+    public void FounderMode_StartsWithNamingEvent_AndResolvesIntoStudioName()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Founder, realisticMode: false), () => 4444);
+        var state = engine.CreateNewRun();
+
+        var founderNaming = Assert.IsType<PendingLifeEvent>(state.PendingLifeEvent);
+        Assert.Equal(IncidentType.FounderNaming, founderNaming.Type);
+        Assert.Equal(3, founderNaming.OptionLabels.Length);
+
+        Assert.True(engine.ResolveLifeEventOption(state, 1));
+        Assert.Equal(founderNaming.OptionLabels[1], state.StudioName);
+        Assert.False(string.IsNullOrWhiteSpace(state.StudioName));
+    }
+
+    [Fact]
+    public void CorporateBossCheckIn_CanRaiseStanding()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Corporate, realisticMode: false));
+        var state = engine.CreateNewRun();
+        var idealOption = state.BossDisposition switch
+        {
+            BossDisposition.Supportive => 1,
+            BossDisposition.Nice => 0,
+            BossDisposition.Mean => 0,
+            _ => 2,
+        };
+
+        engine.QueueIncidents(state, [new QueuedIncident("boss-1", IncidentType.BossCheckIn, "Boss wants a status check.")]);
+
+        Assert.True(engine.HasPendingLifeEvent(state));
+        Assert.True(engine.ResolveLifeEventOption(state, idealOption));
+        Assert.True(state.CorporateStanding > 0);
+    }
+
+    [Fact]
+    public void IndieFundingSwing_ChangesFunds()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false));
+        var state = engine.CreateNewRun();
+        var fundsBefore = state.Funds;
+
+        engine.QueueIncidents(state, [new QueuedIncident("indie-funding-1", IncidentType.IndieFundingSwing, "Funding shifts.")]);
+
+        Assert.NotEqual(fundsBefore, state.Funds);
     }
 
     [Fact]

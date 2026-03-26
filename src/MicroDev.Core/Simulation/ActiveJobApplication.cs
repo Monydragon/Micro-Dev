@@ -6,6 +6,10 @@ public sealed class ActiveJobApplication
 
     public string TechStack { get; set; } = string.Empty;
 
+    public string CompanyName { get; set; } = string.Empty;
+
+    public GameplayLoopMode OfferMode { get; set; } = GameplayLoopMode.Corporate;
+
     public string ChallengeTitle { get; set; } = string.Empty;
 
     public string ChallengeDescription { get; set; } = string.Empty;
@@ -48,6 +52,8 @@ public sealed class ActiveJobApplication
         {
             ListingTitle = ListingTitle,
             TechStack = TechStack,
+            CompanyName = CompanyName,
+            OfferMode = OfferMode,
             ChallengeTitle = ChallengeTitle,
             ChallengeDescription = ChallengeDescription,
             ResumeLinesSpent = ResumeLinesSpent,

@@ -587,12 +587,9 @@ public static class PortfolioWorkspace
 
     private static readonly IReadOnlyList<PortfolioProgramDefinition> CuratedProgramTemplates =
         StarterPrograms.Concat(BonusPrograms).ToArray();
-    private static readonly IReadOnlyList<PortfolioProgramDefinition> GeneratedProgramTemplates = BuildGeneratedPrograms();
-    private static readonly IReadOnlyList<PortfolioProgramDefinition> ProgramPool =
-        CuratedProgramTemplates.Concat(GeneratedProgramTemplates).ToArray();
-    private static readonly Dictionary<int, IReadOnlyList<PortfolioProgramDefinition>> ProgramPoolBySeed = [];
+    private static readonly Dictionary<string, IReadOnlyList<PortfolioProgramDefinition>> ProgramPoolBySignature = [];
 
-    public static int ProgramCount => ProgramPool.Count;
+    public static int ProgramCount => CuratedProgramTemplates.Count + (GeneratedThemes.Count * 10);
 
     public static int GetProgramCount(RunState state)
     {
@@ -629,6 +626,25 @@ public static class PortfolioWorkspace
     public static PortfolioProgramDefinition GetCurrentProgram(RunState state)
     {
         return GetProgramAt(state, state.CurrentProgramIndex);
+    }
+
+    public static IReadOnlyList<PortfolioProgramDefinition> GetProjectPreviewPrograms(RunState state, int count = 5)
+    {
+        if (count <= 0)
+        {
+            return Array.Empty<PortfolioProgramDefinition>();
+        }
+
+        var previewCount = HasFiniteProgramCount(state)
+            ? Math.Min(count, GetProgramCount(state))
+            : count;
+        var previewPrograms = new List<PortfolioProgramDefinition>(previewCount);
+        for (var index = 0; index < previewCount; index++)
+        {
+            previewPrograms.Add(GetProgramAt(state, index));
+        }
+
+        return previewPrograms;
     }
 
     public static int GetCompletedProgramCount(RunState state)
@@ -772,23 +788,29 @@ public static class PortfolioWorkspace
     private static IReadOnlyList<PortfolioProgramDefinition> GetRunProgramPool(RunState state)
     {
         var seed = state.RunSeed == 0 ? 17 : state.RunSeed;
-        if (ProgramPoolBySeed.TryGetValue(seed, out var programPool))
+        var blueprintSignature = state.CurrentProjectBlueprint?.Signature ?? "default";
+        var cacheKey = $"{seed}:{blueprintSignature}";
+        if (ProgramPoolBySignature.TryGetValue(cacheKey, out var programPool))
         {
             return programPool;
         }
 
-        var shuffled = ProgramPool.ToList();
+        var projectThemes = BuildProjectGeneratedThemes(state.CurrentProjectBlueprint);
+        var shuffled = CuratedProgramTemplates
+            .Take(4)
+            .Concat(BuildGeneratedPrograms(projectThemes))
+            .ToList();
         Shuffle(shuffled, seed);
         programPool = shuffled;
-        ProgramPoolBySeed[seed] = programPool;
+        ProgramPoolBySignature[cacheKey] = programPool;
         return programPool;
     }
 
-    private static IReadOnlyList<PortfolioProgramDefinition> BuildGeneratedPrograms()
+    private static IReadOnlyList<PortfolioProgramDefinition> BuildGeneratedPrograms(IReadOnlyList<GeneratedProgramTheme> themes)
     {
         var programs = new List<PortfolioProgramDefinition>();
 
-        foreach (var theme in GeneratedThemes)
+        foreach (var theme in themes)
         {
             programs.Add(CreateRegistryProgram(theme));
             programs.Add(CreatePlannerProgram(theme));
@@ -803,6 +825,57 @@ public static class PortfolioWorkspace
         }
 
         return programs;
+    }
+
+    private static IReadOnlyList<GeneratedProgramTheme> BuildProjectGeneratedThemes(ProjectBlueprint? blueprint)
+    {
+        if (blueprint is null || string.IsNullOrWhiteSpace(blueprint.Theme))
+        {
+            return GeneratedThemes;
+        }
+
+        var themeRoot = GetBlueprintLabel(blueprint.Theme, "Project");
+        var toneRoot = GetBlueprintLabel(blueprint.Tone, "Tone");
+        var platformRoot = GetBlueprintLabel(blueprint.Platform, "Platform");
+        var businessRoot = GetBlueprintLabel(blueprint.BusinessModel, "Business");
+        var productRoot = blueprint.ProductType == ProjectProductType.Game ? "Game" : "App";
+        var featureRoot = $"{themeRoot}{productRoot}";
+
+        return
+        [
+            new(featureRoot, featureRoot, $"{blueprint.Theme.ToLowerInvariant()} {productRoot.ToLowerInvariant()} state", blueprint.ProductType),
+            new($"{toneRoot}{featureRoot}", $"{toneRoot}{featureRoot}", $"{blueprint.Tone.ToLowerInvariant()} presentation flow for {blueprint.Theme.ToLowerInvariant()} work", blueprint.ProductType),
+            new($"{platformRoot}{featureRoot}", $"{platformRoot}{featureRoot}", $"{blueprint.Platform.ToLowerInvariant()} hooks and release data", blueprint.ProductType),
+            new($"{businessRoot}{featureRoot}", $"{businessRoot}{featureRoot}", $"{blueprint.BusinessModel.ToLowerInvariant()} payout and progression data", blueprint.ProductType),
+            new($"{featureRoot}Loop", $"{featureRoot}Loop", $"{blueprint.Theme.ToLowerInvariant()} loop pacing and timing state", blueprint.ProductType),
+            new($"{featureRoot}Content", $"{featureRoot}Content", $"{blueprint.Theme.ToLowerInvariant()} content routing and authored data", blueprint.ProductType),
+        ];
+    }
+
+    private static string GetBlueprintLabel(string value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        var parts = value
+            .Split([' ', '-', '+', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static part =>
+            {
+                if (part.Length == 0)
+                {
+                    return string.Empty;
+                }
+
+                return part.Length == 1
+                    ? part.ToUpperInvariant()
+                    : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant();
+            })
+            .Where(static part => part.Length > 0);
+
+        var joined = string.Concat(parts);
+        return string.IsNullOrWhiteSpace(joined) ? fallback : joined;
     }
 
     private static PortfolioProgramDefinition CreateRegistryProgram(GeneratedProgramTheme theme)
@@ -906,11 +979,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateTimelineProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}Timeline";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "SceneTimeline" : "WorkflowTimeline";
+        var title = theme.ProductType == ProjectProductType.Game ? "Scene Timeline" : "Workflow Timeline";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Timeline",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Tracks temporary {theme.DomainDescription} over time and removes entries that have already expired.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Tracks temporary {theme.DomainDescription} over time so scene beats and runtime effects expire cleanly."
+                : $"Tracks temporary {theme.DomainDescription} over time and removes workflow entries that have already expired.",
             [
                 "using System;",
                 "using System.Collections.Generic;",
@@ -947,11 +1024,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateSelectorProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}Selector";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "SpawnSelector" : "PanelSelector";
+        var title = theme.ProductType == ProjectProductType.Game ? "Spawn Selector" : "Panel Selector";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Selector",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Cycles through candidate {theme.DomainDescription} while keeping the next pick stable and easy to reason about.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Cycles through candidate {theme.DomainDescription} while keeping the next encounter or spawn choice stable."
+                : $"Cycles through candidate {theme.DomainDescription} while keeping the next panel or route stable and easy to reason about.",
             [
                 "using System.Collections.Generic;",
                 "",
@@ -978,11 +1059,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateBufferProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}Buffer";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "EventBuffer" : "SyncBuffer";
+        var title = theme.ProductType == ProjectProductType.Game ? "Event Buffer" : "Sync Buffer";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Buffer",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Keeps the most recent {theme.DomainDescription} events under a fixed cap so the newest information stays hot.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Keeps the most recent {theme.DomainDescription} events under a fixed cap so the latest gameplay burst stays hot."
+                : $"Keeps the most recent {theme.DomainDescription} events under a fixed cap so the newest sync information stays hot.",
             [
                 "using System.Collections.Generic;",
                 "",
@@ -1011,11 +1096,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateLayoutProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}LayoutStrip";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "HudLayoutStrip" : "DashboardLayoutStrip";
+        var title = theme.ProductType == ProjectProductType.Game ? "HUD Layout Strip" : "Dashboard Layout Strip";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Layout Strip",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Spaces small panels for {theme.DomainDescription} across a row without scattering the layout math everywhere.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Spaces small HUD panels for {theme.DomainDescription} across a row without scattering the layout math everywhere."
+                : $"Spaces dashboard panels for {theme.DomainDescription} across a row without scattering the layout math everywhere.",
             [
                 "using Microsoft.Xna.Framework;",
                 "",
@@ -1042,11 +1131,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateStatsProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}StatsLedger";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "TelemetryLedger" : "MetricsLedger";
+        var title = theme.ProductType == ProjectProductType.Game ? "Telemetry Ledger" : "Metrics Ledger";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Stats Ledger",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Accumulates counters for {theme.DomainDescription} and exposes a simple read-only total by key.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Accumulates counters for {theme.DomainDescription} and exposes a simple read-only telemetry total by key."
+                : $"Accumulates counters for {theme.DomainDescription} and exposes a simple read-only metric total by key.",
             [
                 "using System.Collections.Generic;",
                 "",
@@ -1071,11 +1164,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateIndexProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}RecentIndex";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "CheckpointIndex" : "RecentIndex";
+        var title = theme.ProductType == ProjectProductType.Game ? "Checkpoint Index" : "Recent Index";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Recent Index",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Tracks the most recent timestamp written for {theme.DomainDescription} so the latest entry stays easy to query.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Tracks the most recent timestamp written for {theme.DomainDescription} so the latest checkpoint stays easy to query."
+                : $"Tracks the most recent timestamp written for {theme.DomainDescription} so the latest entry stays easy to query.",
             [
                 "using System;",
                 "using System.Collections.Generic;",
@@ -1101,11 +1198,15 @@ public static class PortfolioWorkspace
 
     private static PortfolioProgramDefinition CreateRouterProgram(GeneratedProgramTheme theme)
     {
-        var className = $"{theme.Name}ActionRouter";
+        var suffix = theme.ProductType == ProjectProductType.Game ? "InputActionRouter" : "CommandRouter";
+        var title = theme.ProductType == ProjectProductType.Game ? "Input Action Router" : "Command Router";
+        var className = $"{theme.Name}{suffix}";
         return new PortfolioProgramDefinition(
-            $"{theme.Name} Action Router",
+            $"{theme.Name} {title}",
             $"{className}.cs",
-            $"Maps named actions for {theme.DomainDescription} so screen code can trigger behavior without hardcoded switch blocks everywhere.",
+            theme.ProductType == ProjectProductType.Game
+                ? $"Maps named actions for {theme.DomainDescription} so gameplay input can trigger behavior without hardcoded switch blocks."
+                : $"Maps named actions for {theme.DomainDescription} so screen code can trigger commands without hardcoded switch blocks everywhere.",
             [
                 "using System;",
                 "using System.Collections.Generic;",
@@ -1173,5 +1274,6 @@ public static class PortfolioWorkspace
     private sealed record GeneratedProgramTheme(
         string Name,
         string NamespaceSegment,
-        string DomainDescription);
+        string DomainDescription,
+        ProjectProductType ProductType = ProjectProductType.App);
 }
