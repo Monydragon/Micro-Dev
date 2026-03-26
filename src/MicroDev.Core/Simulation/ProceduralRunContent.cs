@@ -386,6 +386,78 @@ public static class ProceduralRunContent
         return 58 + (CreateSeed(runSeed, "relationship:compatibility") % 41);
     }
 
+    public static string GetSocialContactName(int runSeed, string key)
+    {
+        var firstName = Pick(runSeed, $"{key}:contact:first-name", CandidateFirstNames);
+        var lastName = Pick(runSeed, $"{key}:contact:last-name", CandidateLastNames);
+        return $"{firstName} {lastName}";
+    }
+
+    public static string GetCommunicationPrompt(int runSeed, string contactId, string name, SocialContactRole role, int bondProgress, bool isPartner)
+    {
+        string[] prompts = (role, isPartner, bondProgress) switch
+        {
+            (SocialContactRole.Date, true, >= 6) =>
+            [
+                $"{name} wants to hear something real about the day, not another edited status update.",
+                $"{name} asks if tonight can belong to both of you for at least a little while.",
+                $"{name} sends a warm check-in that makes the whole apartment-or-house dream feel less abstract.",
+                $"{name} is looking for something more grounded than another drive-by update between commits.",
+            ],
+            (SocialContactRole.Date, true, _) =>
+            [
+                $"{name} is part of the run now. A quick message keeps the line alive and a call makes it feel lived in.",
+                $"{name} reaches in from outside the backlog and reminds you there is more here than the next file.",
+                $"{name} is around, but the relationship still needs actual attention instead of momentum alone.",
+                $"{name} is not asking for perfection, just proof that the run still has room for an actual person inside it.",
+            ],
+            (SocialContactRole.Date, false, >= 3) =>
+            [
+                $"{name} is still leaning in. A thoughtful text keeps the thread warm and a call could turn it into a real plan.",
+                $"{name} answers fast enough that it feels like something could actually happen if you make room for it.",
+                $"{name} has become part of the week instead of just a distraction from it.",
+                $"{name} is right on the edge of feeling real. A call would push it further than another vague reply.",
+            ],
+            (SocialContactRole.Date, false, _) =>
+            [
+                $"{name} is still mostly possibility. A message keeps the conversation moving, while a call risks making it real.",
+                $"{name} is somewhere between a match and an actual person in your life, depending on what you do next.",
+                $"{name} keeps surfacing between tasks. It is early, but not imaginary anymore.",
+                $"{name} still lives in the maybe-space, which means a little attention goes a long way.",
+            ],
+            (SocialContactRole.Mentor, _, >= 4) =>
+            [
+                $"{name} has become a real mentor voice. A text gets a sharp note back, and a call can turn into an actual strategy reset.",
+                $"{name} already knows your weak spots. Reaching out now usually comes back as something useful instead of generic advice.",
+                $"{name} is the kind of contact who remembers what you are trying to become, not just what shipped today.",
+                $"{name} has enough context now that a short call can save you from a very expensive wrong turn.",
+            ],
+            (SocialContactRole.Mentor, _, _) =>
+            [
+                $"{name} is good for blunt advice and cleaner stories when the work starts blurring together.",
+                $"{name} usually answers with something annoyingly practical, which is exactly why they help.",
+                $"{name} is not a rescue button, but they can still sharpen the way you talk about the work.",
+                $"{name} is still a lighter-touch mentor contact, but even a small reply tends to clean up your thinking.",
+            ],
+            (_, _, >= 4) =>
+            [
+                $"{name} knows your rhythms well enough that a quick message actually lands as support instead of noise.",
+                $"{name} has become part of the week. A text steadies things and a call can buy back some of the day.",
+                $"{name} is the kind of friend who notices when the sprint is starting to eat you alive.",
+                $"{name} has seen enough of the pattern to tell when you are about to grind yourself into a wall again.",
+            ],
+            _ =>
+            [
+                $"{name} is around and reachable. A text keeps the connection moving; a call costs more, but feels more real.",
+                $"{name} is one of the few people outside the editor who still cuts through the static.",
+                $"{name} could turn into a real support line if you keep showing up consistently.",
+                $"{name} is not deep in the orbit yet, but this is exactly how the orbit gets built.",
+            ],
+        };
+
+        return Pick(runSeed, $"contact:{contactId}:{bondProgress}:{(isPartner ? 1 : 0)}", prompts);
+    }
+
     public static string GetBossName(int runSeed)
     {
         var firstName = Pick(runSeed, "boss:first-name", BossFirstNames);
@@ -398,9 +470,20 @@ public static class ProceduralRunContent
         return Pick(runSeed, "boss:title", BossTitles);
     }
 
-    public static BossDisposition GetBossDisposition(int runSeed)
+    public static BossDisposition GetBossDisposition(int runSeed, GameplayLoopMode gameplayMode = GameplayLoopMode.Interview)
     {
-        return (BossDisposition)(CreateSeed(runSeed, "boss:disposition") % 4);
+        var disposition = (BossDisposition)(CreateSeed(runSeed, "boss:disposition") % 4);
+        if (gameplayMode != GameplayLoopMode.Corporate)
+        {
+            return disposition;
+        }
+
+        return disposition switch
+        {
+            BossDisposition.Supportive => BossDisposition.Mean,
+            BossDisposition.Nice => BossDisposition.Micromanager,
+            _ => disposition,
+        };
     }
 
     public static string GetBossDispositionLabel(BossDisposition disposition)

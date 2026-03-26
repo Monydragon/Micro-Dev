@@ -322,7 +322,7 @@ public sealed class SimulationEngineTests
         var purchased = _engine.PurchaseUpgrade(state, EfficiencyUpgradeType.MechanicalKeyboard);
 
         Assert.True(purchased);
-        Assert.Contains(EfficiencyUpgradeType.MechanicalKeyboard, state.PurchasedUpgrades);
+        Assert.Equal(1, _engine.GetUpgradeTier(state, EfficiencyUpgradeType.MechanicalKeyboard));
         Assert.Equal(165, state.Funds, 3);
         Assert.Equal(2, _engine.GetCurrentWriteLinesPerClick(state));
     }
@@ -338,6 +338,22 @@ public sealed class SimulationEngineTests
 
         Assert.True(applied);
         Assert.Equal(2, state.LinesOfCode);
+    }
+
+    [Fact]
+    public void PurchaseUpgrade_CanStackToTierFive()
+    {
+        var state = _engine.CreateNewRun();
+        state.Funds = 2000;
+
+        for (var tier = 1; tier <= 5; tier++)
+        {
+            Assert.True(_engine.PurchaseUpgrade(state, EfficiencyUpgradeType.MechanicalKeyboard));
+            Assert.Equal(tier, _engine.GetUpgradeTier(state, EfficiencyUpgradeType.MechanicalKeyboard));
+        }
+
+        Assert.False(_engine.PurchaseUpgrade(state, EfficiencyUpgradeType.MechanicalKeyboard));
+        Assert.Equal(6, _engine.GetCurrentWriteLinesPerClick(state));
     }
 
     [Fact]
@@ -434,6 +450,19 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
+    public void QueueIncidents_ActivatesTechDebt_WithDebugSnippetMetadata()
+    {
+        var state = _engine.CreateNewRun(4242);
+
+        _engine.QueueIncidents(state, [new QueuedIncident("bug-1", IncidentType.TechDebtBug, "Bug!")]);
+
+        var bug = Assert.IsType<ActiveTechDebtBug>(state.ActiveTechDebtBug);
+        Assert.NotEmpty(bug.CompilerHint);
+        Assert.True(bug.CodeLines.Length >= 3);
+        Assert.NotEmpty(bug.HighlightToken);
+    }
+
+    [Fact]
     public void ApplyAction_SquashBug_ClearsTechDebtAndCostsFocus()
     {
         var state = _engine.CreateNewRun();
@@ -450,6 +479,47 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
+    public void SevereNeeds_CanSpawnNeedDrivenTechDebtBug()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Interview, realisticMode: false), () => 4242);
+        var state = engine.CreateNewRun();
+        var qualityBefore = state.CodeQuality;
+
+        state.MinutesSinceLastMeal = engine.Config.StarvingAfterMinutes;
+        state.MinutesSinceLastSleep = engine.Config.SevereSleepDeprivationAfterMinutes;
+        state.Sanity = 18;
+
+        engine.AdvanceTime(state, 60);
+
+        var bug = Assert.IsType<ActiveTechDebtBug>(state.ActiveTechDebtBug);
+        Assert.True(state.CodeQuality < qualityBefore);
+        Assert.True(bug.IsNeedDriven);
+        Assert.NotEmpty(bug.CompilerHint);
+    }
+
+    [Fact]
+    public void HardDifficulty_SpawnsNeedDrivenTechDebtSoonerThanEasy()
+    {
+        var easyEngine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Easy, GameplayLoopMode.Interview, realisticMode: false), () => 4242);
+        var hardEngine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Hard, GameplayLoopMode.Interview, realisticMode: false), () => 4242);
+        var easyState = easyEngine.CreateNewRun();
+        var hardState = hardEngine.CreateNewRun();
+
+        easyState.MinutesSinceLastMeal = easyEngine.Config.VeryHungryAfterMinutes;
+        hardState.MinutesSinceLastMeal = hardEngine.Config.VeryHungryAfterMinutes;
+        easyState.MinutesSinceLastSleep = easyEngine.Config.SleepDeprivationAfterMinutes;
+        hardState.MinutesSinceLastSleep = hardEngine.Config.SleepDeprivationAfterMinutes;
+        easyState.Sanity = 32;
+        hardState.Sanity = 32;
+
+        easyEngine.AdvanceTime(easyState, 90);
+        hardEngine.AdvanceTime(hardState, 90);
+
+        Assert.Null(easyState.ActiveTechDebtBug);
+        Assert.NotNull(hardState.ActiveTechDebtBug);
+    }
+
+    [Fact]
     public void ComputerFreeze_CanBeResolvedWithASelfRepairChoice()
     {
         var state = _engine.CreateNewRun();
@@ -463,6 +533,36 @@ public sealed class SimulationEngineTests
         Assert.Equal("09:15", state.ClockText);
         Assert.True(state.Sanity < 70);
         Assert.True(state.Focus < 70);
+    }
+
+    [Fact]
+    public void ComputerFreeze_RollsBackUncommittedProgressToLastCommit()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 200;
+        var safety = 0;
+        while (state.RecentCompletedFileName is null && safety < 120)
+        {
+            Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            safety++;
+        }
+
+        Assert.True(safety < 120);
+        var committedLines = state.CurrentPortfolioLinesOfCode;
+        Assert.True(_engine.CommitChanges(state));
+        Assert.Equal(committedLines, state.VersionControl.CommittedPortfolioLinesOfCode);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+        var linesBeforeFreeze = state.CurrentPortfolioLinesOfCode;
+        Assert.True(state.VersionControl.PendingChangeLines > 0);
+
+        _engine.QueueIncidents(state, [new QueuedIncident("freeze-rollback", IncidentType.ComputerFreeze, "Freeze!")]);
+
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.Equal(committedLines, state.CurrentPortfolioLinesOfCode);
+        Assert.True(linesBeforeFreeze > committedLines);
+        Assert.Equal(0, state.VersionControl.PendingChangeLines);
+        Assert.Equal(0, state.VersionControl.PendingCompletedFileCount);
     }
 
     [Fact]
@@ -509,22 +609,123 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
-    public void CatTimeout_DeletesLinesOfCodeWhenIgnored()
+    public void CreateNewRun_StartsWithNoCommunicationContacts()
+    {
+        var state = _engine.CreateNewRun();
+
+        Assert.Empty(state.KnownContacts);
+    }
+
+    [Fact]
+    public void WritingCode_UnlocksWorkContactsOverTime()
     {
         var state = _engine.CreateNewRun();
         state.Focus = 200;
-        while (state.LinesOfCode < 30)
+        var safety = 0;
+
+        while (safety < 120 && _engine.CanApplyAction(state, PlayerAction.WriteCode))
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            if (state.KnownContacts.Any(contact => contact.Role == SocialContactRole.Friend) &&
+                state.KnownContacts.Any(contact => contact.Role == SocialContactRole.Mentor))
+            {
+                break;
+            }
+
+            safety++;
         }
 
+        Assert.Contains(state.KnownContacts, contact => contact.Role == SocialContactRole.Friend);
+        Assert.Contains(state.KnownContacts, contact => contact.Role == SocialContactRole.Mentor);
+    }
+
+    [Fact]
+    public void OnlineMatch_DiscoversADateContact()
+    {
+        var state = _engine.CreateNewRun();
+
+        _engine.QueueIncidents(state, [new QueuedIncident("match-1", IncidentType.OnlineMatch, "Match!")]);
+
+        Assert.Contains(state.KnownContacts, contact => contact.Role == SocialContactRole.Date);
+    }
+
+    [Fact]
+    public void CallingAMentor_BuildsBondAndAwardsInterviewPrep()
+    {
+        var state = _engine.CreateNewRun();
+        var mentor = new SocialContact
+        {
+            Id = "mentor-test",
+            Name = "Parker Lane",
+            Role = SocialContactRole.Mentor,
+        };
+        state.KnownContacts.Add(mentor);
+        state.ActiveJobApplication = new ActiveJobApplication
+        {
+            ListingTitle = "Gameplay Programmer",
+            ResumeTrack = ResumeTrack.Gameplay,
+        };
+        state.Focus = 80;
+        state.Sanity = 40;
+
+        Assert.True(_engine.CallContact(state, mentor.Id));
+
+        Assert.True(mentor.BondProgress > 0);
+        Assert.True(state.ActiveJobApplication.PrepPoints > 0);
+        Assert.True(state.Sanity > 40);
+        Assert.True(state.Focus < 80);
+    }
+
+    [Fact]
+    public void LongFormModes_AddAmbientSanityPressure_ThatScalesWithDifficulty()
+    {
+        var easyEngine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Easy, GameplayLoopMode.Indie, realisticMode: false));
+        var hardEngine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Hard, GameplayLoopMode.Indie, realisticMode: false));
+        var easyState = easyEngine.CreateNewRun();
+        var hardState = hardEngine.CreateNewRun();
+
+        easyState.HasFirstCoin = false;
+        hardState.HasFirstCoin = false;
+        easyState.Sanity = 80;
+        hardState.Sanity = 80;
+        easyState.MinutesSinceLastMeal = 0;
+        hardState.MinutesSinceLastMeal = 0;
+        easyState.MinutesSinceLastSleep = 0;
+        hardState.MinutesSinceLastSleep = 0;
+
+        easyEngine.AdvanceTime(easyState, 180);
+        hardEngine.AdvanceTime(hardState, 180);
+
+        Assert.True(easyState.Sanity < 80);
+        Assert.True(hardState.Sanity < easyState.Sanity);
+    }
+
+    [Fact]
+    public void CatTimeout_RollsBackOnlyUncommittedProgressWhenIgnored()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 200;
+        var safety = 0;
+        while (state.RecentCompletedFileName is null && safety < 120)
+        {
+            Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            safety++;
+        }
+
+        Assert.True(safety < 120);
+        var committedLines = state.CurrentPortfolioLinesOfCode;
+        Assert.True(_engine.CommitChanges(state));
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+        var linesBeforeTimeout = state.CurrentPortfolioLinesOfCode;
         _engine.QueueIncidents(state, [new QueuedIncident("cat-1", IncidentType.CatInterruption, "Cat!")]);
 
         _engine.AdvanceTime(state, _engine.Config.CatStayDurationMinutes);
 
         Assert.Null(state.ActiveCatInterruption);
-        Assert.Equal(0, state.CurrentProgramIndex);
-        Assert.True(state.LinesOfCode < 30);
+        Assert.Equal(committedLines, state.CurrentPortfolioLinesOfCode);
+        Assert.True(linesBeforeTimeout > committedLines);
+        Assert.Equal(0, state.VersionControl.PendingChangeLines);
         Assert.Equal(state.CurrentPortfolioLinesOfCode, state.LinesOfCode);
     }
 
@@ -1032,48 +1233,25 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
-    public void ToggleFeatureBranch_AllowsReturningToMain_WhenReleaseIsBlockedOnAnEmptyBranch()
+    public void CommitingChanges_ClearsTrackedCompletedFilesAndIncrementsCommitCount()
     {
         var state = _engine.CreateNewRun();
-        state.Focus = 2000;
-        CompleteCurrentPortfolioBatch(_engine, state);
-
-        Assert.True(_engine.IsPortfolioPublishReady(state));
-        Assert.True(_engine.ToggleFeatureBranch(state));
-        Assert.False(_engine.IsPortfolioPublishReady(state));
-
-        Assert.True(_engine.ToggleFeatureBranch(state));
-        Assert.False(state.VersionControl.HasFeatureBranch);
-        Assert.Equal("main", state.VersionControl.CurrentBranchName);
-        Assert.True(_engine.IsPortfolioPublishReady(state));
-    }
-
-    [Fact]
-    public void MergeBranch_CanGenerateAConflict_AndResolveCleanly()
-    {
-        for (var seed = 1; seed <= 250; seed++)
+        state.Focus = 200;
+        var safety = 0;
+        while (state.RecentCompletedFileName is null && safety < 120)
         {
-            var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false), () => seed);
-            var state = engine.CreateNewRun();
-
-            Assert.True(engine.CreateFeatureBranch(state));
-            state.VersionControl.PendingChangeLines = 18;
-            Assert.True(engine.CommitChanges(state));
-            Assert.True(engine.MergeFeatureBranch(state));
-
-            if (state.VersionControl.ActiveMergeConflict is null)
-            {
-                continue;
-            }
-
-            var bestOption = state.VersionControl.ActiveMergeConflict.OptimalResolutionOptionIndex;
-            Assert.True(engine.ResolveMergeConflictOption(state, bestOption));
-            Assert.Null(state.VersionControl.ActiveMergeConflict);
-            Assert.Equal("main", state.VersionControl.CurrentBranchName);
-            return;
+            Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            safety++;
         }
 
-        Assert.Fail("Expected at least one deterministic seed to trigger a merge conflict.");
+        Assert.True(safety < 120);
+        Assert.True(state.VersionControl.PendingChangeLines > 0);
+        Assert.Equal(1, state.VersionControl.PendingCompletedFileCount);
+
+        Assert.True(_engine.CommitChanges(state));
+        Assert.Equal(0, state.VersionControl.PendingChangeLines);
+        Assert.Equal(0, state.VersionControl.PendingCompletedFileCount);
+        Assert.Equal(1, state.VersionControl.CommitCount);
     }
 
     [Fact]
@@ -1099,21 +1277,31 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
-    public void BankingGoals_CanEndTheRunWithHouseAndFamilyVictory()
+    public void BankingGoals_CanEndTheRunWithHouseAndRetirementVictory()
     {
         var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Corporate, realisticMode: false));
         var state = engine.CreateNewRun();
         state.Funds = 1000;
-        state.HasFoundLove = true;
-        state.PartnerName = "Jordan";
 
         Assert.True(engine.MoveToApartment(state));
         Assert.True(state.HasApartment);
         Assert.True(engine.BuyHouse(state));
         Assert.True(state.HasHouse);
-        Assert.True(engine.StartFamily(state));
-        Assert.True(state.HasStartedFamily);
+        Assert.True(engine.Retire(state));
+        Assert.True(state.HasRetired);
         Assert.Equal(RunStatus.Won, state.Status);
+    }
+
+    [Fact]
+    public void CorporateMode_StartsWithStricterBossAndHigherBasePay()
+    {
+        var corporateConfig = SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Corporate, realisticMode: false);
+        var indieConfig = SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false);
+        var engine = new SimulationEngine(corporateConfig, () => 4444);
+        var state = engine.CreateNewRun();
+
+        Assert.True(state.BossDisposition is BossDisposition.Mean or BossDisposition.Micromanager);
+        Assert.True(corporateConfig.CorporateDailySalaryBase > indieConfig.IndieDailyIncomeBase);
     }
 
     [Fact]

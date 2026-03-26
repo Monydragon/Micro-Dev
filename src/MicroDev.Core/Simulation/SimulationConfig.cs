@@ -244,6 +244,8 @@ public sealed record class SimulationConfig
 
     public double FoundLovePassiveSanityRegenPerInGameMinute { get; init; } = 0.004;
 
+    public double LongFormAmbientSanityLossPerInGameMinute { get; init; }
+
     public double PartnerCheckInReplyDurationMinutes { get; init; } = 15;
 
     public double PartnerCheckInReplySanityGain { get; init; } = 2;
@@ -376,6 +378,14 @@ public sealed record class SimulationConfig
 
     public int CatGibberishLinesPerBurst { get; init; } = 2;
 
+    public double DebuggingPressureThreshold { get; init; } = 200;
+
+    public double NeedDrivenBugCooldownMinutes { get; init; } = 135;
+
+    public double NeedDrivenBugInitialQualityLoss { get; init; } = 6;
+
+    public double NeedDrivenBugDrainMultiplier { get; init; } = 1.3;
+
     public double TechDebtDurationMinutes { get; init; } = 180;
 
     public double TechDebtQualityDrainPerMinute { get; init; } = 0.08;
@@ -442,6 +452,7 @@ public sealed record class SimulationConfig
         {
             GameplayMode = gameplayMode,
             RealisticMode = realisticMode,
+            LongFormAmbientSanityLossPerInGameMinute = GetLongFormAmbientSanityLoss(difficulty, gameplayMode, realisticMode: false),
         };
 
         config = gameplayMode switch
@@ -451,6 +462,9 @@ public sealed record class SimulationConfig
                 ContinueAfterSuccessfulApplication = true,
                 SuccessfulApplicationFundsReward = Math.Max(config.SuccessfulApplicationFundsReward, 72),
                 SuccessfulApplicationSanityReward = Math.Max(config.SuccessfulApplicationSanityReward, 4),
+                CorporateDailySalaryBase = Math.Max(config.CorporateDailySalaryBase, 78),
+                CorporateOfficeSanityLossPerInGameMinute = config.CorporateOfficeSanityLossPerInGameMinute + 0.003,
+                CorporateOfficeFocusLossPerInGameMinute = config.CorporateOfficeFocusLossPerInGameMinute + 0.0015,
                 FirstGuaranteedJobDelayMinutes = Math.Max(150, config.FirstGuaranteedJobDelayMinutes - 120),
                 GuaranteedJobListingIntervalMinutes = Math.Max(210, config.GuaranteedJobListingIntervalMinutes - 75),
                 PublishAppFundsMin = Math.Max(24, config.PublishAppFundsMin - 6),
@@ -518,7 +532,40 @@ public sealed record class SimulationConfig
             StreamingBingeSanityGain = Math.Max(4, config.StreamingBingeSanityGain - 2),
             FoundLovePassiveSanityRegenPerInGameMinute = config.FoundLovePassiveSanityRegenPerInGameMinute + 0.001,
             ApartmentMoveCost = config.ApartmentMoveCost + 12,
+            DebuggingPressureThreshold = Math.Max(90, config.DebuggingPressureThreshold - 25),
+            NeedDrivenBugCooldownMinutes = Math.Max(70, config.NeedDrivenBugCooldownMinutes - 20),
+            NeedDrivenBugInitialQualityLoss = config.NeedDrivenBugInitialQualityLoss + 2,
+            NeedDrivenBugDrainMultiplier = config.NeedDrivenBugDrainMultiplier + 0.12,
+            TechDebtDurationMinutes = config.TechDebtDurationMinutes + 20,
+            TechDebtQualityDrainPerMinute = config.TechDebtQualityDrainPerMinute + 0.015,
+            LongFormAmbientSanityLossPerInGameMinute = GetLongFormAmbientSanityLoss(difficulty, gameplayMode, realisticMode: true),
         };
+    }
+
+    private static double GetLongFormAmbientSanityLoss(GameDifficulty difficulty, GameplayLoopMode gameplayMode, bool realisticMode)
+    {
+        if (gameplayMode == GameplayLoopMode.Interview)
+        {
+            return 0;
+        }
+
+        var difficultyBase = difficulty switch
+        {
+            GameDifficulty.Easy => 0.0035,
+            GameDifficulty.Hard => 0.0105,
+            GameDifficulty.Endless => 0.008,
+            GameDifficulty.ContinualUpgradeLoop => 0.0085,
+            _ => 0.0065,
+        };
+        var modeBonus = gameplayMode switch
+        {
+            GameplayLoopMode.Corporate => 0.001,
+            GameplayLoopMode.Indie => 0.002,
+            GameplayLoopMode.Founder => 0.0035,
+            _ => 0,
+        };
+
+        return difficultyBase + modeBonus + (realisticMode ? 0.0015 : 0);
     }
 
     public static SimulationConfig ForDifficulty(GameDifficulty difficulty)
@@ -548,6 +595,12 @@ public sealed record class SimulationConfig
                 PublishedAppSaleFundsMax = 24,
                 PublishedAppSaleIntervalMinMinutes = 150,
                 PublishedAppSaleIntervalMaxMinutes = 300,
+                DebuggingPressureThreshold = 260,
+                NeedDrivenBugCooldownMinutes = 180,
+                NeedDrivenBugInitialQualityLoss = 4,
+                NeedDrivenBugDrainMultiplier = 1.05,
+                TechDebtDurationMinutes = 165,
+                TechDebtQualityDrainPerMinute = 0.07,
             },
             GameDifficulty.Hard => new SimulationConfig
             {
@@ -574,6 +627,12 @@ public sealed record class SimulationConfig
                 PublishedAppSaleFundsMax = 18,
                 PublishedAppSaleIntervalMinMinutes = 210,
                 PublishedAppSaleIntervalMaxMinutes = 420,
+                DebuggingPressureThreshold = 135,
+                NeedDrivenBugCooldownMinutes = 90,
+                NeedDrivenBugInitialQualityLoss = 9,
+                NeedDrivenBugDrainMultiplier = 1.6,
+                TechDebtDurationMinutes = 210,
+                TechDebtQualityDrainPerMinute = 0.11,
             },
             GameDifficulty.Endless => new SimulationConfig
             {
@@ -595,6 +654,10 @@ public sealed record class SimulationConfig
                 PublishedAppSaleFundsMax = 24,
                 PublishedAppSaleIntervalMinMinutes = 165,
                 PublishedAppSaleIntervalMaxMinutes = 315,
+                DebuggingPressureThreshold = 180,
+                NeedDrivenBugCooldownMinutes = 120,
+                NeedDrivenBugInitialQualityLoss = 7,
+                NeedDrivenBugDrainMultiplier = 1.4,
             },
             GameDifficulty.ContinualUpgradeLoop => new SimulationConfig
             {
@@ -613,6 +676,10 @@ public sealed record class SimulationConfig
                 PublishedAppSaleFundsMax = 24,
                 PublishedAppSaleIntervalMinMinutes = 150,
                 PublishedAppSaleIntervalMaxMinutes = 300,
+                DebuggingPressureThreshold = 175,
+                NeedDrivenBugCooldownMinutes = 115,
+                NeedDrivenBugInitialQualityLoss = 7,
+                NeedDrivenBugDrainMultiplier = 1.4,
             },
             _ => new SimulationConfig
             {
@@ -628,6 +695,10 @@ public sealed record class SimulationConfig
                 PublishedAppSaleFundsMax = 22,
                 PublishedAppSaleIntervalMinMinutes = 180,
                 PublishedAppSaleIntervalMaxMinutes = 360,
+                DebuggingPressureThreshold = 200,
+                NeedDrivenBugCooldownMinutes = 135,
+                NeedDrivenBugInitialQualityLoss = 6,
+                NeedDrivenBugDrainMultiplier = 1.3,
             },
         };
     }

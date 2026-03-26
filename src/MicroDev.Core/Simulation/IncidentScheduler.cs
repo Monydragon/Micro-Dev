@@ -147,17 +147,11 @@ public sealed class IncidentScheduler
             IncidentCategory.Disruption => PickFrom(
                 state.RunSeed,
                 $"{incident.Id}:type",
-                state.GameplayMode == GameplayLoopMode.Corporate
-                    ? [IncidentType.ContextSwitch, IncidentType.TechDebtBug, IncidentType.CoworkerInterruption, IncidentType.DoomscrollSpiral]
-                    : state.GameplayMode == GameplayLoopMode.Founder
-                        ? [IncidentType.TechDebtBug, IncidentType.ExpenseSpike, IncidentType.CatInterruption, IncidentType.ContextSwitch]
-                    : [IncidentType.CatInterruption, IncidentType.TechDebtBug, IncidentType.ContextSwitch, IncidentType.DoomscrollSpiral]),
+                GetDisruptionChoices(state)),
             IncidentCategory.Crisis => PickFrom(
                 state.RunSeed,
                 $"{incident.Id}:type",
-                state.IsRealisticMode
-                    ? [IncidentType.ComputerFreeze, IncidentType.ExpenseSpike, IncidentType.TechDebtBug, IncidentType.CatInterruption]
-                    : [IncidentType.ComputerFreeze, IncidentType.TechDebtBug, IncidentType.ExpenseSpike, IncidentType.CatInterruption]),
+                GetCrisisChoices(state)),
             IncidentCategory.JobOpportunity => state.GameplayMode switch
             {
                 GameplayLoopMode.Interview => IncidentType.JobListing,
@@ -263,7 +257,74 @@ public sealed class IncidentScheduler
             ];
         }
 
+        choices = WeightTechDebtChoices(state, choices);
         return PickFrom(state.RunSeed, $"modifier:{state.GeneratedModifierIncidentCount}", choices);
+    }
+
+    private static IncidentType[] GetDisruptionChoices(RunState state)
+    {
+        var choices = state.GameplayMode == GameplayLoopMode.Corporate
+            ? new[]
+            {
+                IncidentType.ContextSwitch,
+                IncidentType.TechDebtBug,
+                IncidentType.CoworkerInterruption,
+                IncidentType.DoomscrollSpiral,
+            }
+            : state.GameplayMode == GameplayLoopMode.Founder
+                ? new[]
+                {
+                    IncidentType.TechDebtBug,
+                    IncidentType.ExpenseSpike,
+                    IncidentType.CatInterruption,
+                    IncidentType.ContextSwitch,
+                }
+                : new[]
+                {
+                    IncidentType.CatInterruption,
+                    IncidentType.TechDebtBug,
+                    IncidentType.ContextSwitch,
+                    IncidentType.DoomscrollSpiral,
+                };
+
+        return WeightTechDebtChoices(state, choices);
+    }
+
+    private static IncidentType[] GetCrisisChoices(RunState state)
+    {
+        var choices = state.IsRealisticMode
+            ? new[]
+            {
+                IncidentType.ComputerFreeze,
+                IncidentType.ExpenseSpike,
+                IncidentType.TechDebtBug,
+                IncidentType.CatInterruption,
+            }
+            : new[]
+            {
+                IncidentType.ComputerFreeze,
+                IncidentType.TechDebtBug,
+                IncidentType.ExpenseSpike,
+                IncidentType.CatInterruption,
+            };
+
+        return WeightTechDebtChoices(state, choices);
+    }
+
+    private static IncidentType[] WeightTechDebtChoices(RunState state, IncidentType[] choices)
+    {
+        var weightedChoices = choices.ToList();
+        if (state.Difficulty == GameDifficulty.Hard)
+        {
+            weightedChoices.Add(IncidentType.TechDebtBug);
+            weightedChoices.Add(IncidentType.TechDebtBug);
+        }
+        else if (state.IsRealisticMode)
+        {
+            weightedChoices.Add(IncidentType.TechDebtBug);
+        }
+
+        return weightedChoices.ToArray();
     }
 
     private static double GetGuaranteedJobInterval(RunState state, SimulationConfig config)

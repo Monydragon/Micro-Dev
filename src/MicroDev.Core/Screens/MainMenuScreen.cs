@@ -9,7 +9,7 @@ namespace MicroDev.Core.Screens;
 
 public sealed class MainMenuScreen : IScreen, IUiFontAware
 {
-    private const string GameplayLoopIntroText = "Interview is the seven-day job-hunt opener. Corporate, Indie, and Founder are the long-form routes that keep pushing from basement survival toward apartment, house, and family goals.";
+    private const string GameplayLoopIntroText = "Interview is the seven-day job-hunt opener. Corporate, Indie, and Founder are the long-form routes that keep pushing from basement survival toward a house-and-retirement finish line.";
     private const string DifficultyIntroText = "Pick how hard the run pushes back.";
 
     private readonly Texture2D _pixel;
@@ -216,13 +216,19 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         var left = _heroBounds.X + 28;
         var top = _heroBounds.Y + 28;
         var bodyWidth = _heroBounds.Width - 56;
+        var featureLines = new (string Number, string Heading, string Body)[]
+        {
+            ("01", "Unified theme mode", "Dark and light palettes now drive the entire shell."),
+            ("02", "Global font family", $"Current font: {UiFontCatalog.GetDisplayName(_settings.UiFont)}"),
+            ("03", "Digital transitions", "Buttons pulse with scanlines and screens fade between states."),
+        };
 
         UiLabel.Draw(spriteBatch, _font, "Micro Dev", new Vector2(left, top), UiTheme.TextPrimary, UiTypography.Hero);
         UiLabel.Draw(spriteBatch, _font, "Survive the sprint. Then decide what kind of dev life you are building.", new Vector2(left, top + 54), UiTheme.Accent, UiTypography.Section);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Interview is the seven-day opening sprint. Corporate, Indie, and Founder all keep running after that, stretching the game into housing, relationship, and long-term studio goals instead of a single one-week finish line.",
+            "Interview is the seven-day opening sprint. Corporate, Indie, and Founder all keep running after that, stretching the game into housing, retirement, and long-term studio goals instead of a single one-week finish line.",
             new Vector2(left, top + 102),
             bodyWidth - 52,
             UiTheme.TextMuted,
@@ -232,19 +238,46 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
 
         var stripY = _heroBounds.Y + 218;
         var stripWidth = bodyWidth - 56;
-        UiPanel.Draw(spriteBatch, _pixel, new Rectangle(left, stripY, stripWidth, 128), UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+        var featureRowWidth = stripWidth - 36;
+        var featureRowsHeight = 0f;
+        foreach (var featureLine in featureLines)
+        {
+            featureRowsHeight += MeasureFeatureLineHeight(featureLine.Body, featureRowWidth);
+        }
+
+        var stripHeight = (int)MathF.Ceiling(16f + featureRowsHeight + ((featureLines.Length - 1) * 10f) + 14f);
+        UiPanel.Draw(spriteBatch, _pixel, new Rectangle(left, stripY, stripWidth, stripHeight), UiTheme.PanelFill, UiTheme.PanelBorder, 2);
         spriteBatch.Draw(_pixel, new Rectangle(left + 1, stripY + 1, stripWidth - 2, 3), UiTheme.Success);
 
-        DrawFeatureLine(spriteBatch, "01", "Unified theme mode", "Dark and light palettes now drive the entire shell.", left + 18, stripY + 16, stripWidth - 36);
-        DrawFeatureLine(spriteBatch, "02", "Global font family", $"Current font: {UiFontCatalog.GetDisplayName(_settings.UiFont)}", left + 18, stripY + 54, stripWidth - 36);
-        DrawFeatureLine(spriteBatch, "03", "Digital transitions", "Buttons pulse with scanlines and screens fade between states.", left + 18, stripY + 92, stripWidth - 36);
+        var featureY = stripY + 16f;
+        foreach (var featureLine in featureLines)
+        {
+            DrawFeatureLine(spriteBatch, featureLine.Number, featureLine.Heading, featureLine.Body, left + 18, featureY, featureRowWidth);
+            featureY += MeasureFeatureLineHeight(featureLine.Body, featureRowWidth) + 10f;
+        }
 
-        UiLabel.Draw(spriteBatch, _font, "Run Snapshot", new Vector2(left, _heroBounds.Bottom - 126), UiTheme.TextPrimary, UiTypography.Section);
+        var snapshotTitleY = stripY + stripHeight + 14f;
+        var snapshotBodyY = snapshotTitleY + GetLineHeight(UiTypography.Section) + 6f;
+        var snapshotHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            $"Mode: {GetGameplayLabel(_settings.SelectedGameplayMode)}. {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}. Pressure: {GetDifficultyLabel(_settings.SelectedDifficulty)}. Realistic+: {(_settings.RealisticSubModeEnabled ? "On" : "Off")}.",
+            bodyWidth - 18,
+            UiTypography.Body,
+            3f,
+            3);
+        var snapshotOverflow = (snapshotBodyY + snapshotHeight) - (_heroBounds.Bottom - 20f);
+        if (snapshotOverflow > 0f)
+        {
+            snapshotTitleY -= snapshotOverflow;
+            snapshotBodyY -= snapshotOverflow;
+        }
+
+        UiLabel.Draw(spriteBatch, _font, "Run Snapshot", new Vector2(left, snapshotTitleY), UiTheme.TextPrimary, UiTypography.Section);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
             $"Mode: {GetGameplayLabel(_settings.SelectedGameplayMode)}. {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}. Pressure: {GetDifficultyLabel(_settings.SelectedDifficulty)}. Realistic+: {(_settings.RealisticSubModeEnabled ? "On" : "Off")}.",
-            new Vector2(left, _heroBounds.Bottom - 94),
+            new Vector2(left, snapshotBodyY),
             bodyWidth - 18,
             UiTheme.TextMuted,
             UiTypography.Body,
@@ -252,7 +285,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
             3);
     }
 
-    private void DrawFeatureLine(SpriteBatch spriteBatch, string number, string heading, string body, int x, int y, int width)
+    private void DrawFeatureLine(SpriteBatch spriteBatch, string number, string heading, string body, int x, float y, int width)
     {
         UiLabel.Draw(spriteBatch, _font, number, new Vector2(x, y), UiTheme.Accent, UiTypography.Caption);
         UiLabel.Draw(spriteBatch, _font, heading, new Vector2(x + 34, y), UiTheme.TextPrimary, UiTypography.Body);
@@ -429,6 +462,18 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
             UiTypography.Caption,
             2f,
             2);
+    }
+
+    private float MeasureFeatureLineHeight(string body, int width)
+    {
+        var bodyHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            body,
+            Math.Max(80, width - 34),
+            UiTypography.Small,
+            2f,
+            2);
+        return Math.Max(GetLineHeight(UiTypography.Body), 18f + bodyHeight);
     }
 
     private void UpdateLayout()
@@ -680,9 +725,9 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         var baseSummary = gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "An indefinite work-life climb built around office hours, bosses, coworkers, salary, and surviving the company long enough to build a life outside it.",
-            GameplayLoopMode.Indie => "An indefinite studio route built around shipping, thinner income, lighter sanity drain, and rougher focus recovery.",
-            GameplayLoopMode.Founder => "Start your own studio from the basement, freelance for rent, and grow the company into apartment, house, and family stability.",
+            GameplayLoopMode.Corporate => "An indefinite work-life climb built around office hours, stricter bosses, micromanagement, and a reliable salary that pays more if you survive it.",
+            GameplayLoopMode.Indie => "An indefinite self-directed route built around shipping, goal-setting, lighter sanity drain, and leaner income that still demands discipline.",
+            GameplayLoopMode.Founder => "Start your own studio from the basement, freelance for rent, and grow a grassroots company into a house-and-retirement win.",
             _ => "A seven-day interview sprint. Build proof, survive the week, land an offer, and branch into Corporate, Indie, or Founder after the win.",
         };
 
@@ -695,9 +740,9 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "Workday -> Code -> Meetings\nSalary -> Move Up",
-            GameplayLoopMode.Indie => "Ship -> Recover Focus -> Freelance\nPublish -> Grow",
-            GameplayLoopMode.Founder => "Name Studio -> Freelance -> Build\nShip -> Stabilize",
+            GameplayLoopMode.Corporate => "Office -> Check-Ins -> Code\nSalary -> Retire",
+            GameplayLoopMode.Indie => "Set Goals -> Ship -> Recover\nPublish -> Retire",
+            GameplayLoopMode.Founder => "Name Studio -> Freelance -> Build\nSell -> Scale",
             _ => "Build Proof -> Apply -> Interview\nBranch -> Survive",
         };
     }
@@ -706,9 +751,9 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "Survive office pressure and grow from basement to family stability.",
-            GameplayLoopMode.Indie => "Ship enough to live and grow into apartment, house, and family goals.",
-            GameplayLoopMode.Founder => "Bootstrap your own studio into a stable company and life path.",
+            GameplayLoopMode.Corporate => "Keep the paycheck, survive micromanagement, buy a house, and retire.",
+            GameplayLoopMode.Indie => "Stay self-motivated, ship enough to buy a house, and retire on your own terms.",
+            GameplayLoopMode.Founder => "Bootstrap a company from scratch, grow the business, buy a house, and retire.",
             _ => "Win an offer inside seven days, then choose the long-form route.",
         };
     }

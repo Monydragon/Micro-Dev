@@ -83,6 +83,7 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
     private bool _fontDropdownOpen;
     private bool _scrollGestureArmed;
     private bool _isScrollDragging;
+    private bool _isScrollbarDragging;
     private int _scrollDragStartMouseY;
     private float _scrollDragStartOffset;
 
@@ -838,6 +839,43 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
             _scrollOffset = 0f;
             _scrollGestureArmed = false;
             _isScrollDragging = false;
+            _isScrollbarDragging = false;
+            return;
+        }
+
+        if (_isScrollbarDragging)
+        {
+            if (rawInput.LeftDown)
+            {
+                var thumbTravel = Math.Max(1, _scrollbarTrackBounds.Height - _scrollbarThumbBounds.Height);
+                var dragRatio = (rawInput.MousePosition.Y - _scrollDragStartMouseY) / (float)thumbTravel;
+                SetScrollOffset(_scrollDragStartOffset + (dragRatio * _maxScrollOffset));
+            }
+
+            if (rawInput.LeftReleased || !rawInput.LeftDown)
+            {
+                _isScrollbarDragging = false;
+            }
+
+            return;
+        }
+
+        if (rawInput.LeftClicked &&
+            (_scrollbarThumbBounds.Contains(rawInput.MousePosition) || _scrollbarTrackBounds.Contains(rawInput.MousePosition)))
+        {
+            var thumbTravel = Math.Max(1, _scrollbarTrackBounds.Height - _scrollbarThumbBounds.Height);
+            var thumbTop = Math.Clamp(
+                rawInput.MousePosition.Y - _scrollbarTrackBounds.Y - (_scrollbarThumbBounds.Height / 2f),
+                0f,
+                thumbTravel);
+            SetScrollOffset((thumbTop / thumbTravel) * _maxScrollOffset);
+            _isScrollbarDragging = true;
+            _scrollGestureArmed = false;
+            _isScrollDragging = false;
+            _scrollDragStartMouseY = rawInput.MousePosition.Y;
+            _scrollDragStartOffset = _scrollOffset;
+            CloseDropdowns();
+            CancelContentButtonInteractions();
             return;
         }
 

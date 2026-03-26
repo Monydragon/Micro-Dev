@@ -42,6 +42,10 @@ public sealed class RunState
 
     public double MinutesSinceLastSleep { get; set; }
 
+    public double DebuggingPressure { get; set; }
+
+    public double NeedDrivenBugCooldownMinutesRemaining { get; set; }
+
     public int SuccessfulApplications { get; set; }
 
     public int GeneratedJobListingCount { get; set; }
@@ -82,7 +86,7 @@ public sealed class RunState
 
     public bool HasHouse { get; set; }
 
-    public bool HasStartedFamily { get; set; }
+    public bool HasRetired { get; set; }
 
     public string StudioName { get; set; } = string.Empty;
 
@@ -130,7 +134,9 @@ public sealed class RunState
 
     public HashSet<string> TriggeredIncidentIds { get; } = [];
 
-    public HashSet<EfficiencyUpgradeType> PurchasedUpgrades { get; } = [];
+    public Dictionary<EfficiencyUpgradeType, int> PurchasedUpgrades { get; } = [];
+
+    public List<SocialContact> KnownContacts { get; } = [];
 
     public string ClockText
     {
@@ -167,6 +173,8 @@ public sealed class RunState
             ContextSwitchMinutesRemaining = ContextSwitchMinutesRemaining,
             MinutesSinceLastMeal = MinutesSinceLastMeal,
             MinutesSinceLastSleep = MinutesSinceLastSleep,
+            DebuggingPressure = DebuggingPressure,
+            NeedDrivenBugCooldownMinutesRemaining = NeedDrivenBugCooldownMinutesRemaining,
             SuccessfulApplications = SuccessfulApplications,
             GeneratedJobListingCount = GeneratedJobListingCount,
             GeneratedModifierIncidentCount = GeneratedModifierIncidentCount,
@@ -187,7 +195,7 @@ public sealed class RunState
             CorporateStanding = CorporateStanding,
             HasApartment = HasApartment,
             HasHouse = HasHouse,
-            HasStartedFamily = HasStartedFamily,
+            HasRetired = HasRetired,
             StudioName = StudioName,
             CurrentPortfolioLinesOfCode = CurrentPortfolioLinesOfCode,
             CurrentProgramIndex = CurrentProgramIndex,
@@ -213,7 +221,16 @@ public sealed class RunState
         clone.EventLog.AddRange(EventLog);
         clone.QueuedIncidents.AddRange(QueuedIncidents);
         clone.TriggeredIncidentIds.UnionWith(TriggeredIncidentIds);
-        clone.PurchasedUpgrades.UnionWith(PurchasedUpgrades);
+        foreach (var (type, tier) in PurchasedUpgrades)
+        {
+            clone.PurchasedUpgrades[type] = tier;
+        }
+
+        foreach (var contact in KnownContacts)
+        {
+            clone.KnownContacts.Add(contact.Clone());
+        }
+
         return clone;
     }
 
@@ -239,6 +256,8 @@ public sealed class RunState
         ContextSwitchMinutesRemaining = other.ContextSwitchMinutesRemaining;
         MinutesSinceLastMeal = other.MinutesSinceLastMeal;
         MinutesSinceLastSleep = other.MinutesSinceLastSleep;
+        DebuggingPressure = other.DebuggingPressure;
+        NeedDrivenBugCooldownMinutesRemaining = other.NeedDrivenBugCooldownMinutesRemaining;
         SuccessfulApplications = other.SuccessfulApplications;
         GeneratedJobListingCount = other.GeneratedJobListingCount;
         GeneratedModifierIncidentCount = other.GeneratedModifierIncidentCount;
@@ -259,7 +278,7 @@ public sealed class RunState
         CorporateStanding = other.CorporateStanding;
         HasApartment = other.HasApartment;
         HasHouse = other.HasHouse;
-        HasStartedFamily = other.HasStartedFamily;
+        HasRetired = other.HasRetired;
         StudioName = other.StudioName;
         CurrentPortfolioLinesOfCode = other.CurrentPortfolioLinesOfCode;
         CurrentProgramIndex = other.CurrentProgramIndex;
@@ -291,6 +310,15 @@ public sealed class RunState
         TriggeredIncidentIds.UnionWith(other.TriggeredIncidentIds);
 
         PurchasedUpgrades.Clear();
-        PurchasedUpgrades.UnionWith(other.PurchasedUpgrades);
+        foreach (var (type, tier) in other.PurchasedUpgrades)
+        {
+            PurchasedUpgrades[type] = tier;
+        }
+
+        KnownContacts.Clear();
+        foreach (var contact in other.KnownContacts)
+        {
+            KnownContacts.Add(contact.Clone());
+        }
     }
 }

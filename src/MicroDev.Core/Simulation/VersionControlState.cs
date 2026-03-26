@@ -14,6 +14,10 @@ public sealed class VersionControlState
 
     public int PendingChangeLines { get; set; }
 
+    public int PendingCompletedFileCount { get; set; }
+
+    public int CommittedPortfolioLinesOfCode { get; set; }
+
     public int BranchSerial { get; set; }
 
     public int MergeConflictCount { get; set; }
@@ -34,6 +38,8 @@ public sealed class VersionControlState
             CommitCount = CommitCount,
             FeatureBranchCommitCount = FeatureBranchCommitCount,
             PendingChangeLines = PendingChangeLines,
+            PendingCompletedFileCount = PendingCompletedFileCount,
+            CommittedPortfolioLinesOfCode = CommittedPortfolioLinesOfCode,
             BranchSerial = BranchSerial,
             MergeConflictCount = MergeConflictCount,
             LastCommitSummary = LastCommitSummary,
