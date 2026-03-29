@@ -6,4 +6,8 @@ public enum FoodChoice
     Burrito,
     Pizza,
     Dumplings,
+    Ramen,
+    RiceBowl,
+    SkilletPasta,
+    MealPrepChili,
 }

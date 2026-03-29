@@ -18,5 +18,11 @@ public enum IncidentType
     ComputerFreeze,
     StreamingBinge,
     OnlineMatch,
+    PartnerCheckIn,
+    CareerPathChoice,
+    BossCheckIn,
+    CoworkerInterruption,
+    IndieFundingSwing,
+    FounderNaming,
     FirstCoinDilemma,
 }

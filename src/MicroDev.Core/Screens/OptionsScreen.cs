@@ -49,6 +49,12 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
     private readonly UiButton _effectsUpButton = new("+");
     private readonly UiButton _musicDownButton = new("-");
     private readonly UiButton _musicUpButton = new("+");
+    private readonly UiButton _seedModeButton = new("Run Seed: Random");
+    private readonly UiButton _seedRandomizeButton = new("Roll Seed");
+    private readonly UiButton _seedDownButton = new("-1");
+    private readonly UiButton _seedUpButton = new("+1");
+    private readonly UiButton _seedJumpDownButton = new("-100");
+    private readonly UiButton _seedJumpUpButton = new("+100");
     private readonly UiButton _backButton = new("Back");
 
     private SpriteFont _font;
@@ -61,12 +67,14 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
     private Rectangle _appearanceBounds;
     private Rectangle _displayBounds;
     private Rectangle _audioBounds;
+    private Rectangle _runSeedBounds;
     private Rectangle _notesBounds;
     private Rectangle _appearancePreviewBounds;
     private Rectangle _audioToggleBandBounds;
     private Rectangle _masterVolumeRowBounds;
     private Rectangle _effectsVolumeRowBounds;
     private Rectangle _musicVolumeRowBounds;
+    private Rectangle _seedSummaryBounds;
     private Rectangle _notesSummaryDividerBounds;
     private float _scrollOffset;
     private float _maxScrollOffset;
@@ -75,6 +83,7 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
     private bool _fontDropdownOpen;
     private bool _scrollGestureArmed;
     private bool _isScrollDragging;
+    private bool _isScrollbarDragging;
     private int _scrollDragStartMouseY;
     private float _scrollDragStartOffset;
 
@@ -168,19 +177,25 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
         var previousScissor = graphicsDevice.ScissorRectangle;
+        spriteBatch.End();
         graphicsDevice.ScissorRectangle = _contentViewportBounds;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
 
         UiPanel.Draw(spriteBatch, _pixel, _appearanceBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _displayBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _audioBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiPanel.Draw(spriteBatch, _pixel, _runSeedBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _notesBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
         DrawAppearancePanel(spriteBatch);
         DrawDisplayPanel(spriteBatch);
         DrawAudioPanel(spriteBatch);
+        DrawRunSeedPanel(spriteBatch);
         DrawNotesPanel(spriteBatch);
 
+        spriteBatch.End();
         graphicsDevice.ScissorRectangle = previousScissor;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
 
         DrawContentFrameOverlay(spriteBatch);
         DrawScrollbar(spriteBatch);
@@ -201,6 +216,12 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         _resolutionButton.AccentColor = UiTheme.Warning;
         _soundToggleButton.AccentColor = UiTheme.Accent;
         _musicToggleButton.AccentColor = UiTheme.Success;
+        _seedModeButton.AccentColor = UiTheme.Accent;
+        _seedRandomizeButton.AccentColor = UiTheme.Success;
+        _seedDownButton.AccentColor = UiTheme.Warning;
+        _seedUpButton.AccentColor = UiTheme.Warning;
+        _seedJumpDownButton.AccentColor = UiTheme.Warning;
+        _seedJumpUpButton.AccentColor = UiTheme.Warning;
         _masterDownButton.AccentColor = UiTheme.Accent;
         _masterUpButton.AccentColor = UiTheme.Accent;
         _effectsDownButton.AccentColor = UiTheme.Warning;
@@ -215,6 +236,8 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         _resolutionButton.TextAlignment = UiTextAlignment.Left;
         _soundToggleButton.TextAlignment = UiTextAlignment.Left;
         _musicToggleButton.TextAlignment = UiTextAlignment.Left;
+        _seedModeButton.TextAlignment = UiTextAlignment.Left;
+        _seedRandomizeButton.TextAlignment = UiTextAlignment.Left;
 
         _themeToggleButton.HorizontalPadding = 14;
         _fontButton.HorizontalPadding = 14;
@@ -222,8 +245,17 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         _resolutionButton.HorizontalPadding = 14;
         _soundToggleButton.HorizontalPadding = 14;
         _musicToggleButton.HorizontalPadding = 14;
+        _seedModeButton.HorizontalPadding = 14;
+        _seedRandomizeButton.HorizontalPadding = 14;
 
         foreach (var button in GetVolumeButtons())
+        {
+            button.TextScale = 0.94f;
+            button.HorizontalPadding = 0;
+            button.TextAlignment = UiTextAlignment.Center;
+        }
+
+        foreach (var button in GetSeedStepButtons())
         {
             button.TextScale = 0.94f;
             button.HorizontalPadding = 0;
@@ -279,6 +311,12 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         yield return _resolutionButton;
         yield return _soundToggleButton;
         yield return _musicToggleButton;
+        yield return _seedModeButton;
+        yield return _seedRandomizeButton;
+        yield return _seedDownButton;
+        yield return _seedUpButton;
+        yield return _seedJumpDownButton;
+        yield return _seedJumpUpButton;
         yield return _masterDownButton;
         yield return _masterUpButton;
         yield return _effectsDownButton;
@@ -295,6 +333,14 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         yield return _effectsUpButton;
         yield return _musicDownButton;
         yield return _musicUpButton;
+    }
+
+    private IEnumerable<UiButton> GetSeedStepButtons()
+    {
+        yield return _seedDownButton;
+        yield return _seedUpButton;
+        yield return _seedJumpDownButton;
+        yield return _seedJumpUpButton;
     }
 
     private void DrawBackdrop(SpriteBatch spriteBatch)
@@ -482,6 +528,53 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
             UiTypography.Caption,
             2f,
             3);
+    }
+
+    private void DrawRunSeedPanel(SpriteBatch spriteBatch)
+    {
+        var left = _runSeedBounds.X + 20;
+        UiLabel.Draw(spriteBatch, _font, "Run Seed", new Vector2(left, _runSeedBounds.Y + 18), UiTheme.TextPrimary, UiTypography.Section);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Random keeps each restart fresh. Manual lets you replay the same portfolio order, desk incidents, meal lineup, and relationship thread.",
+            new Vector2(left, _runSeedBounds.Y + 48),
+            _runSeedBounds.Width - 40,
+            UiTheme.TextMuted,
+            UiTypography.Caption,
+            2f,
+            3);
+
+        spriteBatch.Draw(
+            _pixel,
+            new Rectangle(_runSeedBounds.X + 20, _seedModeButton.Bounds.Y - 10, _runSeedBounds.Width - 40, 1),
+            UiTheme.WithOpacity(UiTheme.PanelBorder, 0.72f));
+
+        _seedModeButton.Draw(spriteBatch, _pixel, _font);
+        _seedRandomizeButton.Draw(spriteBatch, _pixel, _font);
+
+        foreach (var button in GetSeedStepButtons())
+        {
+            button.Draw(spriteBatch, _pixel, _font);
+        }
+
+        UiPanel.Draw(
+            spriteBatch,
+            _pixel,
+            _seedSummaryBounds,
+            UiTheme.WithOpacity(UiTheme.PanelMuted, 0.76f),
+            UiTheme.WithOpacity(UiTheme.PanelBorder, 0.84f),
+            1);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            GetRunSeedSummaryText(),
+            new Vector2(_seedSummaryBounds.X + 14, _seedSummaryBounds.Y + 12),
+            _seedSummaryBounds.Width - 28,
+            UiTheme.TextPrimary,
+            UiTypography.Caption,
+            2f,
+            4);
     }
 
     private void DrawContentFrameOverlay(SpriteBatch spriteBatch)
@@ -698,6 +791,39 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
             return true;
         }
 
+        if (_seedModeButton.Update(input, activateOnRelease: true))
+        {
+            _settings.RunSeedMode = _settings.RunSeedMode == RunSeedMode.RandomEachRun
+                ? RunSeedMode.Manual
+                : RunSeedMode.RandomEachRun;
+            if (_settings.RunSeedMode == RunSeedMode.Manual &&
+                _settings.ManualRunSeed <= 0)
+            {
+                _settings.ManualRunSeed = _settings.LastResolvedRunSeed > 0
+                    ? _settings.LastResolvedRunSeed
+                    : GameSettings.DefaultManualRunSeed;
+            }
+
+            _audio.PlayButtonClick();
+            return true;
+        }
+
+        if (_seedRandomizeButton.Update(input, activateOnRelease: true))
+        {
+            _settings.RunSeedMode = RunSeedMode.Manual;
+            _settings.ManualRunSeed = Random.Shared.Next(1, int.MaxValue);
+            _audio.PlayButtonClick();
+            return true;
+        }
+
+        if (TryAdjustSeed(_seedJumpDownButton, -100, input) ||
+            TryAdjustSeed(_seedDownButton, -1, input) ||
+            TryAdjustSeed(_seedUpButton, 1, input) ||
+            TryAdjustSeed(_seedJumpUpButton, 100, input))
+        {
+            return true;
+        }
+
         return TryAdjustVolume(_masterDownButton, () => _settings.MasterVolume, value => _settings.MasterVolume = value, -0.05f, input) ||
                TryAdjustVolume(_masterUpButton, () => _settings.MasterVolume, value => _settings.MasterVolume = value, 0.05f, input) ||
                TryAdjustVolume(_effectsDownButton, () => _settings.SoundEffectsVolume, value => _settings.SoundEffectsVolume = value, -0.05f, input) ||
@@ -713,6 +839,43 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
             _scrollOffset = 0f;
             _scrollGestureArmed = false;
             _isScrollDragging = false;
+            _isScrollbarDragging = false;
+            return;
+        }
+
+        if (_isScrollbarDragging)
+        {
+            if (rawInput.LeftDown)
+            {
+                var thumbTravel = Math.Max(1, _scrollbarTrackBounds.Height - _scrollbarThumbBounds.Height);
+                var dragRatio = (rawInput.MousePosition.Y - _scrollDragStartMouseY) / (float)thumbTravel;
+                SetScrollOffset(_scrollDragStartOffset + (dragRatio * _maxScrollOffset));
+            }
+
+            if (rawInput.LeftReleased || !rawInput.LeftDown)
+            {
+                _isScrollbarDragging = false;
+            }
+
+            return;
+        }
+
+        if (rawInput.LeftClicked &&
+            (_scrollbarThumbBounds.Contains(rawInput.MousePosition) || _scrollbarTrackBounds.Contains(rawInput.MousePosition)))
+        {
+            var thumbTravel = Math.Max(1, _scrollbarTrackBounds.Height - _scrollbarThumbBounds.Height);
+            var thumbTop = Math.Clamp(
+                rawInput.MousePosition.Y - _scrollbarTrackBounds.Y - (_scrollbarThumbBounds.Height / 2f),
+                0f,
+                thumbTravel);
+            SetScrollOffset((thumbTop / thumbTravel) * _maxScrollOffset);
+            _isScrollbarDragging = true;
+            _scrollGestureArmed = false;
+            _isScrollDragging = false;
+            _scrollDragStartMouseY = rawInput.MousePosition.Y;
+            _scrollDragStartOffset = _scrollOffset;
+            CloseDropdowns();
+            CancelContentButtonInteractions();
             return;
         }
 
@@ -819,6 +982,26 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         _audio.PlayButtonClick();
     }
 
+    private bool TryAdjustSeed(UiButton button, int delta, InputSnapshot input)
+    {
+        if (!button.Update(input, activateOnRelease: true))
+        {
+            return false;
+        }
+
+        _settings.RunSeedMode = RunSeedMode.Manual;
+        var nextSeed = Math.Clamp(_settings.ManualRunSeed + delta, 1, int.MaxValue - 1);
+        if (nextSeed == _settings.ManualRunSeed)
+        {
+            _audio.PlayFailure();
+            return true;
+        }
+
+        _settings.ManualRunSeed = nextSeed;
+        _audio.PlayButtonClick();
+        return true;
+    }
+
     private void DrawFontDropdown(SpriteBatch spriteBatch)
     {
         var dropdownBounds = GetFontDropdownBounds();
@@ -888,6 +1071,10 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         _resolutionButton.Text = $"Resolution: {FormatResolution(_settings.PreferredResolution)}";
         _soundToggleButton.Text = _settings.SoundEffectsEnabled ? "Sound Effects: ON" : "Sound Effects: OFF";
         _musicToggleButton.Text = _settings.MusicEnabled ? "Background Music: ON" : "Background Music: OFF";
+        _seedModeButton.Text = _settings.RunSeedMode == RunSeedMode.RandomEachRun
+            ? "Run Seed: Random Each Run"
+            : $"Run Seed: Manual ({_settings.ManualRunSeed})";
+        _seedRandomizeButton.Text = _settings.RunSeedMode == RunSeedMode.RandomEachRun ? "Roll Manual Seed" : "Roll Seed";
 
         for (var index = 0; index < _resolutionOptionButtons.Length; index++)
         {
@@ -952,6 +1139,20 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
             UiTypography.Caption,
             2f,
             2));
+        var runSeedIntroHeight = (int)MathF.Ceiling(UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetRunSeedIntroText(),
+            contentWidth - (sectionPadding * 2),
+            UiTypography.Caption,
+            2f,
+            3));
+        var runSeedSummaryHeight = (int)MathF.Ceiling(UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetRunSeedSummaryText(),
+            contentWidth - (sectionPadding * 2) - 28,
+            UiTypography.Caption,
+            2f,
+            4));
         var notesBodyHeight = (int)MathF.Ceiling(UiTextBlock.MeasureWrappedHeight(
             _font,
             GetNotesBodyText(),
@@ -983,10 +1184,14 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         var audioToggleBandTopOffset = 48 + audioIntroHeight + 20;
         var volumeRowsTopOffset = audioToggleBandTopOffset + toggleBandHeight + 18;
         var audioHeight = volumeRowsTopOffset + (volumeRowHeight * 3) + (volumeRowGap * 2) + 22;
+        var runSeedButtonsTopOffset = 48 + runSeedIntroHeight + 20;
+        var runSeedStepperTopOffset = runSeedButtonsTopOffset + buttonHeight + 12;
+        var runSeedSummaryTopOffset = runSeedStepperTopOffset + 44 + 16;
+        var runSeedHeight = runSeedSummaryTopOffset + Math.Max(64, runSeedSummaryHeight + 24) + 20;
         var notesDividerTopOffset = 48 + notesBodyHeight + 18;
         var notesHeight = notesDividerTopOffset + 10 + notesSummaryHeight + 20;
 
-        _contentHeight = contentInsetTop + topRowHeight + sectionGap + audioHeight + sectionGap + notesHeight + contentInsetBottom;
+        _contentHeight = contentInsetTop + topRowHeight + sectionGap + audioHeight + sectionGap + runSeedHeight + sectionGap + notesHeight + contentInsetBottom;
         _maxScrollOffset = Math.Max(0f, _contentHeight - _contentViewportBounds.Height);
         _scrollOffset = Math.Clamp(_scrollOffset, 0f, _maxScrollOffset);
 
@@ -1000,6 +1205,8 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         currentY += topRowHeight + sectionGap;
         _audioBounds = new Rectangle(contentLeft, currentY, contentWidth, audioHeight);
         currentY += audioHeight + sectionGap;
+        _runSeedBounds = new Rectangle(contentLeft, currentY, contentWidth, runSeedHeight);
+        currentY += runSeedHeight + sectionGap;
         _notesBounds = new Rectangle(contentLeft, currentY, contentWidth, notesHeight);
 
         _themeToggleButton.Bounds = new Rectangle(_appearanceBounds.X + sectionPadding, _appearanceBounds.Y + appearanceButtonsTopOffset, _appearanceBounds.Width - (sectionPadding * 2), buttonHeight);
@@ -1032,6 +1239,21 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         LayoutVolumeButtons(_masterDownButton, _masterUpButton, _masterVolumeRowBounds);
         LayoutVolumeButtons(_effectsDownButton, _effectsUpButton, _effectsVolumeRowBounds);
         LayoutVolumeButtons(_musicDownButton, _musicUpButton, _musicVolumeRowBounds);
+
+        _seedModeButton.Bounds = new Rectangle(_runSeedBounds.X + sectionPadding, _runSeedBounds.Y + runSeedButtonsTopOffset, 420, buttonHeight);
+        _seedRandomizeButton.Bounds = new Rectangle(_seedModeButton.Bounds.Right + 16, _seedModeButton.Bounds.Y, 210, buttonHeight);
+        var seedStepperY = _runSeedBounds.Y + runSeedStepperTopOffset;
+        var seedStepperWidth = 76;
+        _seedJumpDownButton.Bounds = new Rectangle(_runSeedBounds.X + sectionPadding, seedStepperY, seedStepperWidth, 34);
+        _seedDownButton.Bounds = new Rectangle(_seedJumpDownButton.Bounds.Right + 12, seedStepperY, seedStepperWidth, 34);
+        _seedUpButton.Bounds = new Rectangle(_seedDownButton.Bounds.Right + 12, seedStepperY, seedStepperWidth, 34);
+        _seedJumpUpButton.Bounds = new Rectangle(_seedUpButton.Bounds.Right + 12, seedStepperY, seedStepperWidth, 34);
+        _seedSummaryBounds = new Rectangle(
+            _runSeedBounds.X + sectionPadding,
+            _runSeedBounds.Y + runSeedSummaryTopOffset,
+            _runSeedBounds.Width - (sectionPadding * 2),
+            Math.Max(64, runSeedSummaryHeight + 24));
+
         _notesSummaryDividerBounds = new Rectangle(_notesBounds.X + sectionPadding, _notesBounds.Y + notesDividerTopOffset, _notesBounds.Width - (sectionPadding * 2), 1);
 
         _scrollbarTrackBounds = new Rectangle(_contentFrameBounds.Right - 16, _contentViewportBounds.Y + 2, ScrollbarWidth, _contentViewportBounds.Height - 4);
@@ -1079,7 +1301,7 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
 
     private string GetHeaderSummaryText()
     {
-        return "Appearance settings apply live. Pick a palette, switch the primary font,\nand tune display and audio without leaving the current run.";
+        return "Appearance settings apply live. Pick a palette, switch the primary font,\ntune display and audio, and set the run-seed policy without leaving the current run.";
     }
 
     private static string GetAppearanceIntroText()
@@ -1099,6 +1321,11 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
         return "Balance typing clicks and the desk loop separately.\nMaster volume scales every channel live.";
     }
 
+    private static string GetRunSeedIntroText()
+    {
+        return "Random mode rolls a fresh seed every run.\nManual mode lets you replay the same procedural route on demand.";
+    }
+
     private string GetNotesBodyText()
     {
         return _isBrowserPlatform
@@ -1108,7 +1335,21 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
 
     private string GetNotesSummaryText()
     {
-        return $"Current profile\nTheme {_settings.ThemeMode}  |  Font {UiFontCatalog.GetDisplayName(_settings.UiFont)}\nMaster {ToPercent(_settings.MasterVolume)}  |  SFX {ToPercent(_settings.SoundEffectsVolume)}  |  BGM {ToPercent(_settings.MusicVolume)}";
+        var seedSummary = _settings.RunSeedMode == RunSeedMode.RandomEachRun
+            ? "Seed Random"
+            : $"Seed {_settings.ManualRunSeed}";
+        return $"Current profile\nTheme {_settings.ThemeMode}  |  Font {UiFontCatalog.GetDisplayName(_settings.UiFont)}\nMaster {ToPercent(_settings.MasterVolume)}  |  SFX {ToPercent(_settings.SoundEffectsVolume)}  |  BGM {ToPercent(_settings.MusicVolume)}\n{seedSummary}";
+    }
+
+    private string GetRunSeedSummaryText()
+    {
+        var activeSeed = _settings.LastResolvedRunSeed > 0
+            ? _settings.LastResolvedRunSeed.ToString()
+            : "No run started yet";
+        var nextSeed = _settings.RunSeedMode == RunSeedMode.RandomEachRun
+            ? "Fresh random seed on next run"
+            : _settings.ManualRunSeed.ToString();
+        return $"Mode: {(_settings.RunSeedMode == RunSeedMode.RandomEachRun ? "Random each run" : "Manual replay")}\nNext run seed: {nextSeed}\nLast active seed: {activeSeed}\nManual controls switch the mode automatically so you can lock a replayable run.";
     }
 
     private void SetScrollOffset(float value)

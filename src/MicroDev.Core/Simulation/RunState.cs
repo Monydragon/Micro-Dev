@@ -4,6 +4,10 @@ public sealed class RunState
 {
     public GameDifficulty Difficulty { get; set; } = GameDifficulty.Normal;
 
+    public GameplayLoopMode GameplayMode { get; set; } = GameplayLoopMode.Interview;
+
+    public bool IsRealisticMode { get; set; }
+
     public int RunSeed { get; set; }
 
     public int Day { get; set; }
@@ -38,6 +42,10 @@ public sealed class RunState
 
     public double MinutesSinceLastSleep { get; set; }
 
+    public double DebuggingPressure { get; set; }
+
+    public double NeedDrivenBugCooldownMinutesRemaining { get; set; }
+
     public int SuccessfulApplications { get; set; }
 
     public int GeneratedJobListingCount { get; set; }
@@ -61,6 +69,26 @@ public sealed class RunState
     public bool HasFoundLove { get; set; }
 
     public string? PartnerName { get; set; }
+
+    public string? RelationshipCandidateName { get; set; }
+
+    public int RelationshipCandidateCompatibility { get; set; }
+
+    public BossDisposition BossDisposition { get; set; } = BossDisposition.Supportive;
+
+    public string BossName { get; set; } = string.Empty;
+
+    public string BossTitle { get; set; } = string.Empty;
+
+    public int CorporateStanding { get; set; }
+
+    public bool HasApartment { get; set; }
+
+    public bool HasHouse { get; set; }
+
+    public bool HasRetired { get; set; }
+
+    public string StudioName { get; set; } = string.Empty;
 
     public int CurrentPortfolioLinesOfCode { get; set; }
 
@@ -94,13 +122,23 @@ public sealed class RunState
 
     public ActiveJobApplication? ActiveJobApplication { get; set; }
 
+    public ActiveFreelanceGig? ActiveFreelanceGig { get; set; }
+
+    public ProjectBlueprint CurrentProjectBlueprint { get; set; } = new();
+
+    public VersionControlState VersionControl { get; set; } = new();
+
+    public RunStats Stats { get; set; } = new();
+
     public List<string> EventLog { get; } = [];
 
     public List<QueuedIncident> QueuedIncidents { get; } = [];
 
     public HashSet<string> TriggeredIncidentIds { get; } = [];
 
-    public HashSet<EfficiencyUpgradeType> PurchasedUpgrades { get; } = [];
+    public Dictionary<EfficiencyUpgradeType, int> PurchasedUpgrades { get; } = [];
+
+    public List<SocialContact> KnownContacts { get; } = [];
 
     public string ClockText
     {
@@ -118,6 +156,8 @@ public sealed class RunState
         var clone = new RunState
         {
             Difficulty = Difficulty,
+            GameplayMode = GameplayMode,
+            IsRealisticMode = IsRealisticMode,
             RunSeed = RunSeed,
             Day = Day,
             TimeOfDayMinutes = TimeOfDayMinutes,
@@ -135,6 +175,8 @@ public sealed class RunState
             ContextSwitchMinutesRemaining = ContextSwitchMinutesRemaining,
             MinutesSinceLastMeal = MinutesSinceLastMeal,
             MinutesSinceLastSleep = MinutesSinceLastSleep,
+            DebuggingPressure = DebuggingPressure,
+            NeedDrivenBugCooldownMinutesRemaining = NeedDrivenBugCooldownMinutesRemaining,
             SuccessfulApplications = SuccessfulApplications,
             GeneratedJobListingCount = GeneratedJobListingCount,
             GeneratedModifierIncidentCount = GeneratedModifierIncidentCount,
@@ -147,6 +189,16 @@ public sealed class RunState
             RelationshipProgress = RelationshipProgress,
             HasFoundLove = HasFoundLove,
             PartnerName = PartnerName,
+            RelationshipCandidateName = RelationshipCandidateName,
+            RelationshipCandidateCompatibility = RelationshipCandidateCompatibility,
+            BossDisposition = BossDisposition,
+            BossName = BossName,
+            BossTitle = BossTitle,
+            CorporateStanding = CorporateStanding,
+            HasApartment = HasApartment,
+            HasHouse = HasHouse,
+            HasRetired = HasRetired,
+            StudioName = StudioName,
             CurrentPortfolioLinesOfCode = CurrentPortfolioLinesOfCode,
             CurrentProgramIndex = CurrentProgramIndex,
             CurrentProgramVisibleLineCount = CurrentProgramVisibleLineCount,
@@ -163,18 +215,33 @@ public sealed class RunState
             ActiveTechDebtBug = ActiveTechDebtBug?.Clone(),
             ActiveJobListing = ActiveJobListing?.Clone(),
             ActiveJobApplication = ActiveJobApplication?.Clone(),
+            ActiveFreelanceGig = ActiveFreelanceGig?.Clone(),
+            CurrentProjectBlueprint = CurrentProjectBlueprint.Clone(),
+            VersionControl = VersionControl.Clone(),
+            Stats = Stats.DeepCopy(),
         };
 
         clone.EventLog.AddRange(EventLog);
         clone.QueuedIncidents.AddRange(QueuedIncidents);
         clone.TriggeredIncidentIds.UnionWith(TriggeredIncidentIds);
-        clone.PurchasedUpgrades.UnionWith(PurchasedUpgrades);
+        foreach (var (type, tier) in PurchasedUpgrades)
+        {
+            clone.PurchasedUpgrades[type] = tier;
+        }
+
+        foreach (var contact in KnownContacts)
+        {
+            clone.KnownContacts.Add(contact.Clone());
+        }
+
         return clone;
     }
 
     public void ResetFrom(RunState other)
     {
         Difficulty = other.Difficulty;
+        GameplayMode = other.GameplayMode;
+        IsRealisticMode = other.IsRealisticMode;
         RunSeed = other.RunSeed;
         Day = other.Day;
         TimeOfDayMinutes = other.TimeOfDayMinutes;
@@ -192,6 +259,8 @@ public sealed class RunState
         ContextSwitchMinutesRemaining = other.ContextSwitchMinutesRemaining;
         MinutesSinceLastMeal = other.MinutesSinceLastMeal;
         MinutesSinceLastSleep = other.MinutesSinceLastSleep;
+        DebuggingPressure = other.DebuggingPressure;
+        NeedDrivenBugCooldownMinutesRemaining = other.NeedDrivenBugCooldownMinutesRemaining;
         SuccessfulApplications = other.SuccessfulApplications;
         GeneratedJobListingCount = other.GeneratedJobListingCount;
         GeneratedModifierIncidentCount = other.GeneratedModifierIncidentCount;
@@ -204,6 +273,16 @@ public sealed class RunState
         RelationshipProgress = other.RelationshipProgress;
         HasFoundLove = other.HasFoundLove;
         PartnerName = other.PartnerName;
+        RelationshipCandidateName = other.RelationshipCandidateName;
+        RelationshipCandidateCompatibility = other.RelationshipCandidateCompatibility;
+        BossDisposition = other.BossDisposition;
+        BossName = other.BossName;
+        BossTitle = other.BossTitle;
+        CorporateStanding = other.CorporateStanding;
+        HasApartment = other.HasApartment;
+        HasHouse = other.HasHouse;
+        HasRetired = other.HasRetired;
+        StudioName = other.StudioName;
         CurrentPortfolioLinesOfCode = other.CurrentPortfolioLinesOfCode;
         CurrentProgramIndex = other.CurrentProgramIndex;
         CurrentProgramVisibleLineCount = other.CurrentProgramVisibleLineCount;
@@ -220,6 +299,10 @@ public sealed class RunState
         ActiveTechDebtBug = other.ActiveTechDebtBug?.Clone();
         ActiveJobListing = other.ActiveJobListing?.Clone();
         ActiveJobApplication = other.ActiveJobApplication?.Clone();
+        ActiveFreelanceGig = other.ActiveFreelanceGig?.Clone();
+        CurrentProjectBlueprint = other.CurrentProjectBlueprint.Clone();
+        VersionControl = other.VersionControl.Clone();
+        Stats = other.Stats.DeepCopy();
 
         EventLog.Clear();
         EventLog.AddRange(other.EventLog);
@@ -231,6 +314,15 @@ public sealed class RunState
         TriggeredIncidentIds.UnionWith(other.TriggeredIncidentIds);
 
         PurchasedUpgrades.Clear();
-        PurchasedUpgrades.UnionWith(other.PurchasedUpgrades);
+        foreach (var (type, tier) in other.PurchasedUpgrades)
+        {
+            PurchasedUpgrades[type] = tier;
+        }
+
+        KnownContacts.Clear();
+        foreach (var contact in other.KnownContacts)
+        {
+            KnownContacts.Add(contact.Clone());
+        }
     }
 }
