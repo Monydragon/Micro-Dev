@@ -17,6 +17,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         ProjectStudio,
         FreelanceBoard,
         Upgrades,
+        Stats,
     }
 
     private const float CodeScale = UiTypography.Code;
@@ -46,15 +47,18 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly GameAudio _audio;
     private readonly Point _virtualResolution;
     private readonly Action<WorkspaceScreen> _showOptions;
+    private readonly Action _showMainMenu;
     private readonly UiButton _foodAppButton = new("Food + Kitchen");
     private readonly UiButton _freelanceButton = new("Freelance Board");
     private readonly UiButton _sleepButton = new("Sleep");
     private readonly UiButton _upgradesButton = new("Upgrades");
+    private readonly UiButton _statsButton = new("Run Stats");
     private readonly UiButton _bankAppButton = new("Banking");
     private readonly UiButton _communicationButton = new("Communication");
     private readonly UiButton _projectStudioButton = new("Build Studio");
     private readonly UiButton _guideButton = new("Guide");
     private readonly UiButton _newRunButton = new("New Run");
+    private readonly UiButton _menuButton = new("Menu");
     private readonly UiButton _optionsButton = new("Options");
     private readonly UiButton _squashBugButton = new("Fix");
     private readonly UiButton _applyForJobButton = new("Apply");
@@ -80,6 +84,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _closeCommunicationButton = new("Close");
     private readonly UiButton _closeFreelanceBoardButton = new("Close");
     private readonly UiButton _closeUpgradesButton = new("Close");
+    private readonly UiButton _closeStatsButton = new("Close");
     private readonly UiButton _closeProjectStudioButton = new("Close");
     private readonly UiButton _commitFileButton = new("Commit Now");
     private readonly UiButton _keepCodingButton = new("Keep Coding");
@@ -150,6 +155,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private Rectangle _projectStudioBounds;
     private Rectangle _freelanceBoardBounds;
     private Rectangle _upgradesBounds;
+    private Rectangle _statsBounds;
     private Rectangle _projectStudioViewportBounds;
     private Rectangle _projectStudioScrollbarTrackBounds;
     private Rectangle _projectStudioScrollbarThumbBounds;
@@ -163,6 +169,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private Rectangle _upgradesViewportBounds;
     private Rectangle _upgradesScrollbarTrackBounds;
     private Rectangle _upgradesScrollbarThumbBounds;
+    private Rectangle _statsViewportBounds;
+    private Rectangle _statsScrollbarTrackBounds;
+    private Rectangle _statsScrollbarThumbBounds;
     private Rectangle _applicationBounds;
     private Rectangle _applicationEditorBounds;
     private Rectangle _debugSnippetBounds;
@@ -181,6 +190,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private bool _projectStudioOpen;
     private bool _freelanceBoardOpen;
     private bool _upgradesOpen;
+    private bool _statsOpen;
     private bool _jobApplicationOpen;
     private FoodChoice _selectedFood = FoodChoice.Burger;
     private bool _doubleCheckOrder;
@@ -193,6 +203,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private float _freelanceBoardMaxScrollOffset;
     private float _upgradesScrollOffset;
     private float _upgradesMaxScrollOffset;
+    private float _statsScrollOffset;
+    private float _statsMaxScrollOffset;
     private string? _lastCelebratedFileName;
     private string? _lastCommitPromptedFileName;
     private string? _selectedCommunicationContactId;
@@ -210,7 +222,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         IncidentScheduler incidentScheduler,
         GameAudio audio,
         Point virtualResolution,
-        Action<WorkspaceScreen> showOptions)
+        Action<WorkspaceScreen> showOptions,
+        Action showMainMenu)
     {
         _font = font;
         _pixel = pixel;
@@ -219,6 +232,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _audio = audio;
         _virtualResolution = virtualResolution;
         _showOptions = showOptions;
+        _showMainMenu = showMainMenu;
         _state = _simulation.CreateNewRun();
 
         foreach (var definition in EfficiencyUpgradeCatalog.All)
@@ -312,7 +326,16 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _jobApplicationOpen = false;
             _restartButton.Enabled = true;
             _newRunButton.Enabled = true;
-            if (_restartButton.Update(input))
+            if (_statsOpen)
+            {
+                HandleStatsInput(input);
+            }
+            else if (_statsButton.Update(input))
+            {
+                _statsOpen = true;
+                _audio.PlayButtonClick();
+            }
+            else if (_restartButton.Update(input))
             {
                 _audio.PlayButtonClick();
                 RestartCurrentRun();
@@ -332,6 +355,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _jobApplicationOpen = false;
             HandleFirstCoinInput(input);
         }
@@ -344,8 +368,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _jobApplicationOpen = false;
             HandleLifeEventInput(input);
+        }
+        else if (_statsOpen)
+        {
+            HandleStatsInput(input);
         }
         else if (_commitPromptOpen)
         {
@@ -424,6 +453,10 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             DrawUpgradesOverlay(spriteBatch);
         }
+        else if (_statsOpen)
+        {
+            DrawStatsOverlay(spriteBatch);
+        }
         else if (_jobApplicationOpen && _state.Status == RunStatus.InProgress && _simulation.HasActiveJobApplication(_state))
         {
             DrawJobApplicationOverlay(spriteBatch);
@@ -433,7 +466,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             DrawTutorialOverlay(spriteBatch);
         }
-        else if (_state.Status != RunStatus.InProgress)
+        else if (_state.Status != RunStatus.InProgress && !_statsOpen)
         {
             DrawOutcomeOverlay(spriteBatch);
         }
@@ -479,6 +512,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _restartButton.HorizontalPadding = 10;
         _newRunButton.TextScale = _state.Status == RunStatus.InProgress ? UiTypography.Body : UiTypography.Button;
         _newRunButton.HorizontalPadding = 10;
+        _menuButton.TextScale = UiTypography.Body;
+        _menuButton.HorizontalPadding = 10;
         _optionsButton.TextScale = UiTypography.Body;
         _optionsButton.HorizontalPadding = 10;
 
@@ -492,11 +527,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _freelanceButton.AccentColor = UiTheme.Warning;
         _sleepButton.AccentColor = UiTheme.Warning;
         _upgradesButton.AccentColor = UiTheme.Success;
+        _statsButton.AccentColor = UiTheme.Accent;
         _bankAppButton.AccentColor = UiTheme.Accent;
         _communicationButton.AccentColor = UiTheme.Accent;
         _projectStudioButton.AccentColor = UiTheme.Success;
         _guideButton.AccentColor = UiTheme.Accent;
         _newRunButton.AccentColor = UiTheme.Success;
+        _menuButton.AccentColor = UiTheme.Accent;
         _optionsButton.AccentColor = UiTheme.Warning;
         _squashBugButton.AccentColor = UiTheme.Danger;
         _applyForJobButton.AccentColor = UiTheme.Success;
@@ -519,6 +556,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _closeBankAppButton.AccentColor = UiTheme.Warning;
         _closeFreelanceBoardButton.AccentColor = UiTheme.Warning;
         _closeUpgradesButton.AccentColor = UiTheme.Warning;
+        _closeStatsButton.AccentColor = UiTheme.Warning;
         _closeProjectStudioButton.AccentColor = UiTheme.Warning;
         _commitFileButton.AccentColor = UiTheme.Success;
         _keepCodingButton.AccentColor = UiTheme.Warning;
@@ -587,6 +625,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeCommunicationButton;
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
+        yield return _closeStatsButton;
         yield return _closeProjectStudioButton;
         yield return _closeApplicationButton;
         yield return _tutorialCloseButton;
@@ -606,11 +645,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _freelanceButton;
         yield return _sleepButton;
         yield return _upgradesButton;
+        yield return _statsButton;
         yield return _bankAppButton;
         yield return _communicationButton;
         yield return _projectStudioButton;
         yield return _guideButton;
         yield return _newRunButton;
+        yield return _menuButton;
         yield return _optionsButton;
         yield return _squashBugButton;
         yield return _applyForJobButton;
@@ -633,6 +674,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeBankAppButton;
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
+        yield return _closeStatsButton;
         yield return _closeProjectStudioButton;
         yield return _commitFileButton;
         yield return _keepCodingButton;
@@ -700,6 +742,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _communicationButton;
         yield return _projectStudioButton;
         yield return _sleepButton;
+        yield return _statsButton;
     }
 
     private void CancelAllButtonInteractions()
@@ -797,6 +840,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return;
         }
 
+        if (_menuButton.Update(input))
+        {
+            _audio.PlayButtonClick();
+            _showMainMenu();
+            return;
+        }
+
         if (_state.ActiveCatInterruption is not null)
         {
             if (_deskDistractionFocusButton.Update(input))
@@ -845,6 +895,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -879,6 +930,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -892,6 +944,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -905,6 +958,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -918,6 +972,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -931,6 +986,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _commitPromptOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
+            _statsOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -944,6 +1000,22 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
+            _statsOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_statsButton.Update(input))
+        {
+            _statsOpen = true;
+            _foodAppOpen = false;
+            _bankAppOpen = false;
+            _communicationOpen = false;
+            _commitPromptOpen = false;
+            _projectStudioOpen = false;
+            _freelanceBoardOpen = false;
+            _upgradesOpen = false;
+            _jobApplicationOpen = false;
             _audio.PlayButtonClick();
             return;
         }
@@ -1587,6 +1659,37 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         }
     }
 
+    private void HandleStatsInput(InputSnapshot input)
+    {
+        if (HandleOverlayScrollbarInput(
+                input,
+                OverlayScrollArea.Stats,
+                _statsScrollbarTrackBounds,
+                _statsScrollbarThumbBounds,
+                ref _statsScrollOffset,
+                _statsMaxScrollOffset))
+        {
+            return;
+        }
+
+        if (_statsMaxScrollOffset > 0f &&
+            input.ScrollWheelDelta != 0 &&
+            _statsBounds.Contains(input.MousePosition))
+        {
+            _statsScrollOffset = Math.Clamp(
+                _statsScrollOffset - (input.ScrollWheelDelta * 0.36f),
+                0f,
+                _statsMaxScrollOffset);
+            UpdateButtons();
+        }
+
+        if (_closeStatsButton.Update(input))
+        {
+            _statsOpen = false;
+            _audio.PlayButtonClick();
+        }
+    }
+
     private void HandleJobApplicationInput(InputSnapshot input)
     {
         var application = _state.ActiveJobApplication;
@@ -2172,6 +2275,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     {
         var contentX = _sidebarBounds.X + 16;
         UiLabel.Draw(spriteBatch, _font, "Desk Dashboard", new Vector2(contentX, _sidebarBounds.Y + 14), UiTheme.TextPrimary, 0.96f);
+        _menuButton.Draw(spriteBatch, _pixel, _font);
         _optionsButton.Draw(spriteBatch, _pixel, _font);
 
         DrawSummaryCards(spriteBatch);
@@ -2425,6 +2529,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _communicationButton.Draw(spriteBatch, _pixel, _font);
         _projectStudioButton.Draw(spriteBatch, _pixel, _font);
         _sleepButton.Draw(spriteBatch, _pixel, _font);
+        _statsButton.Draw(spriteBatch, _pixel, _font);
     }
 
     private void DrawAlertsPanel(SpriteBatch spriteBatch)
@@ -3970,6 +4075,258 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _closeUpgradesButton.Draw(spriteBatch, _pixel, _font);
     }
 
+    private void DrawStatsOverlay(SpriteBatch spriteBatch)
+    {
+        var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
+        UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
+
+        UiPanel.Draw(spriteBatch, _pixel, _statsBounds, UiTheme.PanelFill, UiTheme.Success, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_statsBounds.X + 1, _statsBounds.Y + 1, _statsBounds.Width - 2, 4), UiTheme.Success);
+
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Run Stats + Achievements",
+            new Vector2(_statsBounds.X + 24, _statsBounds.Y + 18),
+            _closeStatsButton.Bounds,
+            _statsBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.0f,
+            0.86f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "A full run breakdown across output, career, money, survival, and life outside the editor. The top summary is fast to scan, and the longer sections below keep every tracked stat in one place.",
+            new Vector2(_statsBounds.X + 24, _statsBounds.Y + 52),
+            _statsBounds.Width - 48,
+            UiTheme.TextMuted,
+            0.74f,
+            2f,
+            3);
+
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var previousScissor = graphicsDevice.ScissorRectangle;
+        spriteBatch.End();
+        graphicsDevice.ScissorRectangle = _statsViewportBounds;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
+
+        var contentX = _statsViewportBounds.X;
+        var contentWidth = _statsViewportBounds.Width;
+        var contentY = _statsViewportBounds.Y - (int)MathF.Round(_statsScrollOffset);
+        const int summaryGap = 16;
+        const int summaryHeight = 104;
+        var summaryWidth = (contentWidth - (summaryGap * 3)) / 4;
+        var unlockedCount = _state.Stats.AchievementUnlockCount;
+        var achievementTotal = RunAchievementCatalog.All.Count;
+        var latestUnlockTitle = GetLatestUnlockedAchievementTitle();
+        var nextAchievement = GetNextLockedAchievement();
+        var achievementsDetail = latestUnlockTitle is not null
+            ? $"Latest: {latestUnlockTitle}"
+            : nextAchievement is not null
+                ? $"Next: {nextAchievement.ProgressFactory(_state)}"
+                : "Everything in the current catalog is unlocked.";
+
+        DrawStatsSummaryCard(
+            spriteBatch,
+            new Rectangle(contentX, contentY, summaryWidth, summaryHeight),
+            "Run Arc",
+            $"Day {_state.Stats.HighestDayReached}  |  {_state.GameplayMode}",
+            $"{_state.Status}  |  {FormatRemainingTime(_state.Stats.TotalInGameMinutes)} tracked",
+            UiTheme.Success);
+        DrawStatsSummaryCard(
+            spriteBatch,
+            new Rectangle(contentX + summaryWidth + summaryGap, contentY, summaryWidth, summaryHeight),
+            "Output",
+            $"{_state.Stats.TotalLinesTyped:0} LoC typed",
+            $"{_state.Stats.PortfolioFilesCompleted} files  |  {_state.PublishedAppCount} releases",
+            UiTheme.Accent);
+        DrawStatsSummaryCard(
+            spriteBatch,
+            new Rectangle(contentX + ((summaryWidth + summaryGap) * 2), contentY, summaryWidth, summaryHeight),
+            "Career",
+            $"{_state.Stats.JobApplicationsStarted} applications",
+            $"{_state.Stats.InterviewsAttempted} interviews  |  {_state.SuccessfulApplications} wins",
+            UiTheme.Warning);
+        DrawStatsSummaryCard(
+            spriteBatch,
+            new Rectangle(contentX + ((summaryWidth + summaryGap) * 3), contentY, summaryWidth, summaryHeight),
+            "Achievements",
+            $"{unlockedCount}/{achievementTotal} unlocked",
+            achievementsDetail,
+            unlockedCount > 0 ? UiTheme.Success : UiTheme.TextPrimary);
+
+        contentY += summaryHeight + 18;
+
+        var achievementsHeight = MeasureStatsAchievementSectionHeight(contentWidth);
+        var achievementsBounds = new Rectangle(contentX, contentY, contentWidth, achievementsHeight);
+        DrawStatsAchievementSection(spriteBatch, achievementsBounds);
+        contentY = achievementsBounds.Bottom + 16;
+
+        foreach (var section in RunStatsCatalog.Sections)
+        {
+            var sectionHeight = MeasureStatsSectionHeight(section, contentWidth);
+            var sectionBounds = new Rectangle(contentX, contentY, contentWidth, sectionHeight);
+            DrawStatsSection(spriteBatch, sectionBounds, section);
+            contentY = sectionBounds.Bottom + 14;
+        }
+
+        spriteBatch.End();
+        graphicsDevice.ScissorRectangle = previousScissor;
+        spriteBatch.Begin(samplerState: SamplerState.LinearClamp, rasterizerState: UiRenderStates.ScissorRasterizer);
+
+        if (_statsMaxScrollOffset > 0f)
+        {
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _statsScrollbarTrackBounds,
+                UiTheme.WithOpacity(UiTheme.PanelMuted, 0.78f),
+                UiTheme.PanelBorder,
+                1);
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                _statsScrollbarThumbBounds,
+                UiTheme.Success,
+                UiTheme.TextPrimary,
+                1);
+        }
+
+        _closeStatsButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawStatsSummaryCard(
+        SpriteBatch spriteBatch,
+        Rectangle bounds,
+        string title,
+        string headline,
+        string detail,
+        Color headlineColor)
+    {
+        UiPanel.Draw(spriteBatch, _pixel, bounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, title, new Vector2(bounds.X + 14, bounds.Y + 12), UiTheme.TextMuted, 0.68f);
+        DrawFittedLabel(
+            spriteBatch,
+            headline,
+            new Vector2(bounds.X + 14, bounds.Y + 36),
+            bounds.Width - 28,
+            headlineColor,
+            0.8f,
+            0.6f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            detail,
+            new Vector2(bounds.X + 14, bounds.Y + 62),
+            bounds.Width - 28,
+            UiTheme.TextMuted,
+            0.6f,
+            1f,
+            2);
+    }
+
+    private void DrawStatsAchievementSection(SpriteBatch spriteBatch, Rectangle bounds)
+    {
+        UiPanel.Draw(spriteBatch, _pixel, bounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, "Achievement Board", new Vector2(bounds.X + 16, bounds.Y + 14), UiTheme.TextPrimary, 0.82f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Unlocked achievements log the major beats of the run, while locked ones show the next threshold to chase.",
+            new Vector2(bounds.X + 16, bounds.Y + 40),
+            bounds.Width - 32,
+            UiTheme.TextMuted,
+            0.64f,
+            2f,
+            2);
+
+        var entryY = bounds.Y + 88f;
+        foreach (var achievement in RunAchievementCatalog.All)
+        {
+            var entryHeight = MeasureStatsAchievementEntryHeight(achievement, bounds.Width - 52);
+            var entryBounds = new Rectangle(bounds.X + 14, (int)MathF.Round(entryY), bounds.Width - 28, entryHeight);
+            var unlocked = _state.Stats.UnlockedAchievementIds.Contains(achievement.Id);
+            var contentX = entryBounds.X + 12;
+            var contentWidth = entryBounds.Width - 24;
+            var statusText = GetAchievementStatusText(achievement);
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                entryBounds,
+                unlocked ? new Color(27, 61, 44) : UiTheme.PanelMuted,
+                unlocked ? UiTheme.Success : UiTheme.PanelBorder,
+                1);
+            var textY = entryBounds.Y + 10f;
+            var titleHeight = UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                achievement.Title,
+                new Vector2(contentX, textY),
+                contentWidth,
+                unlocked ? UiTheme.Success : UiTheme.TextPrimary,
+                0.74f,
+                1f);
+            textY += titleHeight + 6f;
+            var descriptionHeight = UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                achievement.Description,
+                new Vector2(contentX, textY),
+                contentWidth,
+                UiTheme.TextMuted,
+                0.6f,
+                1f);
+            textY += descriptionHeight + 8f;
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                statusText,
+                new Vector2(contentX, textY),
+                contentWidth,
+                unlocked ? UiTheme.Success : UiTheme.Warning,
+                0.58f,
+                1f);
+
+            entryY = entryBounds.Bottom + 8;
+        }
+    }
+
+    private void DrawStatsSection(SpriteBatch spriteBatch, Rectangle bounds, RunStatSectionDefinition section)
+    {
+        UiPanel.Draw(spriteBatch, _pixel, bounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
+        UiLabel.Draw(spriteBatch, _font, section.Title, new Vector2(bounds.X + 16, bounds.Y + 14), UiTheme.TextPrimary, 0.82f);
+        var descriptionHeight = UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            section.Description,
+            new Vector2(bounds.X + 16, bounds.Y + 40),
+            bounds.Width - 32,
+            UiTheme.TextMuted,
+            0.64f,
+            2f,
+            2);
+        var rowY = bounds.Y + 40f + descriptionHeight + 14f;
+        var labelWidth = bounds.Width - 220f;
+        foreach (var stat in section.Stats)
+        {
+            UiLabel.Draw(
+                spriteBatch,
+                _font,
+                UiTextBlock.TrimToWidth(_font, stat.Label, labelWidth, 0.66f),
+                new Vector2(bounds.X + 16, rowY),
+                UiTheme.TextMuted,
+                0.66f);
+            DrawFittedLabel(
+                spriteBatch,
+                stat.ValueFactory(_state),
+                new Vector2(bounds.Right - 188, rowY - 1),
+                172,
+                UiTheme.TextPrimary,
+                0.68f,
+                0.56f);
+            rowY += 24f;
+        }
+    }
+
     private void DrawJobApplicationOverlay(SpriteBatch spriteBatch)
     {
         var application = _state.ActiveJobApplication!;
@@ -4390,10 +4747,15 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _sleepButton.Text = _simulation.RequiresSleep(_state) ? "Sleep Now" : "Sleep";
         _sleepButton.IsSelected = _simulation.RequiresSleep(_state);
         _upgradesButton.Enabled = _state.Status == RunStatus.InProgress;
+        _statsButton.Enabled = true;
+        _statsButton.Text = $"Run Stats ({_state.Stats.AchievementUnlockCount}/{RunAchievementCatalog.All.Count})";
+        _statsButton.IsSelected = _statsOpen;
         _guideButton.Enabled = _state.Status == RunStatus.InProgress;
         _guideButton.Text = "Guide";
         _newRunButton.Enabled = true;
         _newRunButton.Text = "New Run";
+        _menuButton.Enabled = true;
+        _menuButton.Text = "Menu";
         _optionsButton.Enabled = true;
         var manualDebugRequired = _state.IsRealisticMode && _state.ActiveTechDebtBug is not null;
         _squashBugButton.Enabled = !manualDebugRequired && _simulation.CanApplyAction(_state, PlayerAction.SquashBug);
@@ -4445,6 +4807,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 : "Move Out";
         _retireButton.Text = _state.HasRetired ? "Retired" : "Retire";
 
+        _menuButton.Bounds = new Rectangle(_sidebarBounds.Right - 220, _sidebarBounds.Y + 10, 96, 30);
         _optionsButton.Bounds = new Rectangle(_sidebarBounds.Right - 112, _sidebarBounds.Y + 10, 96, 30);
         _foodAppButton.Bounds = new Rectangle(contentX, actionButtonsY, halfWidth, 34);
         _freelanceButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY, halfWidth, 34);
@@ -4453,6 +4816,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _communicationButton.Bounds = new Rectangle(contentX, actionButtonsY + 80, halfWidth, 34);
         _projectStudioButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY + 80, halfWidth, 34);
         _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 120, contentWidth, 34);
+        _statsButton.Bounds = new Rectangle(contentX, actionButtonsY + 160, contentWidth, 34);
 
         _coinFrameBounds = new Rectangle(_editorViewportBounds.Right - 148, _editorViewportBounds.Y + 6, 128, 86);
         _runControlsBounds = _state.Status == RunStatus.InProgress
@@ -5038,6 +5402,29 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _upgradesScrollbarThumbBounds = new Rectangle(_upgradesScrollbarTrackBounds.X, thumbY, _upgradesScrollbarTrackBounds.Width, thumbHeight);
         }
 
+        var statsWidth = Math.Min(_virtualResolution.X - 120, 1360);
+        var statsHeight = Math.Min(_virtualResolution.Y - 88, 724);
+        var statsX = (_virtualResolution.X - statsWidth) / 2;
+        var statsY = (_virtualResolution.Y - statsHeight) / 2;
+        _statsBounds = new Rectangle(statsX, statsY, statsWidth, statsHeight);
+        _closeStatsButton.Bounds = new Rectangle(_statsBounds.Right - 112, _statsBounds.Y + 18, 88, 30);
+        _statsViewportBounds = new Rectangle(_statsBounds.X + 24, _statsBounds.Y + 118, _statsBounds.Width - 64, _statsBounds.Height - 150);
+        _statsScrollbarTrackBounds = new Rectangle(_statsBounds.Right - 26, _statsViewportBounds.Y, 10, _statsViewportBounds.Height);
+        var statsContentHeight = MeasureStatsOverlayContentHeight(_statsViewportBounds.Width);
+        _statsMaxScrollOffset = Math.Max(0f, statsContentHeight - _statsViewportBounds.Height);
+        _statsScrollOffset = Math.Clamp(_statsScrollOffset, 0f, _statsMaxScrollOffset);
+        if (_statsMaxScrollOffset <= 0f)
+        {
+            _statsScrollbarThumbBounds = _statsScrollbarTrackBounds;
+        }
+        else
+        {
+            var thumbHeight = Math.Max(54, (int)MathF.Round(_statsScrollbarTrackBounds.Height * (_statsViewportBounds.Height / (float)statsContentHeight)));
+            var thumbTravel = _statsScrollbarTrackBounds.Height - thumbHeight;
+            var thumbY = _statsScrollbarTrackBounds.Y + (int)MathF.Round((_statsScrollOffset / _statsMaxScrollOffset) * thumbTravel);
+            _statsScrollbarThumbBounds = new Rectangle(_statsScrollbarTrackBounds.X, thumbY, _statsScrollbarTrackBounds.Width, thumbHeight);
+        }
+
         foreach (var definition in EfficiencyUpgradeCatalog.All)
         {
             var button = _upgradeButtons[definition.Type];
@@ -5137,6 +5524,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _projectStudioOpen = false;
         _freelanceBoardOpen = false;
         _upgradesOpen = false;
+        _statsOpen = false;
         _jobApplicationOpen = false;
     }
 
@@ -5166,10 +5554,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _freelanceBoardMaxScrollOffset = 0f;
         _upgradesScrollOffset = 0f;
         _upgradesMaxScrollOffset = 0f;
+        _statsScrollOffset = 0f;
+        _statsMaxScrollOffset = 0f;
         _lastCelebratedFileName = null;
         _lastCommitPromptedFileName = null;
         _selectedCommunicationContactId = null;
         _communicationOpen = false;
+        _statsOpen = false;
         _activeScrollbarDrag = OverlayScrollArea.None;
         EnsureCommunicationButtons();
         OpenTutorial();
@@ -5330,7 +5721,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private int GetSidebarAlertsTop()
     {
-        return GetSidebarActionButtonsTop() + 166;
+        return GetSidebarActionButtonsTop() + 206;
     }
 
     private void DrawOverlayHeaderLabel(
@@ -5674,6 +6065,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return ("New Run", "Start a fresh run using the current seed mode from Options. Random mode rolls a new seed, manual mode reuses the chosen one.");
         }
 
+        if (_menuButton.IsHovered)
+        {
+            return ("Menu", "Leave the current run and go back to the main menu.");
+        }
+
         if (_optionsButton.IsHovered)
         {
             return ("Options", "Adjust resolution, display mode, and live audio levels without leaving the run.");
@@ -5762,6 +6158,71 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         return (
             gig.Name,
             $"{gig.Description} Needs at least {_simulation.Config.FreelanceMinimumFocusRequired:0} focus to start. Duration {FormatRemainingTime(gig.DurationMinutes)}. Funds +${gig.FundsGain:0}, focus -{gig.FocusCost:0}, sanity -{gig.SanityCost:0}, quality {FormatSigned(gig.CodeQualityGain)}.");
+    }
+
+    private int MeasureStatsOverlayContentHeight(int contentWidth)
+    {
+        const int summaryHeight = 104;
+        var height = summaryHeight + 18;
+        height += MeasureStatsAchievementSectionHeight(contentWidth) + 16;
+        foreach (var section in RunStatsCatalog.Sections)
+        {
+            height += MeasureStatsSectionHeight(section, contentWidth) + 14;
+        }
+
+        return height + 12;
+    }
+
+    private int MeasureStatsAchievementSectionHeight(int contentWidth)
+    {
+        var height = 88;
+        foreach (var achievement in RunAchievementCatalog.All)
+        {
+            height += MeasureStatsAchievementEntryHeight(achievement, contentWidth - 52) + 8;
+        }
+
+        return height + 8;
+    }
+
+    private int MeasureStatsAchievementEntryHeight(RunAchievementDefinition achievement, int contentWidth)
+    {
+        var titleHeight = UiTextBlock.MeasureWrappedHeight(_font, achievement.Title, contentWidth, 0.74f, 1f);
+        var descriptionHeight = UiTextBlock.MeasureWrappedHeight(_font, achievement.Description, contentWidth, 0.6f, 1f);
+        var statusHeight = UiTextBlock.MeasureWrappedHeight(_font, GetAchievementStatusText(achievement), contentWidth, 0.58f, 1f);
+        return Math.Max(68, (int)MathF.Ceiling(10 + titleHeight + 6 + descriptionHeight + 8 + statusHeight + 10));
+    }
+
+    private string GetAchievementStatusText(RunAchievementDefinition achievement)
+    {
+        var progress = achievement.ProgressFactory(_state);
+        return _state.Stats.UnlockedAchievementIds.Contains(achievement.Id)
+            ? $"Unlocked | {progress}"
+            : progress;
+    }
+
+    private int MeasureStatsSectionHeight(RunStatSectionDefinition section, int contentWidth)
+    {
+        var descriptionHeight = UiTextBlock.MeasureWrappedHeight(_font, section.Description, contentWidth - 32, 0.64f, 2f, 2);
+        return (int)MathF.Ceiling(40 + descriptionHeight + 14 + (section.Stats.Count * 24) + 14);
+    }
+
+    private string? GetLatestUnlockedAchievementTitle()
+    {
+        if (_state.Stats.AchievementUnlockOrder.Count == 0)
+        {
+            return null;
+        }
+
+        var latestId = _state.Stats.AchievementUnlockOrder[^1];
+        return RunAchievementCatalog.All
+            .FirstOrDefault(achievement => string.Equals(achievement.Id, latestId, StringComparison.Ordinal))
+            ?.Title;
+    }
+
+    private RunAchievementDefinition? GetNextLockedAchievement()
+    {
+        return RunAchievementCatalog.All
+            .FirstOrDefault(achievement => !_state.Stats.UnlockedAchievementIds.Contains(achievement.Id));
     }
 
     private int MeasureActiveFreelanceGigSummaryHeight(ActiveFreelanceGig gig)

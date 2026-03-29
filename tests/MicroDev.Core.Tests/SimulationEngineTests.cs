@@ -1405,6 +1405,124 @@ public sealed class SimulationEngineTests
         Assert.True(state.RelationshipProgress > _engine.Config.RelationshipProgressNeededForLove);
     }
 
+    [Fact]
+    public void RunStats_TrackCodingCommitAndCommitAchievement()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 200;
+        var safety = 0;
+
+        while (state.RecentCompletedFileName is null && safety < 120)
+        {
+            Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            safety++;
+        }
+
+        Assert.True(safety < 120);
+        Assert.True(_engine.CommitChanges(state));
+
+        Assert.True(state.Stats.TotalLinesTyped > 0);
+        Assert.True(state.Stats.PortfolioLinesTyped > 0);
+        Assert.True(state.Stats.CodingActions > 0);
+        Assert.Equal(1, state.Stats.PortfolioFilesCompleted);
+        Assert.Equal(1, state.VersionControl.CommitCount);
+        Assert.Contains("first_commit", state.Stats.UnlockedAchievementIds);
+    }
+
+    [Fact]
+    public void RunStats_TrackFreelanceAndPublishingAchievements()
+    {
+        var state = _engine.CreateNewRun();
+        state.Focus = 2000;
+
+        Assert.True(_engine.TakeFreelanceGig(state, FreelanceGigType.QuickBugfix));
+        while (state.ActiveFreelanceGig is not null)
+        {
+            Assert.True(_engine.WorkOnFreelanceGig(state));
+        }
+
+        CompleteCurrentPortfolioBatch(_engine, state);
+        Assert.True(_engine.ApplyAction(state, PlayerAction.PublishApp));
+
+        Assert.Equal(1, state.Stats.FreelanceGigsStarted);
+        Assert.Equal(1, state.Stats.FreelanceGigsCompleted);
+        Assert.True(state.Stats.FreelanceIncome > 0);
+        Assert.True(state.Stats.PublishIncome > 0);
+        Assert.Contains("freelancer", state.Stats.UnlockedAchievementIds);
+        Assert.Contains("ship_it", state.Stats.UnlockedAchievementIds);
+    }
+
+    [Fact]
+    public void RunStats_TrackMealsBugsAndFirstCoinAchievements()
+    {
+        var state = _engine.CreateNewRun();
+
+        Assert.True(_engine.PlaceFoodOrder(state, FoodChoice.SkilletPasta, doubleCheckOrder: true));
+        _engine.AdvanceTime(state, _engine.GetFoodDeliveryDuration(state, FoodChoice.SkilletPasta));
+
+        _engine.QueueIncidents(state, [new QueuedIncident("bug-1", IncidentType.TechDebtBug, "Bug!")]);
+        state.Focus = 40;
+        Assert.True(_engine.ApplyAction(state, PlayerAction.SquashBug));
+
+        state.Funds = 20;
+        _engine.AdvanceTime(state, 16 * 60);
+        Assert.True(_engine.UseFirstCoin(state));
+
+        Assert.Equal(1, state.Stats.MealsOrdered);
+        Assert.Equal(1, state.Stats.HomeCookedMealsOrdered);
+        Assert.Equal(1, state.Stats.CleanMeals);
+        Assert.Equal(1, state.Stats.BugsSpawned);
+        Assert.Equal(1, state.Stats.BugsSquashed);
+        Assert.Equal(1, state.Stats.FirstCoinUses);
+        Assert.Contains("meal_prep", state.Stats.UnlockedAchievementIds);
+        Assert.Contains("bug_squasher", state.Stats.UnlockedAchievementIds);
+        Assert.Contains("safety_net", state.Stats.UnlockedAchievementIds);
+    }
+
+    [Fact]
+    public void RunStats_TrackApplicationInterviewAndOfferAchievements()
+    {
+        var state = _engine.CreateNewRun();
+        state.LinesOfCode = 140;
+        state.CodeQuality = 80;
+        state.Focus = 200;
+        _engine.QueueIncidents(state, [new QueuedIncident("job-1", IncidentType.JobListing, "Job!")]);
+        GrantResumeProofForListing(state);
+
+        Assert.True(_engine.ApplyAction(state, PlayerAction.ApplyForJob));
+
+        while (state.ActiveJobApplication is not null &&
+               !state.ActiveJobApplication.TakeHomeComplete)
+        {
+            Assert.True(_engine.WorkOnJobApplication(state));
+        }
+
+        while (state.ActiveJobApplication is not null)
+        {
+            var question = state.ActiveJobApplication.Questions[state.ActiveJobApplication.CurrentQuestionIndex];
+            Assert.True(_engine.AnswerInterviewQuestion(state, question.CorrectOptionIndex));
+        }
+
+        Assert.Equal(1, state.Stats.JobApplicationsStarted);
+        Assert.True(state.Stats.ResumeLinesSpent > 0);
+        Assert.True(state.Stats.TakeHomeLinesTyped > 0);
+        Assert.Equal(1, state.Stats.TakeHomesCompleted);
+        Assert.Equal(1, state.Stats.InterviewsAttempted);
+        Assert.True(state.Stats.InterviewQuestionsAnswered > 0);
+        Assert.Equal(state.Stats.InterviewQuestionsAnswered, state.Stats.InterviewQuestionsCorrect);
+        Assert.Equal(1, state.Stats.JobOffersEarned);
+        Assert.Equal(1, state.SuccessfulApplications);
+        Assert.Contains("interview_loop", state.Stats.UnlockedAchievementIds);
+        Assert.Contains("offer_letter", state.Stats.UnlockedAchievementIds);
+    }
+
+    [Fact]
+    public void RunAchievementCatalog_ContainsOneHundredUniqueAchievements()
+    {
+        Assert.Equal(100, RunAchievementCatalog.All.Count);
+        Assert.Equal(100, RunAchievementCatalog.All.Select(achievement => achievement.Id).Distinct(StringComparer.Ordinal).Count());
+    }
+
     private static void GrantResumeProofForListing(RunState state)
     {
         var listing = Assert.IsType<ActiveJobListing>(state.ActiveJobListing);

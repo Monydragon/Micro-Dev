@@ -128,6 +128,8 @@ public sealed class RunState
 
     public VersionControlState VersionControl { get; set; } = new();
 
+    public RunStats Stats { get; set; } = new();
+
     public List<string> EventLog { get; } = [];
 
     public List<QueuedIncident> QueuedIncidents { get; } = [];
@@ -216,6 +218,7 @@ public sealed class RunState
             ActiveFreelanceGig = ActiveFreelanceGig?.Clone(),
             CurrentProjectBlueprint = CurrentProjectBlueprint.Clone(),
             VersionControl = VersionControl.Clone(),
+            Stats = Stats.DeepCopy(),
         };
 
         clone.EventLog.AddRange(EventLog);
@@ -299,6 +302,7 @@ public sealed class RunState
         ActiveFreelanceGig = other.ActiveFreelanceGig?.Clone();
         CurrentProjectBlueprint = other.CurrentProjectBlueprint.Clone();
         VersionControl = other.VersionControl.Clone();
+        Stats = other.Stats.DeepCopy();
 
         EventLog.Clear();
         EventLog.AddRange(other.EventLog);

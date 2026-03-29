@@ -87,6 +87,25 @@ public sealed class SimulationEngine
         Sanity,
     }
 
+    private enum FundsSource
+    {
+        Freelance = 0,
+        Publish,
+        Sale,
+        Salary,
+        Offer,
+        Misc,
+    }
+
+    private enum FundsSink
+    {
+        Food = 0,
+        Upgrade,
+        Milestone,
+        Bills,
+        Misc,
+    }
+
     private sealed record TechDebtSnippetTemplate(
         string Id,
         string IssueLabel,
@@ -191,6 +210,7 @@ public sealed class SimulationEngine
             AppendLog(state, "Founder Mode is live. Name the studio, survive the basement, and grow the company from scratch.");
         }
 
+        RefreshRunProgress(state);
         return state;
     }
 
@@ -575,9 +595,11 @@ public sealed class SimulationEngine
         }
 
         state.ActiveFreelanceGig = CreateFreelanceGig(state, type);
+        state.Stats.FreelanceGigsStarted += 1;
         AppendLog(
             state,
             $"{state.ActiveFreelanceGig.Title} starts for {state.ActiveFreelanceGig.ClientName}. Ship the contract code to lock in the payout.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -620,9 +642,12 @@ public sealed class SimulationEngine
             return false;
         }
 
+        state.Stats.TotalLinesTyped += linesAdded;
+        state.Stats.FreelanceLinesTyped += linesAdded;
         AppendLog(state, $"Freelance progress: +{linesAdded} contract LoC for {gig.Title}.");
         if (!gig.IsComplete)
         {
+            RefreshRunProgress(state);
             return true;
         }
 
@@ -631,9 +656,11 @@ public sealed class SimulationEngine
         if (state.Status == RunStatus.InProgress)
         {
             state.Funds += fundsGain;
+            RecordFundsEarned(state, fundsGain, FundsSource.Freelance);
             state.Focus = Clamp(state.Focus - gig.FocusCost, 0, Config.MaxFocus);
             state.Sanity = Clamp(state.Sanity - gig.SanityCost, 0, Config.MaxSanity);
             state.CodeQuality = Clamp(state.CodeQuality + gig.CodeQualityGain, 0, Config.MaxCodeQuality);
+            state.Stats.FreelanceGigsCompleted += 1;
             AwardResumeProof(state, GetResumeTrackForGig(gig.Type), 1, $"{gig.Title} gave the resume a stronger {GetResumeTrackLabel(GetResumeTrackForGig(gig.Type)).ToLowerInvariant()} story.");
             AppendLog(
                 state,
@@ -642,6 +669,7 @@ public sealed class SimulationEngine
         }
 
         state.ActiveFreelanceGig = null;
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -682,8 +710,10 @@ public sealed class SimulationEngine
 
         var newTier = currentTier + 1;
         state.Funds -= purchaseCost;
+        RecordFundsSpent(state, purchaseCost, FundsSink.Upgrade);
         state.PurchasedUpgrades[type] = newTier;
         AppendLog(state, $"Installed {definition.Name} tier {newTier}/{MaxUpgradeTier}: {definition.GetTotalEffectSummary(newTier)}");
+        RefreshRunProgress(state);
         if (newTier <= 2)
         {
             AwardInterviewPrep(state, 1, $"{definition.Name} tightened the interview plan.");
@@ -752,9 +782,11 @@ public sealed class SimulationEngine
 
         var apartmentCost = GetApartmentCost(state);
         state.Funds -= apartmentCost;
+        RecordFundsSpent(state, apartmentCost, FundsSink.Milestone);
         state.HasApartment = true;
         state.Sanity = Clamp(state.Sanity + 5, 0, Config.MaxSanity);
         AppendLog(state, $"You finally move out of the basement and into an apartment. -${apartmentCost:0}, sanity +5. The run feels less temporary.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -777,9 +809,11 @@ public sealed class SimulationEngine
 
         var houseCost = GetHouseCost(state);
         state.Funds -= houseCost;
+        RecordFundsSpent(state, houseCost, FundsSink.Milestone);
         state.HasHouse = true;
         state.Sanity = Clamp(state.Sanity + 8, 0, Config.MaxSanity);
         AppendLog(state, $"You finally lock in a down payment and buy a house. -${houseCost:0}, sanity +8. The run suddenly feels less temporary.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -802,11 +836,13 @@ public sealed class SimulationEngine
 
         var retirementCost = GetRetirementCost(state);
         state.Funds -= retirementCost;
+        RecordFundsSpent(state, retirementCost, FundsSink.Milestone);
         state.HasRetired = true;
         state.Sanity = Clamp(state.Sanity + 16, 0, Config.MaxSanity);
         state.Status = RunStatus.Won;
         state.OutcomeMessage = BuildRetirementOutcomeMessage(state);
         AppendLog(state, $"The long game lands. -${retirementCost:0}, sanity +16, and the run finally closes on house keys, savings, and life away from the desk.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -881,6 +917,7 @@ public sealed class SimulationEngine
         }
 
         EvaluateLossState(state);
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -925,6 +962,7 @@ public sealed class SimulationEngine
         state.VersionControl.CurrentBranchName = state.VersionControl.MainBranchName;
         state.VersionControl.FeatureBranchCommitCount = 0;
         AppendLog(state, "Closed the empty feature branch and moved the repo back to main. The release lane is clear again.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -943,6 +981,7 @@ public sealed class SimulationEngine
             versionControl.BranchSerial);
         versionControl.FeatureBranchCommitCount = 0;
         AppendLog(state, $"Created {versionControl.CurrentBranchName}. This release is now splitting work off main.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -989,6 +1028,7 @@ public sealed class SimulationEngine
             AppendLog(
                 state,
                 $"Merge started for {branchName}, but conflict markers explode in {versionControl.ActiveMergeConflict.FileName}. Resolve it before the release can move.");
+            RefreshRunProgress(state);
             return true;
         }
 
@@ -996,6 +1036,7 @@ public sealed class SimulationEngine
         versionControl.FeatureBranchCommitCount = 0;
         state.CodeQuality = Clamp(state.CodeQuality + 2, 0, Config.MaxCodeQuality);
         AppendLog(state, $"Merged {branchName} cleanly back into main. Code quality +2 from the tidy integration.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1036,6 +1077,7 @@ public sealed class SimulationEngine
                 state,
                 $"You resolved the {conflict.FileName} merge cleanly and carried the good parts forward. Focus -{focusCost:0}, code quality +{conflict.Severity:0}.");
             EvaluateLossState(state);
+            RefreshRunProgress(state);
             return true;
         }
 
@@ -1046,6 +1088,7 @@ public sealed class SimulationEngine
             state,
             $"The merge technically lands, but {conflict.FileName} comes out rough. Focus -{focusCost:0}, code quality -{2 * conflict.Severity:0}, and {cleanupLines} lines of cleanup are still dirty.");
         EvaluateLossState(state);
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1071,7 +1114,9 @@ public sealed class SimulationEngine
             state.GameplayMode,
             state.CurrentProjectBlueprint,
             field);
+        state.Stats.ProjectPlanChanges += 1;
         AppendLog(state, $"Project studio pivots the next release toward {state.CurrentProjectBlueprint.Title}.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1086,7 +1131,9 @@ public sealed class SimulationEngine
             state.RunSeed,
             state.GameplayMode,
             state.CurrentProjectBlueprint);
+        state.Stats.ProjectConceptRerolls += 1;
         AppendLog(state, $"Project studio rerolls the concept. The next release is now {state.CurrentProjectBlueprint.Title}.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1137,11 +1184,14 @@ public sealed class SimulationEngine
         state.HasFirstCoin = false;
         state.FirstCoinDecisionPending = false;
         state.Funds = Math.Max(0, state.Funds + Config.FirstCoinEmergencyFundsGain);
+        RecordFundsEarned(state, Config.FirstCoinEmergencyFundsGain, FundsSource.Misc);
+        state.Stats.FirstCoinUses += 1;
         state.FirstCoinRescueDeficit = 0;
         state.Sanity = Clamp(state.Sanity - Config.FirstCoinBreakSanityLoss, 0, Config.MaxSanity);
 
         AppendLog(state, $"The frame cracks. The first coin buys +${Config.FirstCoinEmergencyFundsGain:0} and the hope it carried is gone.");
         EvaluateLossState(state);
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1156,6 +1206,7 @@ public sealed class SimulationEngine
         state.Status = RunStatus.Evicted;
         state.OutcomeMessage = "Rent came due, the first coin stayed framed, and the landlord still changed the locks.";
         AppendLog(state, "You let the coin stay framed. The eviction notice still came.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1214,36 +1265,55 @@ public sealed class SimulationEngine
 
         var lifeEvent = state.PendingLifeEvent!;
         state.PendingLifeEvent = null;
+        state.Stats.LifeEventsResolved += 1;
+
+        bool resolved;
 
         switch (lifeEvent.Type)
         {
             case IncidentType.ComputerFreeze:
-                return ResolveComputerFreeze(state, lifeEvent, optionIndex);
+                resolved = ResolveComputerFreeze(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.StreamingBinge:
-                return ResolveStreamingBinge(state, lifeEvent, optionIndex);
+                resolved = ResolveStreamingBinge(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.OnlineMatch:
-                return ResolveOnlineMatch(state, lifeEvent, optionIndex);
+                resolved = ResolveOnlineMatch(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.PartnerCheckIn:
-                return ResolvePartnerCheckIn(state, lifeEvent, optionIndex);
+                resolved = ResolvePartnerCheckIn(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.CareerPathChoice:
-                return ResolveCareerPathChoice(state, lifeEvent, optionIndex);
+                resolved = ResolveCareerPathChoice(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.BossCheckIn:
-                return ResolveBossCheckIn(state, lifeEvent, optionIndex);
+                resolved = ResolveBossCheckIn(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.CoworkerInterruption:
-                return ResolveCoworkerInterruption(state, lifeEvent, optionIndex);
+                resolved = ResolveCoworkerInterruption(state, lifeEvent, optionIndex);
+                break;
 
             case IncidentType.FounderNaming:
-                return ResolveFounderNaming(state, lifeEvent, optionIndex);
+                resolved = ResolveFounderNaming(state, lifeEvent, optionIndex);
+                break;
 
             default:
-                return false;
+                resolved = false;
+                break;
         }
+
+        if (resolved)
+        {
+            RefreshRunProgress(state);
+        }
+
+        return resolved;
     }
 
     public int GetCurrentWriteLinesPerClick(RunState state)
@@ -1377,6 +1447,8 @@ public sealed class SimulationEngine
             return false;
         }
 
+        state.Stats.TotalLinesTyped += linesAdded;
+        state.Stats.TakeHomeLinesTyped += linesAdded;
         state.Focus = Clamp(state.Focus - GetWriteCodeFocusCost(state), 0, Config.MaxFocus);
         state.CodeQuality = Clamp(state.CodeQuality + (GetWriteCodeQualityGain(state) * 0.5), 0, Config.MaxCodeQuality);
         AppendLog(state, $"Take-home progress: +{linesAdded} challenge LoC for {application.ListingTitle}.");
@@ -1390,10 +1462,12 @@ public sealed class SimulationEngine
                 AwardInterviewPrep(state, 1, "The take-home shipped under clean desk conditions.");
             }
 
+            state.Stats.TakeHomesCompleted += 1;
             AppendLog(state, $"Take-home complete for {application.ListingTitle}. The mock interview is ready.");
         }
 
         EvaluateLossState(state);
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1428,13 +1502,20 @@ public sealed class SimulationEngine
 
         var application = state.ActiveJobApplication!;
         var question = application.Questions[application.CurrentQuestionIndex];
+        if (application.CurrentQuestionIndex == 0)
+        {
+            state.Stats.InterviewsAttempted += 1;
+        }
+
         var correct = optionIndex == question.CorrectOptionIndex;
         if (correct)
         {
             application.CorrectAnswers++;
+            state.Stats.InterviewQuestionsCorrect += 1;
         }
 
         application.CurrentQuestionIndex++;
+        state.Stats.InterviewQuestionsAnswered += 1;
         AppendLog(
             state,
             correct
@@ -1446,6 +1527,7 @@ public sealed class SimulationEngine
             ResolveJobApplicationOutcome(state);
         }
 
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1478,6 +1560,7 @@ public sealed class SimulationEngine
 
         state.QueuedIncidents.Clear();
         EvaluateLossState(state);
+        RefreshRunProgress(state);
     }
 
     public void AdvanceTime(RunState state, double elapsedInGameMinutes)
@@ -1518,6 +1601,11 @@ public sealed class SimulationEngine
             AdvanceTimedEffects(state, step);
             AdvanceNeedTimers(state, step, isSleeping);
             AdvanceNeedDrivenDebuggingPressure(state, step, hungerStage, sleepStage, isSleeping);
+            state.Stats.TotalInGameMinutes += step;
+            if (isSleeping)
+            {
+                state.Stats.TotalSleepMinutes += step;
+            }
 
             state.TimeOfDayMinutes += step;
             remainingMinutes -= step;
@@ -1530,6 +1618,7 @@ public sealed class SimulationEngine
                 ApplyDailyModeIncome(state);
                 var billAmount = GetCurrentDailyBillAmount(state);
                 state.Funds -= billAmount;
+                RecordFundsSpent(state, billAmount, FundsSink.Bills);
                 AppendLog(state, $"Paid housing + bills: -${billAmount:0}. Funds now ${state.Funds:0}.");
 
                 if (state.Funds < 0)
@@ -1553,6 +1642,8 @@ public sealed class SimulationEngine
             ResolveExpiredIncidents(state);
             EvaluateLossState(state);
         }
+
+        RefreshRunProgress(state);
     }
 
     public bool PlaceFoodOrder(RunState state, FoodChoice choice, bool doubleCheckOrder, bool expeditedDelivery = false)
@@ -1591,6 +1682,23 @@ public sealed class SimulationEngine
         var totalCost = GetFoodTotalCost(state, choice, expeditedDelivery);
         var sluggishPenalty = GetFoodOrderPenaltyMinutes(choice, selectedModifiers, reviewReceipt);
         state.Funds -= totalCost;
+        RecordFundsSpent(state, totalCost, FundsSink.Food);
+        state.Stats.MealsOrdered += 1;
+        if (IsHomeCooked(choice))
+        {
+            state.Stats.HomeCookedMealsOrdered += 1;
+        }
+
+        if (reviewReceipt)
+        {
+            state.Stats.OrdersReviewed += 1;
+        }
+
+        if (expeditedDelivery)
+        {
+            state.Stats.ExpeditedDeliveries += 1;
+        }
+
         state.ActiveFoodDelivery = new ActiveFoodDelivery
         {
             Choice = choice,
@@ -1618,6 +1726,7 @@ public sealed class SimulationEngine
             AwardInterviewPrep(state, 1, "Careful food planning kept the recruiter loop stable.");
         }
 
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -1664,6 +1773,9 @@ public sealed class SimulationEngine
 
                 state.LinesOfCode += writeResult.LinesAdded;
                 state.CurrentPortfolioLinesOfCode += writeResult.LinesAdded;
+                state.Stats.CodingActions += 1;
+                state.Stats.TotalLinesTyped += writeResult.LinesAdded;
+                state.Stats.PortfolioLinesTyped += writeResult.LinesAdded;
                 TrackVersionControlWork(state, writeResult.LinesAdded);
                 state.Focus = Clamp(state.Focus - GetWriteCodeFocusCost(state), 0, Config.MaxFocus);
                 state.CodeQuality = Clamp(state.CodeQuality + qualityGain, 0, Config.MaxCodeQuality);
@@ -1678,6 +1790,7 @@ public sealed class SimulationEngine
                     state.RecentCompletedFileName = writeResult.CompletedFileName;
                     state.FileCompletionCelebrationMinutesRemaining = Config.FileCompletionCelebrationMinutes;
                     state.VersionControl.PendingCompletedFileCount += 1;
+                    state.Stats.PortfolioFilesCompleted += 1;
                     AppendLog(state, $"{writeResult.CompletedFileName} is ready for commit.");
                     AwardIndieProjectProgressIncome(state, writeResult.CompletedFileName);
                     AwardResumeProof(
@@ -1694,6 +1807,7 @@ public sealed class SimulationEngine
 
                 RefreshKnownContactsFromProgress(state);
                 EvaluateLossState(state);
+                RefreshRunProgress(state);
                 return true;
 
             case PlayerAction.Eat:
@@ -1713,6 +1827,7 @@ public sealed class SimulationEngine
 
                 state.Focus = Clamp(state.Focus + (Config.SleepFocusGain * GetModeFocusRecoveryMultiplier(state)), 0, Config.MaxFocus);
                 state.Sanity = Clamp(state.Sanity + Config.SleepSanityGain, 0, Config.MaxSanity);
+                state.Stats.SleepSessions += 1;
                 AppendLog(
                     state,
                     previousSleepStage >= 2
@@ -1720,6 +1835,7 @@ public sealed class SimulationEngine
                         : $"Slept for 8 hours: focus refilled to full, sanity +{Config.SleepSanityGain:0}.");
                 AwardInterviewPrep(state, 1, "Resting before the interview made the next answers steadier.");
                 EvaluateLossState(state);
+                RefreshRunProgress(state);
                 return true;
 
             case PlayerAction.PetCat:
@@ -1728,9 +1844,16 @@ public sealed class SimulationEngine
                     return false;
                 }
 
+                state.Stats.DistractionPats += 1;
+                var clearedByManualPats = state.ActiveCatInterruption!.PatsRemaining == 1;
                 state.ActiveCatInterruption!.PatsRemaining -= 1;
                 ClearDistractionIfResolved(state);
+                if (clearedByManualPats && state.ActiveCatInterruption is null)
+                {
+                    state.Stats.DistractionsManuallyCleared += 1;
+                }
 
+                RefreshRunProgress(state);
                 return true;
 
             case PlayerAction.SquashBug:
@@ -1747,10 +1870,12 @@ public sealed class SimulationEngine
                 state.Focus = Clamp(state.Focus - GetSquashBugFocusCost(state), 0, Config.MaxFocus);
                 state.CodeQuality = Clamp(state.CodeQuality + 4, 0, Config.MaxCodeQuality);
                 state.ActiveTechDebtBug = null;
+                state.Stats.BugsSquashed += 1;
                 AppendLog(state, "Bug squashed. Code quality stabilizes and the panic subsides.");
                 AwardResumeProof(state, ResumeTrack.Tooling, 1, "Squashing a live bug added a real debugging story to the resume.");
                 AwardInterviewPrep(state, 1, "Cleaning up a live bug sharpened the interview story.");
                 EvaluateLossState(state);
+                RefreshRunProgress(state);
                 return true;
 
             case PlayerAction.ApplyForJob:
@@ -1765,6 +1890,7 @@ public sealed class SimulationEngine
                 }
 
                 BeginJobApplication(state);
+                RefreshRunProgress(state);
                 return true;
 
             case PlayerAction.PublishApp:
@@ -1782,6 +1908,7 @@ public sealed class SimulationEngine
 
                 PublishCurrentApp(state);
                 EvaluateLossState(state);
+                RefreshRunProgress(state);
                 return true;
 
             default:
@@ -1800,6 +1927,7 @@ public sealed class SimulationEngine
                     return false;
                 }
 
+                state.Stats.ComputerFreezeSelfRepairs += 1;
                 state.Sanity = Clamp(state.Sanity - Config.ComputerFreezeSelfRepairSanityLoss, 0, Config.MaxSanity);
                 state.Focus = Clamp(state.Focus - Config.ComputerFreezeSelfRepairFocusLoss, 0, Config.MaxFocus);
                 AppendLog(
@@ -1809,6 +1937,8 @@ public sealed class SimulationEngine
 
             case 1:
                 state.Funds -= Config.ComputerFreezeTechSupportFundsCost;
+                RecordFundsSpent(state, Config.ComputerFreezeTechSupportFundsCost, FundsSink.Misc);
+                state.Stats.ComputerFreezeTechSupportCalls += 1;
                 AdvanceTime(state, Config.ComputerFreezeTechSupportDurationMinutes);
                 if (state.Status != RunStatus.InProgress)
                 {
@@ -1823,6 +1953,8 @@ public sealed class SimulationEngine
 
             case 2:
                 state.Funds -= Config.ComputerFreezeRepairShopFundsCost;
+                RecordFundsSpent(state, Config.ComputerFreezeRepairShopFundsCost, FundsSink.Misc);
+                state.Stats.ComputerFreezeRepairShopTrips += 1;
                 AdvanceTime(state, Config.ComputerFreezeRepairShopDurationMinutes);
                 if (state.Status != RunStatus.InProgress)
                 {
@@ -1846,6 +1978,7 @@ public sealed class SimulationEngine
     private bool ResolveStreamingBinge(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
     {
         var showName = lifeEvent.SubjectName ?? "something you have seen before";
+        state.Stats.StreamingChoicesMade += 1;
         switch (optionIndex)
         {
             case 0:
@@ -1910,6 +2043,9 @@ public sealed class SimulationEngine
         var successSanityGain = stageIndex == 2 ? 2 : 1;
         var failureSanityShift = stageIndex == 2 ? -2 : -1;
         var focusLoss = Math.Max(1, Config.OnlineMatchMessageFocusLoss * 0.5);
+        var startedRelationship = false;
+
+        state.Stats.OnlineMatchMoments += 1;
 
         state.Focus = Clamp(state.Focus - focusLoss, 0, Config.MaxFocus);
         state.Sanity = Clamp(
@@ -1935,6 +2071,7 @@ public sealed class SimulationEngine
             if (state.Funds >= Config.OnlineDateFundsCost)
             {
                 state.Funds -= Config.OnlineDateFundsCost;
+                RecordFundsSpent(state, Config.OnlineDateFundsCost, FundsSink.Misc);
                 state.Sanity = Clamp(state.Sanity + Config.OnlineDateSanityGain, 0, Config.MaxSanity);
                 state.Focus = Clamp(state.Focus - Math.Max(1, Config.OnlineDateFocusLoss - 1), 0, Config.MaxFocus);
                 state.RelationshipProgress += Config.OnlineDateRelationshipGain;
@@ -1964,7 +2101,13 @@ public sealed class SimulationEngine
             state.PartnerName = matchName;
             state.RelationshipCandidateName = matchName;
             state.Sanity = Clamp(state.Sanity + 8, 0, Config.MaxSanity);
+            startedRelationship = true;
             AppendLog(state, $"Somewhere between the backlog and the late-night messages, you found something real with {matchName}. Passive sanity support is now part of the run.");
+        }
+
+        if (startedRelationship)
+        {
+            state.Stats.RelationshipsStarted += 1;
         }
 
         SynchronizeRelationshipContact(state);
@@ -1975,6 +2118,7 @@ public sealed class SimulationEngine
     private bool ResolvePartnerCheckIn(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
     {
         var partnerName = lifeEvent.SubjectName ?? state.PartnerName ?? "someone steady";
+        state.Stats.PartnerCheckInsHandled += 1;
         switch (optionIndex)
         {
             case 0:
@@ -1994,6 +2138,7 @@ public sealed class SimulationEngine
 
             case 1:
                 state.Funds -= Config.PartnerCheckInDinnerFundsCost;
+                RecordFundsSpent(state, Config.PartnerCheckInDinnerFundsCost, FundsSink.Misc);
                 AdvanceTime(state, Config.PartnerCheckInDinnerDurationMinutes);
                 if (state.Status != RunStatus.InProgress)
                 {
@@ -2031,6 +2176,7 @@ public sealed class SimulationEngine
         var offerMode = lifeEvent.SubjectScore == (int)GameplayLoopMode.Indie
             ? GameplayLoopMode.Indie
             : GameplayLoopMode.Corporate;
+        state.Stats.CareerRouteChoicesMade += 1;
         switch (optionIndex)
         {
             case 0:
@@ -2038,6 +2184,7 @@ public sealed class SimulationEngine
                 if (offerMode == GameplayLoopMode.Indie)
                 {
                     state.Funds += 30;
+                    RecordFundsEarned(state, 30, FundsSource.Offer);
                     state.Sanity = Clamp(state.Sanity + 6, 0, Config.MaxSanity);
                     AppendLog(state, $"You take the indie studio offer from {listingTitle}. Indie Mode is live with looser structure, self-directed pressure, and income that still depends on what you ship.");
                 }
@@ -2045,6 +2192,7 @@ public sealed class SimulationEngine
                 {
                     state.BossDisposition = ProceduralRunContent.GetBossDisposition(state.RunSeed, GameplayLoopMode.Corporate);
                     state.Funds += 70;
+                    RecordFundsEarned(state, 70, FundsSource.Offer);
                     state.Sanity = Clamp(state.Sanity + 4, 0, Config.MaxSanity);
                     AppendLog(state, $"You take the corporate offer from {listingTitle}. Corporate Mode is live with daily salary, stricter oversight, and {state.BossName}, {state.BossTitle}, policing how survivable the job actually feels.");
                 }
@@ -2053,6 +2201,7 @@ public sealed class SimulationEngine
             case 1:
                 state.GameplayMode = GameplayLoopMode.Founder;
                 state.Funds += 18;
+                RecordFundsEarned(state, 18, FundsSource.Offer);
                 state.Sanity = Clamp(state.Sanity + 3, 0, Config.MaxSanity);
                 state.PendingLifeEvent = CreateFounderNamingEvent(state);
                 AppendLog(state, $"You turn the momentum from {listingTitle} into a founder bet instead of taking the offer. Funds +$18, sanity +3, and the studio now needs a name.");
@@ -2123,8 +2272,10 @@ public sealed class SimulationEngine
                 _ => 0,
             };
 
+            state.Stats.BossCheckInsHandled += 1;
             state.CorporateStanding += standingGain;
             state.Funds += fundsGain;
+            RecordFundsEarned(state, fundsGain, FundsSource.Misc);
             state.Sanity = Clamp(state.Sanity + sanityGain, 0, Config.MaxSanity);
             if (state.BossDisposition == BossDisposition.Supportive && optionIndex == 1)
             {
@@ -2144,6 +2295,7 @@ public sealed class SimulationEngine
             BossDisposition.Micromanager => 5d,
             _ => 3d,
         };
+        state.Stats.BossCheckInsHandled += 1;
         state.Sanity = Clamp(state.Sanity - sanityLoss, 0, Config.MaxSanity);
         state.CorporateStanding = Math.Max(0, state.CorporateStanding - 1);
         state.ContextSwitchMinutesRemaining = Math.Max(state.ContextSwitchMinutesRemaining, 60);
@@ -2171,6 +2323,7 @@ public sealed class SimulationEngine
             return false;
         }
 
+        state.Stats.CoworkerInterruptionsHandled += 1;
         switch (optionIndex)
         {
             case 0:
@@ -2192,6 +2345,7 @@ public sealed class SimulationEngine
                 state.Focus = Clamp(state.Focus - 4, 0, Config.MaxFocus);
                 state.Sanity = Clamp(state.Sanity - 4, 0, Config.MaxSanity);
                 state.Funds += 12;
+                RecordFundsEarned(state, 12, FundsSource.Misc);
                 state.CorporateStanding += 1;
                 AppendLog(state, $"You absorb {coworkerName}'s fire drill and keep the office happy. Focus -4, sanity -4, funds +$12, standing +1.");
                 break;
@@ -2233,10 +2387,12 @@ public sealed class SimulationEngine
 
         if (sluggishPenalty <= BoundaryEpsilon)
         {
+            state.Stats.CleanMeals += 1;
             AppendLog(state, $"{arrivalLead} The careful order kept your momentum intact.{hungerSuffix}");
             return;
         }
 
+        state.Stats.SluggishMeals += 1;
         state.SluggishMinutesRemaining = Math.Max(state.SluggishMinutesRemaining, sluggishPenalty);
         if (sluggishPenalty < option.SluggishMinutesWhenUnchecked)
         {
@@ -2275,6 +2431,8 @@ public sealed class SimulationEngine
     {
         var listing = state.ActiveJobListing!;
         state.LinesOfCode -= listing.ResumeCostLines;
+        state.Stats.JobApplicationsStarted += 1;
+        state.Stats.ResumeLinesSpent += listing.ResumeCostLines;
         state.ActiveJobListing = null;
         state.ActiveJobApplication = CreateJobApplication(listing, state);
 
@@ -2293,6 +2451,7 @@ public sealed class SimulationEngine
         if (hasInterview)
         {
             state.SuccessfulApplications += 1;
+            state.Stats.JobOffersEarned += 1;
             RefreshKnownContactsFromProgress(state);
 
             if (state.GameplayMode == GameplayLoopMode.Interview &&
@@ -2326,6 +2485,7 @@ public sealed class SimulationEngine
                 var fundsReward = GetSuccessfulApplicationFundsReward(state);
                 var sanityReward = GetSuccessfulApplicationSanityReward(state);
                 state.Funds += fundsReward;
+                RecordFundsEarned(state, fundsReward, FundsSource.Offer);
                 state.Sanity = Clamp(state.Sanity + sanityReward, 0, Config.MaxSanity);
                 AppendLog(
                     state,
@@ -2342,6 +2502,7 @@ public sealed class SimulationEngine
         }
 
         state.OutcomeMessage = null;
+        state.Stats.RejectionsReceived += 1;
         AppendLog(
             state,
             $"Application rejected after the interview loop. {application.ListingTitle} required every interview answer to land cleanly.");
@@ -2385,6 +2546,7 @@ public sealed class SimulationEngine
                 if (state.ActiveCatInterruption is null)
                 {
                     state.ActiveCatInterruption = CreateDeskDistraction(state, incident.Id);
+                    state.Stats.CatInterruptions += 1;
                     AppendLog(state, incident.Description);
                     AppendLog(state, $"{state.ActiveCatInterruption.Title} is live. Clear it manually, spend focus to stabilize it, or pay for a fast cleanup before it chews up the draft.");
                 }
@@ -2398,23 +2560,27 @@ public sealed class SimulationEngine
                 if (state.ActiveJobListing is null && state.ActiveJobApplication is null)
                 {
                     state.ActiveJobListing = CreateJobListing(state, incident.Id);
+                    state.Stats.JobListingsSeen += 1;
                     AppendLog(state, incident.Description);
                 }
                 break;
 
             case IncidentType.DeepWorkWindow:
                 state.DeepWorkMinutesRemaining = Math.Max(state.DeepWorkMinutesRemaining, Config.DeepWorkDurationMinutes);
+                state.Stats.DeepWorkWindows += 1;
                 AppendLog(state, incident.Description);
                 break;
 
             case IncidentType.ContextSwitch:
                 state.ContextSwitchMinutesRemaining = Math.Max(state.ContextSwitchMinutesRemaining, Config.ContextSwitchDurationMinutes);
+                state.Stats.ContextSwitches += 1;
                 AppendLog(state, incident.Description);
                 break;
 
             case IncidentType.CoffeeBounce:
                 state.Focus = Clamp(state.Focus + Config.CoffeeBounceFocusGain, 0, Config.MaxFocus);
                 state.Sanity = Clamp(state.Sanity + Config.CoffeeBounceSanityGain, 0, Config.MaxSanity);
+                state.Stats.CoffeeBounces += 1;
                 AppendLog(
                     state,
                     $"{incident.Description} Focus +{Config.CoffeeBounceFocusGain:0}, sanity +{Config.CoffeeBounceSanityGain:0}.");
@@ -2422,23 +2588,29 @@ public sealed class SimulationEngine
 
             case IncidentType.MentorNudge:
                 state.CodeQuality = Clamp(state.CodeQuality + Config.MentorNudgeQualityGain, 0, Config.MaxCodeQuality);
+                state.Stats.MentorNudges += 1;
                 AppendLog(state, $"{incident.Description} Code quality +{Config.MentorNudgeQualityGain:0}.");
                 AwardResumeProof(state, GetMentorResumeTrack(state), 1, "A timely mentor note sharpened how you present the work.");
                 break;
 
             case IncidentType.ExpenseSpike:
                 state.Funds -= Config.ExpenseSpikeFundsLoss;
+                RecordFundsSpent(state, Config.ExpenseSpikeFundsLoss, FundsSink.Misc);
+                state.Stats.ExpenseSpikes += 1;
                 AppendLog(state, $"{incident.Description} Funds -${Config.ExpenseSpikeFundsLoss:0}.");
                 break;
 
             case IncidentType.RubberDuckInsight:
                 state.CodeQuality = Clamp(state.CodeQuality + Config.RubberDuckInsightQualityGain, 0, Config.MaxCodeQuality);
+                state.Stats.RubberDuckInsights += 1;
                 AppendLog(state, $"{incident.Description} Code quality +{Config.RubberDuckInsightQualityGain:0}.");
                 AwardInterviewPrep(state, Config.RubberDuckInsightPrepGain, "Rubber-ducking the problem sharpened the next interview answer.");
                 break;
 
             case IncidentType.MicroSale:
                 state.Funds += Config.MicroSaleFundsGain;
+                RecordFundsEarned(state, Config.MicroSaleFundsGain, FundsSource.Misc);
+                state.Stats.MicroSales += 1;
                 state.Sanity = Clamp(state.Sanity + Config.MicroSaleSanityGain, 0, Config.MaxSanity);
                 AppendLog(
                     state,
@@ -2456,6 +2628,7 @@ public sealed class SimulationEngine
                     Config.PublishedAppSaleFundsMax),
                     incomeType: "sale");
                 state.Funds += saleFunds;
+                RecordFundsEarned(state, saleFunds, FundsSource.Sale);
                 AppendLog(state, $"{incident.Description} Funds +${saleFunds:0}.");
                 break;
 
@@ -2471,6 +2644,7 @@ public sealed class SimulationEngine
                 if (state.PendingLifeEvent is null)
                 {
                     var lostLines = LoseUncommittedProgress(state);
+                    state.Stats.ComputerFreezes += 1;
                     state.PendingLifeEvent = new PendingLifeEvent
                     {
                         Type = incident.Type,
@@ -2569,6 +2743,16 @@ public sealed class SimulationEngine
                         ? 12 + (state.PublishedAppCount * 4)
                         : 10 + Math.Max(0, (2 - state.PublishedAppCount) * 4);
                     state.Funds += positive ? amount : -amount;
+                    state.Stats.IndieFundingSwings += 1;
+                    if (positive)
+                    {
+                        RecordFundsEarned(state, amount, FundsSource.Misc);
+                    }
+                    else
+                    {
+                        RecordFundsSpent(state, amount, FundsSink.Misc);
+                    }
+
                     if (positive)
                     {
                         state.Sanity = Clamp(state.Sanity + 2, 0, Config.MaxSanity);
@@ -2793,6 +2977,12 @@ public sealed class SimulationEngine
         distraction.MinutesUntilNextTypingBurst = Math.Max(distraction.MinutesUntilNextTypingBurst, Config.CatTypingBurstIntervalMinutes * 0.9);
         AppendLog(state, $"{distraction.FocusActionLabel} buys back a little control. Focus -{distraction.FocusActionFocusCost:0}.");
         ClearDistractionIfResolved(state);
+        if (state.ActiveCatInterruption is null)
+        {
+            state.Stats.DistractionsFocusCleared += 1;
+        }
+
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -2812,9 +3002,12 @@ public sealed class SimulationEngine
         }
 
         state.Funds -= distraction.QuickResolveFundsCost;
+        RecordFundsSpent(state, distraction.QuickResolveFundsCost, FundsSink.Misc);
         state.Focus = Clamp(state.Focus - distraction.QuickResolveFocusCost, 0, Config.MaxFocus);
         state.ActiveCatInterruption = null;
+        state.Stats.DistractionsQuickCleared += 1;
         AppendLog(state, $"{distraction.QuickResolveLabel} clears the distraction fast. Funds -${distraction.QuickResolveFundsCost:0}, focus -{distraction.QuickResolveFocusCost:0}.");
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -3050,12 +3243,15 @@ public sealed class SimulationEngine
         if (isCall)
         {
             contact.CallCount += 1;
+            state.Stats.CallsMade += 1;
         }
         else
         {
             contact.MessageCount += 1;
+            state.Stats.MessagesSent += 1;
         }
 
+        var relationshipStartedThisAction = false;
         switch (contact.Role)
         {
             case SocialContactRole.Date:
@@ -3067,6 +3263,7 @@ public sealed class SimulationEngine
                     state.HasFoundLove = true;
                     state.PartnerName = contact.Name;
                     state.Sanity = Clamp(state.Sanity + 6, 0, Config.MaxSanity);
+                    relationshipStartedThisAction = true;
                     AppendLog(state, $"{contact.Name} stops feeling hypothetical. The relationship is real now, and the run gets a little less lonely.");
                 }
                 else
@@ -3098,8 +3295,14 @@ public sealed class SimulationEngine
                 break;
         }
 
+        if (relationshipStartedThisAction)
+        {
+            state.Stats.RelationshipsStarted += 1;
+        }
+
         SynchronizeRelationshipContact(state);
         EvaluateLossState(state);
+        RefreshRunProgress(state);
         return true;
     }
 
@@ -3178,6 +3381,7 @@ public sealed class SimulationEngine
             Name = name,
             Role = role,
         });
+        state.Stats.ContactsDiscovered += 1;
 
         if (!string.IsNullOrWhiteSpace(logLine))
         {
@@ -3343,6 +3547,7 @@ public sealed class SimulationEngine
         versionControl.PendingCompletedFileCount = 0;
         state.RecentCompletedFileName = null;
         state.FileCompletionCelebrationMinutesRemaining = 0;
+        state.Stats.UncommittedLinesLost += lostLines;
         PortfolioWorkspace.SynchronizeToLinesOfCode(state);
         return lostLines;
     }
@@ -3387,6 +3592,7 @@ public sealed class SimulationEngine
         var blueprintMultiplier = (state.CurrentProjectBlueprint.PublishIncomeMultiplier + state.CurrentProjectBlueprint.SaleIncomeMultiplier) / 2d;
         var fundsGain = Math.Round(Math.Max(2d, baseAmount * blueprintMultiplier), 0);
         state.Funds += fundsGain;
+        RecordFundsEarned(state, fundsGain, FundsSource.Misc);
         AppendLog(state, $"Indie project progress pays out on {completedFileName}. +${fundsGain:0} lands while the build is still in flight.");
     }
 
@@ -3519,6 +3725,7 @@ public sealed class SimulationEngine
         }
 
         state.Funds += income;
+        RecordFundsEarned(state, income, FundsSource.Salary);
         AppendLog(
             state,
             state.GameplayMode == GameplayLoopMode.Corporate
@@ -3816,7 +4023,16 @@ public sealed class SimulationEngine
             needDriven: false);
 
         AppendLog(state, incident.Description);
-        ApplyOrIntensifyTechDebtBug(state, bug, immediateQualityLoss: 0, intensifiedLog: "Another compile error piled onto the current debug mess.");
+        var createdBug = ApplyOrIntensifyTechDebtBug(state, bug, immediateQualityLoss: 0, intensifiedLog: "Another compile error piled onto the current debug mess.");
+        if (createdBug)
+        {
+            state.Stats.BugsSpawned += 1;
+        }
+        else
+        {
+            state.Stats.BugEscalations += 1;
+        }
+
         AppendTechDebtInstructionLog(state, bug);
     }
 
@@ -3864,7 +4080,17 @@ public sealed class SimulationEngine
         var bug = CreateTechDebtBug(state, sourceKey, trigger, severity, needDriven: true);
         var qualityLoss = GetNeedDrivenBugQualityLoss(severity);
 
-        ApplyOrIntensifyTechDebtBug(state, bug, qualityLoss, intensifiedLog: "The active compile mess deepened under the pressure.");
+        var createdBug = ApplyOrIntensifyTechDebtBug(state, bug, qualityLoss, intensifiedLog: "The active compile mess deepened under the pressure.");
+        if (createdBug)
+        {
+            state.Stats.BugsSpawned += 1;
+            state.Stats.NeedDrivenBugsSpawned += 1;
+        }
+        else
+        {
+            state.Stats.BugEscalations += 1;
+        }
+
         AppendLog(state, $"{GetNeedDrivenBugLog(trigger)} Code quality -{qualityLoss:0}.");
         AppendTechDebtInstructionLog(state, bug);
 
@@ -4251,6 +4477,7 @@ public sealed class SimulationEngine
             var distraction = state.ActiveCatInterruption;
             var deletedLines = LoseUncommittedProgress(state);
             state.ActiveCatInterruption = null;
+            state.Stats.DistractionsTimedOut += 1;
             var chaosSummary = distraction.PhantomBugCount > 0 || distraction.GibberishLinesTyped > 0
                 ? $" It also left {distraction.PhantomBugCount} phantom bug burst{(distraction.PhantomBugCount == 1 ? string.Empty : "s")} and {distraction.GibberishLinesTyped} gibberish line{(distraction.GibberishLinesTyped == 1 ? string.Empty : "s")} worth of chaos."
                 : string.Empty;
@@ -4273,6 +4500,7 @@ public sealed class SimulationEngine
         {
             var title = state.ActiveJobListing.Title;
             state.ActiveJobListing = null;
+            state.Stats.JobListingsExpired += 1;
             AppendLog(state, $"The {title} listing expired before you could tailor the resume.");
         }
 
@@ -4361,6 +4589,87 @@ public sealed class SimulationEngine
         return remainingMinutes.Value;
     }
 
+    private void RecordFundsEarned(RunState state, double amount, FundsSource source)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        state.Stats.TotalFundsEarned += amount;
+        switch (source)
+        {
+            case FundsSource.Freelance:
+                state.Stats.FreelanceIncome += amount;
+                break;
+            case FundsSource.Publish:
+                state.Stats.PublishIncome += amount;
+                break;
+            case FundsSource.Sale:
+                state.Stats.SaleIncome += amount;
+                break;
+            case FundsSource.Salary:
+                state.Stats.SalaryIncome += amount;
+                break;
+            case FundsSource.Offer:
+                state.Stats.ApplicationIncome += amount;
+                break;
+            default:
+                state.Stats.MiscIncome += amount;
+                break;
+        }
+    }
+
+    private void RecordFundsSpent(RunState state, double amount, FundsSink sink)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        state.Stats.TotalFundsSpent += amount;
+        switch (sink)
+        {
+            case FundsSink.Food:
+                state.Stats.FoodSpend += amount;
+                break;
+            case FundsSink.Upgrade:
+                state.Stats.UpgradeSpend += amount;
+                break;
+            case FundsSink.Milestone:
+                state.Stats.MilestoneSpend += amount;
+                break;
+            case FundsSink.Bills:
+                state.Stats.BillSpend += amount;
+                break;
+        }
+    }
+
+    private void RefreshRunProgress(RunState state)
+    {
+        var stats = state.Stats;
+        stats.HighestDayReached = Math.Max(stats.HighestDayReached, state.Day);
+        stats.HighestFundsBalance = Math.Max(stats.HighestFundsBalance, state.Funds);
+        stats.LowestFundsBalance = Math.Min(stats.LowestFundsBalance, state.Funds);
+        stats.HighestFocus = Math.Max(stats.HighestFocus, state.Focus);
+        stats.LowestSanity = Math.Min(stats.LowestSanity, state.Sanity);
+        stats.HighestCodeQuality = Math.Max(stats.HighestCodeQuality, state.CodeQuality);
+        stats.LowestCodeQuality = Math.Min(stats.LowestCodeQuality, state.CodeQuality);
+
+        foreach (var achievement in RunAchievementCatalog.All)
+        {
+            if (stats.UnlockedAchievementIds.Contains(achievement.Id) ||
+                !achievement.IsUnlocked(state))
+            {
+                continue;
+            }
+
+            stats.UnlockedAchievementIds.Add(achievement.Id);
+            stats.AchievementUnlockOrder.Add(achievement.Id);
+            AppendLog(state, $"Achievement unlocked: {achievement.Title}. {achievement.Description}");
+        }
+    }
+
     private static string FormatMinutesForLog(double totalMinutes)
     {
         var minutes = Math.Max(1, (int)Math.Ceiling(totalMinutes));
@@ -4440,6 +4749,7 @@ public sealed class SimulationEngine
         state.PublishedAppCount = releaseNumber;
         state.LastPublishedAppName = publishedName;
         state.Funds += fundsGained;
+        RecordFundsEarned(state, fundsGained, FundsSource.Publish);
         state.CurrentPortfolioLinesOfCode = 0;
         state.CurrentProgramIndex = 0;
         state.CurrentProgramVisibleLineCount = 0;

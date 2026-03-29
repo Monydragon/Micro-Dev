@@ -221,7 +221,8 @@ public sealed class MicroDevGame : Game
             incidentScheduler,
             _audio,
             new Point(VirtualWidth, VirtualHeight),
-            ShowWorkspaceOptions);
+            ShowWorkspaceOptions,
+            () => ShowMainMenu());
         _screenManager.SetScreen(_workspaceScreen, immediate);
     }
 

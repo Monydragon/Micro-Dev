@@ -20,7 +20,7 @@ public sealed class GameSettings
 
     public float SoundEffectsVolume { get; set; } = 0.85f;
 
-    public float MusicVolume { get; set; } = 0.72f;
+    public float MusicVolume { get; set; } = 0.84f;
 
     public Point PreferredResolution { get; set; } = new(1600, 900);
 
