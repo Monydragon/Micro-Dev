@@ -1544,7 +1544,7 @@ public sealed class SimulationEngine
         AdvanceTime(state, elapsedRealSeconds * Config.InGameMinutesPerRealSecond);
     }
 
-    public void QueueIncidents(RunState state, IReadOnlyList<QueuedIncident> incidents)
+    public void QueueIncidents(RunState state, IReadOnlyList<QueuedIncident> incidents, bool allowPromptIncidents = true)
     {
         if (state.Status != RunStatus.InProgress || incidents.Count == 0)
         {
@@ -1552,13 +1552,35 @@ public sealed class SimulationEngine
         }
 
         state.QueuedIncidents.AddRange(incidents);
+        ProcessQueuedIncidents(state, allowPromptIncidents);
+    }
 
+    public void ProcessQueuedIncidents(RunState state, bool allowPromptIncidents = true)
+    {
+        if (state.Status != RunStatus.InProgress ||
+            state.FirstCoinDecisionPending ||
+            state.QueuedIncidents.Count == 0)
+        {
+            return;
+        }
+
+        List<QueuedIncident>? deferred = null;
         foreach (var incident in state.QueuedIncidents)
         {
-            ActivateIncident(state, incident);
+            var result = TryActivateIncident(state, incident, allowPromptIncidents);
+            if (result == IncidentActivationResult.Defer)
+            {
+                deferred ??= [];
+                deferred.Add(incident);
+            }
         }
 
         state.QueuedIncidents.Clear();
+        if (deferred is not null)
+        {
+            state.QueuedIncidents.AddRange(deferred);
+        }
+
         EvaluateLossState(state);
         RefreshRunProgress(state);
     }
@@ -2538,44 +2560,48 @@ public sealed class SimulationEngine
         return application;
     }
 
-    private void ActivateIncident(RunState state, QueuedIncident incident)
+    private IncidentActivationResult TryActivateIncident(RunState state, QueuedIncident incident, bool allowPromptIncidents)
     {
         switch (incident.Type)
         {
             case IncidentType.CatInterruption:
-                if (state.ActiveCatInterruption is null)
+                if (state.ActiveCatInterruption is not null)
                 {
-                    state.ActiveCatInterruption = CreateDeskDistraction(state, incident.Id);
-                    state.Stats.CatInterruptions += 1;
-                    AppendLog(state, incident.Description);
-                    AppendLog(state, $"{state.ActiveCatInterruption.Title} is live. Clear it manually, spend focus to stabilize it, or pay for a fast cleanup before it chews up the draft.");
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                state.ActiveCatInterruption = CreateDeskDistraction(state, incident.Id);
+                state.Stats.CatInterruptions += 1;
+                AppendLog(state, incident.Description);
+                AppendLog(state, $"{state.ActiveCatInterruption.Title} is live. Clear it manually, spend focus to stabilize it, or pay for a fast cleanup before it chews up the draft.");
+                return IncidentActivationResult.Activated;
 
             case IncidentType.TechDebtBug:
                 ActivateDeskTechDebtBug(state, incident);
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.JobListing:
-                if (state.ActiveJobListing is null && state.ActiveJobApplication is null)
+                if (state.ActiveJobListing is not null || state.ActiveJobApplication is not null)
                 {
-                    state.ActiveJobListing = CreateJobListing(state, incident.Id);
-                    state.Stats.JobListingsSeen += 1;
-                    AppendLog(state, incident.Description);
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                state.ActiveJobListing = CreateJobListing(state, incident.Id);
+                state.Stats.JobListingsSeen += 1;
+                AppendLog(state, incident.Description);
+                return IncidentActivationResult.Activated;
 
             case IncidentType.DeepWorkWindow:
                 state.DeepWorkMinutesRemaining = Math.Max(state.DeepWorkMinutesRemaining, Config.DeepWorkDurationMinutes);
                 state.Stats.DeepWorkWindows += 1;
                 AppendLog(state, incident.Description);
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.ContextSwitch:
                 state.ContextSwitchMinutesRemaining = Math.Max(state.ContextSwitchMinutesRemaining, Config.ContextSwitchDurationMinutes);
                 state.Stats.ContextSwitches += 1;
                 AppendLog(state, incident.Description);
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.CoffeeBounce:
                 state.Focus = Clamp(state.Focus + Config.CoffeeBounceFocusGain, 0, Config.MaxFocus);
@@ -2584,28 +2610,28 @@ public sealed class SimulationEngine
                 AppendLog(
                     state,
                     $"{incident.Description} Focus +{Config.CoffeeBounceFocusGain:0}, sanity +{Config.CoffeeBounceSanityGain:0}.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.MentorNudge:
                 state.CodeQuality = Clamp(state.CodeQuality + Config.MentorNudgeQualityGain, 0, Config.MaxCodeQuality);
                 state.Stats.MentorNudges += 1;
                 AppendLog(state, $"{incident.Description} Code quality +{Config.MentorNudgeQualityGain:0}.");
                 AwardResumeProof(state, GetMentorResumeTrack(state), 1, "A timely mentor note sharpened how you present the work.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.ExpenseSpike:
                 state.Funds -= Config.ExpenseSpikeFundsLoss;
                 RecordFundsSpent(state, Config.ExpenseSpikeFundsLoss, FundsSink.Misc);
                 state.Stats.ExpenseSpikes += 1;
                 AppendLog(state, $"{incident.Description} Funds -${Config.ExpenseSpikeFundsLoss:0}.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.RubberDuckInsight:
                 state.CodeQuality = Clamp(state.CodeQuality + Config.RubberDuckInsightQualityGain, 0, Config.MaxCodeQuality);
                 state.Stats.RubberDuckInsights += 1;
                 AppendLog(state, $"{incident.Description} Code quality +{Config.RubberDuckInsightQualityGain:0}.");
                 AwardInterviewPrep(state, Config.RubberDuckInsightPrepGain, "Rubber-ducking the problem sharpened the next interview answer.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.MicroSale:
                 state.Funds += Config.MicroSaleFundsGain;
@@ -2615,7 +2641,7 @@ public sealed class SimulationEngine
                 AppendLog(
                     state,
                     $"{incident.Description} Funds +${Config.MicroSaleFundsGain:0}, sanity +{Config.MicroSaleSanityGain:0}.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.PublishedAppSale:
                 var saleNumber = ParseTrailingNumber(incident.Id, "app-sale-");
@@ -2630,7 +2656,7 @@ public sealed class SimulationEngine
                 state.Funds += saleFunds;
                 RecordFundsEarned(state, saleFunds, FundsSource.Sale);
                 AppendLog(state, $"{incident.Description} Funds +${saleFunds:0}.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.DoomscrollSpiral:
                 state.Focus = Clamp(state.Focus - Config.DoomscrollFocusLoss, 0, Config.MaxFocus);
@@ -2638,137 +2664,181 @@ public sealed class SimulationEngine
                 AppendLog(
                     state,
                     $"{incident.Description} Focus -{Config.DoomscrollFocusLoss:0}, sanity -{Config.DoomscrollSanityLoss:0}.");
-                break;
+                return IncidentActivationResult.Activated;
 
             case IncidentType.ComputerFreeze:
-                if (state.PendingLifeEvent is null)
+                if (!allowPromptIncidents || state.PendingLifeEvent is not null)
                 {
-                    var lostLines = LoseUncommittedProgress(state);
-                    state.Stats.ComputerFreezes += 1;
-                    state.PendingLifeEvent = new PendingLifeEvent
-                    {
-                        Type = incident.Type,
-                        Title = "Computer Freeze",
-                        Description = "The cursor is dead, the fans are screaming, and the whole night is now about getting the machine back.",
-                    };
-                    AppendLog(state, incident.Description);
-                    if (lostLines > 0)
-                    {
-                        AppendLog(state, $"The freeze hits before a commit lands. {lostLines} uncommitted LoC vanish and the editor rolls back to the last commit.");
-                    }
+                    return IncidentActivationResult.Defer;
                 }
-                break;
+
+                var lostLines = LoseUncommittedProgress(state);
+                state.Stats.ComputerFreezes += 1;
+                state.PendingLifeEvent = new PendingLifeEvent
+                {
+                    Type = incident.Type,
+                    Title = "Computer Freeze",
+                    Description = "The cursor is dead, the fans are screaming, and the whole night is now about getting the machine back.",
+                };
+                AppendLog(state, incident.Description);
+                if (lostLines > 0)
+                {
+                    AppendLog(state, $"The freeze hits before a commit lands. {lostLines} uncommitted LoC vanish and the editor rolls back to the last commit.");
+                }
+
+                return IncidentActivationResult.Activated;
 
             case IncidentType.StreamingBinge:
-                if (state.PendingLifeEvent is null)
+                if (!allowPromptIncidents || state.PendingLifeEvent is not null)
                 {
-                    var showTitle = ProceduralRunContent.GetShowTitle(state.RunSeed, $"{incident.Id}:show");
-                    state.PendingLifeEvent = new PendingLifeEvent
-                    {
-                        Type = incident.Type,
-                        Title = "Autoplay Temptation",
-                        Description = $"{showTitle} is already lined up and the next episode starts in seconds.",
-                        SubjectName = showTitle,
-                    };
-                    AppendLog(state, incident.Description);
+                    return IncidentActivationResult.Defer;
                 }
-                break;
+
+                var showTitle = ProceduralRunContent.GetShowTitle(state.RunSeed, $"{incident.Id}:show");
+                state.PendingLifeEvent = new PendingLifeEvent
+                {
+                    Type = incident.Type,
+                    Title = "Autoplay Temptation",
+                    Description = $"{showTitle} is already lined up and the next episode starts in seconds.",
+                    SubjectName = showTitle,
+                };
+                AppendLog(state, incident.Description);
+                return IncidentActivationResult.Activated;
 
             case IncidentType.OnlineMatch:
-                if (state.PendingLifeEvent is null && !state.HasFoundLove)
+                if (state.HasFoundLove)
                 {
-                    EnsureRelationshipCandidate(state);
-                    var matchName = state.RelationshipCandidateName!;
-                    state.PendingLifeEvent = CreateOnlineMatchMiniGame(
-                        state,
-                        matchName,
-                        state.RelationshipCandidateCompatibility,
-                        0,
-                        0,
-                        state.IsRealisticMode ? 3 : 2);
-                    AppendLog(state, incident.Description);
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                if (!allowPromptIncidents || state.PendingLifeEvent is not null)
+                {
+                    return IncidentActivationResult.Defer;
+                }
+
+                EnsureRelationshipCandidate(state);
+                var matchName = state.RelationshipCandidateName!;
+                state.PendingLifeEvent = CreateOnlineMatchMiniGame(
+                    state,
+                    matchName,
+                    state.RelationshipCandidateCompatibility,
+                    0,
+                    0,
+                    state.IsRealisticMode ? 3 : 2);
+                AppendLog(state, incident.Description);
+                return IncidentActivationResult.Activated;
 
             case IncidentType.PartnerCheckIn:
-                if (state.PendingLifeEvent is null && state.HasFoundLove && !string.IsNullOrWhiteSpace(state.PartnerName))
+                if (!state.HasFoundLove || string.IsNullOrWhiteSpace(state.PartnerName))
                 {
-                    state.PendingLifeEvent = new PendingLifeEvent
-                    {
-                        Type = incident.Type,
-                        Title = "Relationship Check-In",
-                        Description = ProceduralRunContent.GetPartnerPrompt(state.RunSeed, state.PartnerName!, state.RelationshipProgress),
-                        SubjectName = state.PartnerName,
-                        SubjectScore = state.RelationshipProgress,
-                    };
-                    AppendLog(state, incident.Description);
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                if (!allowPromptIncidents || state.PendingLifeEvent is not null)
+                {
+                    return IncidentActivationResult.Defer;
+                }
+
+                state.PendingLifeEvent = new PendingLifeEvent
+                {
+                    Type = incident.Type,
+                    Title = "Relationship Check-In",
+                    Description = ProceduralRunContent.GetPartnerPrompt(state.RunSeed, state.PartnerName!, state.RelationshipProgress),
+                    SubjectName = state.PartnerName,
+                    SubjectScore = state.RelationshipProgress,
+                };
+                AppendLog(state, incident.Description);
+                return IncidentActivationResult.Activated;
 
             case IncidentType.BossCheckIn:
-                if (state.PendingLifeEvent is null && state.GameplayMode == GameplayLoopMode.Corporate)
+                if (state.GameplayMode != GameplayLoopMode.Corporate)
                 {
-                    state.PendingLifeEvent = new PendingLifeEvent
-                    {
-                        Type = incident.Type,
-                        Title = "Boss Check-In",
-                        Description = $"{state.BossName}, {state.BossTitle}, wants a status read before the work is actually done. {ProceduralRunContent.GetBossFlavor(state.BossDisposition, state.BossName)}",
-                        SubjectName = state.BossName,
-                        SubjectScore = (int)state.BossDisposition,
-                    };
-                    AppendLog(state, incident.Description);
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                if (!allowPromptIncidents || state.PendingLifeEvent is not null)
+                {
+                    return IncidentActivationResult.Defer;
+                }
+
+                state.PendingLifeEvent = new PendingLifeEvent
+                {
+                    Type = incident.Type,
+                    Title = "Boss Check-In",
+                    Description = $"{state.BossName}, {state.BossTitle}, wants a status read before the work is actually done. {ProceduralRunContent.GetBossFlavor(state.BossDisposition, state.BossName)}",
+                    SubjectName = state.BossName,
+                    SubjectScore = (int)state.BossDisposition,
+                };
+                AppendLog(state, incident.Description);
+                return IncidentActivationResult.Activated;
 
             case IncidentType.CoworkerInterruption:
-                if (state.PendingLifeEvent is null && state.GameplayMode == GameplayLoopMode.Corporate)
+                if (state.GameplayMode != GameplayLoopMode.Corporate)
                 {
-                    var coworkerName = ProceduralRunContent.GetCoworkerName(state.RunSeed, incident.Id);
-                    state.PendingLifeEvent = new PendingLifeEvent
-                    {
-                        Type = incident.Type,
-                        Title = "Coworker Drive-By",
-                        Description = $"{coworkerName} needs context, help, or cleanup during office hours. The work is real, but so is the drain.",
-                        SubjectName = coworkerName,
-                    };
-                    AppendLog(state, incident.Description);
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                if (!allowPromptIncidents || state.PendingLifeEvent is not null)
+                {
+                    return IncidentActivationResult.Defer;
+                }
+
+                var coworkerName = ProceduralRunContent.GetCoworkerName(state.RunSeed, incident.Id);
+                state.PendingLifeEvent = new PendingLifeEvent
+                {
+                    Type = incident.Type,
+                    Title = "Coworker Drive-By",
+                    Description = $"{coworkerName} needs context, help, or cleanup during office hours. The work is real, but so is the drain.",
+                    SubjectName = coworkerName,
+                };
+                AppendLog(state, incident.Description);
+                return IncidentActivationResult.Activated;
 
             case IncidentType.IndieFundingSwing:
-                if (state.GameplayMode == GameplayLoopMode.Indie)
+                if (state.GameplayMode != GameplayLoopMode.Indie)
                 {
-                    var positive = (CreateSeed(state.RunSeed, $"{incident.Id}:indie-funding") % 100) >= (state.PublishedAppCount > 0 ? 38 : 62);
-                    var amount = positive
-                        ? 12 + (state.PublishedAppCount * 4)
-                        : 10 + Math.Max(0, (2 - state.PublishedAppCount) * 4);
-                    state.Funds += positive ? amount : -amount;
-                    state.Stats.IndieFundingSwings += 1;
-                    if (positive)
-                    {
-                        RecordFundsEarned(state, amount, FundsSource.Misc);
-                    }
-                    else
-                    {
-                        RecordFundsSpent(state, amount, FundsSink.Misc);
-                    }
-
-                    if (positive)
-                    {
-                        state.Sanity = Clamp(state.Sanity + 2, 0, Config.MaxSanity);
-                    }
-                    else
-                    {
-                        state.Sanity = Clamp(state.Sanity - 1, 0, Config.MaxSanity);
-                    }
-
-                    AppendLog(state, incident.Description);
-                    AppendLog(
-                        state,
-                        $"{ProceduralRunContent.GetIndieFundingLine(state.RunSeed, incident.Id, state.CurrentProjectBlueprint, positive)} Funds {(positive ? "+" : "-")}${amount:0}{(positive ? ", sanity +2." : ", sanity -1.")}");
+                    return IncidentActivationResult.Discard;
                 }
-                break;
+
+                var positive = (CreateSeed(state.RunSeed, $"{incident.Id}:indie-funding") % 100) >= (state.PublishedAppCount > 0 ? 38 : 62);
+                var amount = positive
+                    ? 12 + (state.PublishedAppCount * 4)
+                    : 10 + Math.Max(0, (2 - state.PublishedAppCount) * 4);
+                state.Funds += positive ? amount : -amount;
+                state.Stats.IndieFundingSwings += 1;
+                if (positive)
+                {
+                    RecordFundsEarned(state, amount, FundsSource.Misc);
+                }
+                else
+                {
+                    RecordFundsSpent(state, amount, FundsSink.Misc);
+                }
+
+                if (positive)
+                {
+                    state.Sanity = Clamp(state.Sanity + 2, 0, Config.MaxSanity);
+                }
+                else
+                {
+                    state.Sanity = Clamp(state.Sanity - 1, 0, Config.MaxSanity);
+                }
+
+                AppendLog(state, incident.Description);
+                AppendLog(
+                    state,
+                    $"{ProceduralRunContent.GetIndieFundingLine(state.RunSeed, incident.Id, state.CurrentProjectBlueprint, positive)} Funds {(positive ? "+" : "-")}${amount:0}{(positive ? ", sanity +2." : ", sanity -1.")}");
+                return IncidentActivationResult.Activated;
         }
+
+        return IncidentActivationResult.Discard;
+    }
+
+    private enum IncidentActivationResult
+    {
+        Activated = 0,
+        Defer,
+        Discard,
     }
 
     private ActiveJobListing CreateJobListing(RunState state, string incidentId)

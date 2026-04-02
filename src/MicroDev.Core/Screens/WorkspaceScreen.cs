@@ -293,13 +293,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _simulation.AdvanceRealTime(_state, elapsedSeconds);
 
             var queued = _incidentScheduler.Update(_state, elapsedInGameMinutes, _simulation.Config);
-            _simulation.QueueIncidents(_state, queued);
+            _simulation.QueueIncidents(_state, queued, allowPromptIncidents: !HasBlockingOverlayOpen());
             if (queued.Count > 0)
             {
                 _audio.PlayAlert();
             }
         }
 
+        _simulation.ProcessQueuedIncidents(_state, allowPromptIncidents: !HasBlockingOverlayOpen());
         EnsureCommunicationButtons();
         UpdateLayout();
         UpdateButtons();
@@ -1352,6 +1353,20 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _freelanceBoardOpen = false;
         _upgradesOpen = false;
         _jobApplicationOpen = false;
+    }
+
+    private bool HasBlockingOverlayOpen()
+    {
+        return _tutorialOpen ||
+               _foodAppOpen ||
+               _bankAppOpen ||
+               _communicationOpen ||
+               _commitPromptOpen ||
+               _projectStudioOpen ||
+               _freelanceBoardOpen ||
+               _upgradesOpen ||
+               _statsOpen ||
+               (_jobApplicationOpen && _simulation.HasActiveJobApplication(_state));
     }
 
     private void HandleProjectStudioInput(InputSnapshot input)

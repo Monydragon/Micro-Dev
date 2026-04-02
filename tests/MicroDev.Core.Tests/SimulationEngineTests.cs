@@ -463,6 +463,40 @@ public sealed class SimulationEngineTests
     }
 
     [Fact]
+    public void QueueIncidents_DefersPromptEvents_WhenPromptProcessingIsDisabled()
+    {
+        var state = _engine.CreateNewRun();
+
+        _engine.QueueIncidents(
+            state,
+            [new QueuedIncident("show-1", IncidentType.StreamingBinge, "Show!")],
+            allowPromptIncidents: false);
+
+        Assert.False(_engine.HasPendingLifeEvent(state));
+        Assert.Single(state.QueuedIncidents);
+
+        _engine.ProcessQueuedIncidents(state);
+
+        Assert.True(_engine.HasPendingLifeEvent(state));
+        Assert.Empty(state.QueuedIncidents);
+    }
+
+    [Fact]
+    public void QueueIncidents_StillActivatesNonPromptEvents_WhenPromptProcessingIsDisabled()
+    {
+        var state = _engine.CreateNewRun();
+        var startingFocus = state.Focus;
+
+        _engine.QueueIncidents(
+            state,
+            [new QueuedIncident("coffee-1", IncidentType.CoffeeBounce, "Coffee!")],
+            allowPromptIncidents: false);
+
+        Assert.Empty(state.QueuedIncidents);
+        Assert.True(state.Focus > startingFocus);
+    }
+
+    [Fact]
     public void ApplyAction_SquashBug_ClearsTechDebtAndCostsFocus()
     {
         var state = _engine.CreateNewRun();
