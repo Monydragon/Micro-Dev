@@ -403,14 +403,26 @@ public sealed class MicroDevGame : Game
                 game.ApplyRuntimeSettings();
                 game.ShowMainMenu(immediate: true);
             }),
-            new UiCaptureStep("03-options-layout-closed.png", game =>
+            new UiCaptureStep("03-main-menu-setup-dark-consolas.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.ShowMainMenu(immediate: true);
+                if (game._screenManager.CurrentScreen is MainMenuScreen mainMenuScreen)
+                {
+                    mainMenuScreen.PrepareCaptureSetupView();
+                }
+            }),
+            new UiCaptureStep("04-options-layout-closed.png", game =>
             {
                 game._settings.UiFont = UiFontOption.Consolas;
                 game._settings.ThemeMode = UiThemeMode.Dark;
                 game.ApplyRuntimeSettings();
                 game.ShowOptions(immediate: true);
             }),
-            new UiCaptureStep("04-options-font-palette.png", game =>
+            new UiCaptureStep("05-options-font-palette.png", game =>
             {
                 game._settings.UiFont = UiFontOption.CascadiaCode;
                 game._settings.ThemeMode = UiThemeMode.Dark;
@@ -423,14 +435,14 @@ public sealed class MicroDevGame : Game
                     optionsScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
                 }
             }),
-            new UiCaptureStep("05-options-light-bahnschrift.png", game =>
+            new UiCaptureStep("06-options-light-bahnschrift.png", game =>
             {
                 game._settings.UiFont = UiFontOption.Bahnschrift;
                 game._settings.ThemeMode = UiThemeMode.Light;
                 game.ApplyRuntimeSettings();
                 game.ShowOptions(immediate: true);
             }),
-            new UiCaptureStep("06-options-audio-scroll-light.png", game =>
+            new UiCaptureStep("07-options-audio-scroll-light.png", game =>
             {
                 game._settings.UiFont = UiFontOption.Bahnschrift;
                 game._settings.ThemeMode = UiThemeMode.Light;
@@ -441,7 +453,7 @@ public sealed class MicroDevGame : Game
                     optionsScreen.Update(CreateCaptureFrameTime(), CreateScrollInput(new Point(820, 540), -360));
                 }
             }),
-            new UiCaptureStep("07-workspace-dark-consolas.png", game =>
+            new UiCaptureStep("08-workspace-dark-consolas.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -450,7 +462,7 @@ public sealed class MicroDevGame : Game
                 game.StartRun(immediate: true);
                 game.PrimeWorkspacePreview();
             }),
-            new UiCaptureStep("08-workspace-light-bahnschrift.png", game =>
+            new UiCaptureStep("09-workspace-light-bahnschrift.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Endless;
                 game._settings.UiFont = UiFontOption.Bahnschrift;
@@ -459,7 +471,17 @@ public sealed class MicroDevGame : Game
                 game.StartRun(immediate: true);
                 game.PrimeWorkspacePreview();
             }),
-            new UiCaptureStep("09-workspace-food-overlay-dark.png", game =>
+            new UiCaptureStep("10-workspace-tools-overlay-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureToolsOverlay();
+            }),
+            new UiCaptureStep("11-workspace-food-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -469,12 +491,10 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var clickPosition = new Point(1283, 421);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(647, 317));
                 }
             }),
-            new UiCaptureStep("10-workspace-freelance-overlay-dark.png", game =>
+            new UiCaptureStep("12-workspace-freelance-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -484,12 +504,10 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var clickPosition = new Point(1477, 421);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(953, 317));
                 }
             }),
-            new UiCaptureStep("11-workspace-upgrades-overlay-dark.png", game =>
+            new UiCaptureStep("13-workspace-upgrades-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -499,12 +517,10 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var clickPosition = new Point(1477, 461);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(953, 371));
                 }
             }),
-            new UiCaptureStep("12-workspace-banking-overlay-dark.png", game =>
+            new UiCaptureStep("14-workspace-banking-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -514,12 +530,10 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var clickPosition = new Point(1283, 461);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(647, 371));
                 }
             }),
-            new UiCaptureStep("13-workspace-commit-checkpoint-overlay-dark.png", game =>
+            new UiCaptureStep("15-workspace-commit-checkpoint-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -539,7 +553,7 @@ public sealed class MicroDevGame : Game
                     game._workspaceScreen.Update(clickTime, CreateReleasedInput(new Point(160, 188)));
                 }
             }),
-            new UiCaptureStep("14-workspace-build-studio-overlay-dark.png", game =>
+            new UiCaptureStep("16-workspace-build-studio-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -549,12 +563,10 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var clickPosition = new Point(1477, 501);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(953, 425));
                 }
             }),
-            new UiCaptureStep("15-workspace-freelance-contract-overlay-dark.png", game =>
+            new UiCaptureStep("17-workspace-freelance-contract-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -564,15 +576,12 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var boardClick = new Point(1477, 421);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(boardClick));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(boardClick));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(953, 317));
                     var gigClick = new Point(760, 309);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(gigClick));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(gigClick));
+                    ClickWorkspaceButton(game._workspaceScreen, gigClick);
                 }
             }),
-            new UiCaptureStep("16-workspace-freelance-overlay-scrolled-dark.png", game =>
+            new UiCaptureStep("18-workspace-freelance-overlay-scrolled-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -582,13 +591,11 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var boardClick = new Point(1477, 421);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(boardClick));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(boardClick));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(953, 317));
                     game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateScrollInput(new Point(760, 330), -720));
                 }
             }),
-            new UiCaptureStep("17-workspace-build-studio-overlay-scrolled-dark.png", game =>
+            new UiCaptureStep("19-workspace-build-studio-overlay-scrolled-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -598,13 +605,11 @@ public sealed class MicroDevGame : Game
                 game.PrimeWorkspacePreview();
                 if (game._workspaceScreen is not null)
                 {
-                    var studioClick = new Point(1477, 501);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(studioClick));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(studioClick));
+                    OpenWorkspaceTool(game._workspaceScreen, new Point(953, 425));
                     game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateScrollInput(new Point(680, 250), -720));
                 }
             }),
-            new UiCaptureStep("18-workspace-communication-overlay-dark.png", game =>
+            new UiCaptureStep("20-workspace-communication-overlay-dark.png", game =>
             {
                 game._settings.SelectedDifficulty = GameDifficulty.Normal;
                 game._settings.UiFont = UiFontOption.Consolas;
@@ -612,12 +617,86 @@ public sealed class MicroDevGame : Game
                 game.ApplyRuntimeSettings();
                 game.StartRun(immediate: true);
                 game.PrimeWorkspacePreview();
-                if (game._workspaceScreen is not null)
-                {
-                    var clickPosition = new Point(1283, 501);
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
-                    game._workspaceScreen.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
-                }
+                game._workspaceScreen?.PrepareCaptureCommunicationOverlay();
+            }),
+            new UiCaptureStep("21-workspace-stats-overlay-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureStatsOverlay();
+            }),
+            new UiCaptureStep("22-workspace-tutorial-overlay-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game._workspaceScreen?.PrepareCaptureTutorialPage(4);
+            }),
+            new UiCaptureStep("23-workspace-job-application-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureJobApplication(interviewPhase: false);
+            }),
+            new UiCaptureStep("24-workspace-job-interview-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureJobApplication(interviewPhase: true);
+            }),
+            new UiCaptureStep("25-workspace-first-coin-overlay-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureFirstCoinOverlay();
+            }),
+            new UiCaptureStep("26-workspace-life-event-overlay-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureLifeEventOverlay();
+            }),
+            new UiCaptureStep("27-workspace-cat-overlay-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureCatOverlay();
+            }),
+            new UiCaptureStep("28-workspace-outcome-hired-dark.png", game =>
+            {
+                game._settings.SelectedDifficulty = GameDifficulty.Normal;
+                game._settings.UiFont = UiFontOption.Consolas;
+                game._settings.ThemeMode = UiThemeMode.Dark;
+                game.ApplyRuntimeSettings();
+                game.StartRun(immediate: true);
+                game.PrimeWorkspacePreview();
+                game._workspaceScreen?.PrepareCaptureOutcomeOverlay(RunStatus.Won);
             }),
         ];
 
@@ -692,6 +771,18 @@ public sealed class MicroDevGame : Game
 
         _workspaceScreen.Update(clickTime, CreateReleasedInput(editorPosition));
         _workspaceScreen.Update(new GameTime(TimeSpan.Zero, TimeSpan.Zero), default);
+    }
+
+    private static void ClickWorkspaceButton(WorkspaceScreen workspace, Point clickPosition)
+    {
+        workspace.Update(CreateCaptureFrameTime(), CreatePressedInput(clickPosition));
+        workspace.Update(CreateCaptureFrameTime(), CreateReleasedInput(clickPosition));
+    }
+
+    private static void OpenWorkspaceTool(WorkspaceScreen workspace, Point toolButtonPosition)
+    {
+        ClickWorkspaceButton(workspace, new Point(1380, 453));
+        ClickWorkspaceButton(workspace, toolButtonPosition);
     }
 
     private static GameTime CreateCaptureFrameTime()

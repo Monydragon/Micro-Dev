@@ -9,8 +9,14 @@ namespace MicroDev.Core.Screens;
 
 public sealed class MainMenuScreen : IScreen, IUiFontAware
 {
-    private const string GameplayLoopIntroText = "Interview is the seven-day job-hunt opener. Corporate, Indie, and Founder are the long-form routes that keep pushing from basement survival toward a house-and-retirement finish line.";
-    private const string DifficultyIntroText = "Pick how hard the run pushes back.";
+    private enum MainMenuView
+    {
+        Home,
+        Setup,
+    }
+
+    private const string GameplayLoopIntroText = "Choose the kind of run you want to start with.";
+    private const string DifficultyIntroText = "Set how much pressure the run should apply.";
 
     private readonly Texture2D _pixel;
     private readonly GameAudio _audio;
@@ -20,6 +26,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     private readonly Action _showOptions;
     private readonly Action _exitGame;
     private readonly UiButton _startButton = new("Start Run");
+    private readonly UiButton _backButton = new("Back");
     private readonly UiButton _optionsButton = new("Appearance + Audio");
     private readonly UiButton _exitButton = new("Exit");
     private readonly UiButton _interviewModeButton = new("Interview");
@@ -34,6 +41,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     private readonly UiButton _endlessDifficultyButton = new("Endless");
 
     private SpriteFont _font;
+    private MainMenuView _view;
     private Rectangle _shellBounds;
     private Rectangle _heroBounds;
     private Rectangle _actionBounds;
@@ -69,6 +77,13 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         _font = font;
     }
 
+    internal void PrepareCaptureSetupView()
+    {
+        _view = MainMenuView.Setup;
+        UpdateLayout();
+        ConfigureButtons();
+    }
+
     public void Update(GameTime gameTime, InputSnapshot input)
     {
         UpdateLayout();
@@ -78,7 +93,22 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         if (_startButton.Update(input))
         {
             _audio.PlayButtonClick();
-            _startGame();
+            if (_view == MainMenuView.Home)
+            {
+                _view = MainMenuView.Setup;
+            }
+            else
+            {
+                _startGame();
+            }
+
+            return;
+        }
+
+        if (_backButton.Update(input))
+        {
+            _audio.PlayButtonClick();
+            _view = MainMenuView.Home;
             return;
         }
 
@@ -93,6 +123,11 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         {
             _audio.PlayButtonClick();
             _exitGame();
+            return;
+        }
+
+        if (_view != MainMenuView.Setup)
+        {
             return;
         }
 
@@ -131,22 +166,32 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
 
         UiPanel.Draw(spriteBatch, _pixel, _heroBounds, UiTheme.PanelRaised, UiTheme.EditorBorder, 2);
         UiPanel.Draw(spriteBatch, _pixel, _actionBounds, UiTheme.PanelRaised, UiTheme.PanelBorder, 2);
-        UiPanel.Draw(spriteBatch, _pixel, _briefBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
-        UiPanel.Draw(spriteBatch, _pixel, _modeBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
-        UiPanel.Draw(spriteBatch, _pixel, _difficultyBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+
+        if (_view == MainMenuView.Setup)
+        {
+            UiPanel.Draw(spriteBatch, _pixel, _briefBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+            UiPanel.Draw(spriteBatch, _pixel, _modeBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+            UiPanel.Draw(spriteBatch, _pixel, _difficultyBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+        }
 
         DrawHeroPanel(spriteBatch);
         DrawActionPanel(spriteBatch);
-        DrawBriefPanel(spriteBatch);
-        DrawModePanel(spriteBatch);
-        DrawDifficultyPanel(spriteBatch);
+
+        if (_view == MainMenuView.Setup)
+        {
+            DrawBriefPanel(spriteBatch);
+            DrawModePanel(spriteBatch);
+            DrawDifficultyPanel(spriteBatch);
+        }
     }
 
     private void ConfigureButtons()
     {
         _startButton.TextScale = UiTypography.Button;
+        _backButton.TextScale = UiTypography.Button;
         _optionsButton.TextScale = UiTypography.Button;
         _exitButton.TextScale = UiTypography.Button;
+        _startButton.Text = _view == MainMenuView.Home ? "Set Up Run" : "Start Run";
 
         foreach (var button in GetGameplayButtons())
         {
@@ -164,7 +209,8 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         _realisticModeButton.TextAlignment = UiTextAlignment.Left;
         _realisticModeButton.HorizontalPadding = 14;
 
-        _startButton.AccentColor = UiTheme.Success;
+        _startButton.AccentColor = _view == MainMenuView.Home ? UiTheme.Accent : UiTheme.Success;
+        _backButton.AccentColor = UiTheme.Warning;
         _optionsButton.AccentColor = UiTheme.Accent;
         _exitButton.AccentColor = UiTheme.Warning;
         _interviewModeButton.AccentColor = UiTheme.Accent;
@@ -182,6 +228,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     private void AdvanceButtonAnimations(float elapsedSeconds)
     {
         _startButton.AdvanceAnimation(elapsedSeconds);
+        _backButton.AdvanceAnimation(elapsedSeconds);
         _optionsButton.AdvanceAnimation(elapsedSeconds);
         _exitButton.AdvanceAnimation(elapsedSeconds);
 
@@ -213,76 +260,95 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
 
     private void DrawHeroPanel(SpriteBatch spriteBatch)
     {
-        var left = _heroBounds.X + 28;
-        var top = _heroBounds.Y + 28;
-        var bodyWidth = _heroBounds.Width - 56;
-        var featureLines = new (string Number, string Heading, string Body)[]
+        if (_view == MainMenuView.Home)
         {
-            ("01", "Unified theme mode", "Dark and light palettes now drive the entire shell."),
-            ("02", "Global font family", $"Current font: {UiFontCatalog.GetDisplayName(_settings.UiFont)}"),
-            ("03", "Digital transitions", "Buttons pulse with scanlines and screens fade between states."),
-        };
+            var left = _heroBounds.X + 30;
+            var top = _heroBounds.Y + 30;
+            var bodyWidth = _heroBounds.Width - 60;
+            var featureLines = new (string Number, string Heading, string Body)[]
+            {
+                ("01", "Interview", "A short seven-day sprint that teaches the loop quickly."),
+                ("02", "Career Runs", "Corporate, Indie, and Founder keep going after the opener."),
+                ("03", "Readable Pace", "Run choices now live on a second screen instead of one crowded wall."),
+            };
 
-        UiLabel.Draw(spriteBatch, _font, "Micro Dev", new Vector2(left, top), UiTheme.TextPrimary, UiTypography.Hero);
-        UiLabel.Draw(spriteBatch, _font, "Survive the sprint. Then decide what kind of dev life you are building.", new Vector2(left, top + 54), UiTheme.Accent, UiTypography.Section);
+            UiLabel.Draw(spriteBatch, _font, "Micro Dev", new Vector2(left, top), UiTheme.TextPrimary, UiTypography.Hero);
+            UiLabel.Draw(spriteBatch, _font, "Code, survive, and shape the kind of dev life you want.", new Vector2(left, top + 56), UiTheme.Accent, UiTypography.Section);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                "Start with a quick setup, then jump into the run. The menu now keeps the first choice simple and moves the deeper run options to their own screen.",
+                new Vector2(left, top + 104),
+                bodyWidth - 24,
+                UiTheme.TextMuted,
+                UiTypography.Body,
+                3f,
+                4);
+
+            var stripY = _heroBounds.Y + 232;
+            var stripWidth = bodyWidth - 28;
+            var featureRowWidth = stripWidth - 36;
+            var featureRowsHeight = 0f;
+            foreach (var featureLine in featureLines)
+            {
+                featureRowsHeight += MeasureFeatureLineHeight(featureLine.Body, featureRowWidth);
+            }
+
+            var stripHeight = (int)MathF.Ceiling(16f + featureRowsHeight + ((featureLines.Length - 1) * 10f) + 14f);
+            UiPanel.Draw(spriteBatch, _pixel, new Rectangle(left, stripY, stripWidth, stripHeight), UiTheme.PanelFill, UiTheme.PanelBorder, 2);
+            spriteBatch.Draw(_pixel, new Rectangle(left + 1, stripY + 1, stripWidth - 2, 3), UiTheme.Success);
+
+            var featureY = stripY + 16f;
+            foreach (var featureLine in featureLines)
+            {
+                DrawFeatureLine(spriteBatch, featureLine.Number, featureLine.Heading, featureLine.Body, left + 18, featureY, featureRowWidth);
+                featureY += MeasureFeatureLineHeight(featureLine.Body, featureRowWidth) + 10f;
+            }
+
+            var snapshotBounds = new Rectangle(left, _heroBounds.Bottom - 150, stripWidth, 110);
+            UiPanel.Draw(spriteBatch, _pixel, snapshotBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+            spriteBatch.Draw(_pixel, new Rectangle(snapshotBounds.X + 1, snapshotBounds.Y + 1, snapshotBounds.Width - 2, 3), GetGameplayAccent(_settings.SelectedGameplayMode));
+            UiLabel.Draw(spriteBatch, _font, "Current Run Snapshot", new Vector2(snapshotBounds.X + 14, snapshotBounds.Y + 14), UiTheme.TextPrimary, UiTypography.Section);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"Route: {GetGameplayLabel(_settings.SelectedGameplayMode)}. {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}. Difficulty: {GetDifficultyLabel(_settings.SelectedDifficulty)}. Realistic+: {(_settings.RealisticSubModeEnabled ? "On" : "Off")}.",
+                new Vector2(snapshotBounds.X + 14, snapshotBounds.Y + 48),
+                snapshotBounds.Width - 28,
+                UiTheme.TextMuted,
+                UiTypography.Body,
+                2f,
+                2);
+            return;
+        }
+
+        var setupLeft = _heroBounds.X + 28;
+        var setupTop = _heroBounds.Y + 20;
+        var setupBodyWidth = _heroBounds.Width - 56;
+
+        UiLabel.Draw(spriteBatch, _font, "Run Setup", new Vector2(setupLeft, setupTop), UiTheme.TextPrimary, UiTypography.Title);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Interview is the seven-day opening sprint. Corporate, Indie, and Founder all keep running after that, stretching the game into housing, retirement, and long-term studio goals instead of a single one-week finish line.",
-            new Vector2(left, top + 102),
-            bodyWidth - 52,
-            UiTheme.TextMuted,
+            "Choose the route, set the pressure, and launch when the run summary feels right.",
+            new Vector2(setupLeft, setupTop + 44),
+            setupBodyWidth,
+            UiTheme.Accent,
             UiTypography.Body,
-            3f,
-            4);
+            2f,
+            2);
 
-        var stripY = _heroBounds.Y + 218;
-        var stripWidth = bodyWidth - 56;
-        var featureRowWidth = stripWidth - 36;
-        var featureRowsHeight = 0f;
-        foreach (var featureLine in featureLines)
-        {
-            featureRowsHeight += MeasureFeatureLineHeight(featureLine.Body, featureRowWidth);
-        }
-
-        var stripHeight = (int)MathF.Ceiling(16f + featureRowsHeight + ((featureLines.Length - 1) * 10f) + 14f);
-        UiPanel.Draw(spriteBatch, _pixel, new Rectangle(left, stripY, stripWidth, stripHeight), UiTheme.PanelFill, UiTheme.PanelBorder, 2);
-        spriteBatch.Draw(_pixel, new Rectangle(left + 1, stripY + 1, stripWidth - 2, 3), UiTheme.Success);
-
-        var featureY = stripY + 16f;
-        foreach (var featureLine in featureLines)
-        {
-            DrawFeatureLine(spriteBatch, featureLine.Number, featureLine.Heading, featureLine.Body, left + 18, featureY, featureRowWidth);
-            featureY += MeasureFeatureLineHeight(featureLine.Body, featureRowWidth) + 10f;
-        }
-
-        var snapshotTitleY = stripY + stripHeight + 14f;
-        var snapshotBodyY = snapshotTitleY + GetLineHeight(UiTypography.Section) + 6f;
-        var snapshotHeight = UiTextBlock.MeasureWrappedHeight(
-            _font,
-            $"Mode: {GetGameplayLabel(_settings.SelectedGameplayMode)}. {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}. Pressure: {GetDifficultyLabel(_settings.SelectedDifficulty)}. Realistic+: {(_settings.RealisticSubModeEnabled ? "On" : "Off")}.",
-            bodyWidth - 18,
-            UiTypography.Body,
-            3f,
-            3);
-        var snapshotOverflow = (snapshotBodyY + snapshotHeight) - (_heroBounds.Bottom - 20f);
-        if (snapshotOverflow > 0f)
-        {
-            snapshotTitleY -= snapshotOverflow;
-            snapshotBodyY -= snapshotOverflow;
-        }
-
-        UiLabel.Draw(spriteBatch, _font, "Run Snapshot", new Vector2(left, snapshotTitleY), UiTheme.TextPrimary, UiTypography.Section);
+        UiPanel.Draw(spriteBatch, _pixel, new Rectangle(setupLeft, _heroBounds.Bottom - 48, setupBodyWidth, 28), UiTheme.PanelFill, UiTheme.PanelBorder, 1);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"Mode: {GetGameplayLabel(_settings.SelectedGameplayMode)}. {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}. Pressure: {GetDifficultyLabel(_settings.SelectedDifficulty)}. Realistic+: {(_settings.RealisticSubModeEnabled ? "On" : "Off")}.",
-            new Vector2(left, snapshotBodyY),
-            bodyWidth - 18,
-            UiTheme.TextMuted,
-            UiTypography.Body,
-            3f,
-            3);
+            $"Selected: {GetGameplayLabel(_settings.SelectedGameplayMode)}  |  {GetDifficultyLabel(_settings.SelectedDifficulty)}  |  Realistic+ {(_settings.RealisticSubModeEnabled ? "On" : "Off")}",
+            new Vector2(setupLeft + 12, _heroBounds.Bottom - 42),
+            setupBodyWidth - 24,
+            UiTheme.TextPrimary,
+            UiTypography.Caption,
+            2f,
+            1);
     }
 
     private void DrawFeatureLine(SpriteBatch spriteBatch, string number, string heading, string body, int x, float y, int width)
@@ -304,46 +370,104 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     private void DrawActionPanel(SpriteBatch spriteBatch)
     {
         var left = _actionBounds.X + 24;
-        UiLabel.Draw(spriteBatch, _font, "Control Stack", new Vector2(left, _actionBounds.Y + 24), UiTheme.TextPrimary, UiTypography.Title);
+        var introText = GetActionPanelIntroText();
+        var introMaxLines = _view == MainMenuView.Home ? 4 : 3;
+        UiLabel.Draw(spriteBatch, _font, _view == MainMenuView.Home ? "Main Menu" : "Ready", new Vector2(left, _actionBounds.Y + 24), UiTheme.TextPrimary, UiTypography.Title);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Start the run, adjust appearance and audio live, or back out. Theme and font selection carry through the whole app.",
+            introText,
             new Vector2(left, _actionBounds.Y + 62),
             _actionBounds.Width - 48,
             UiTheme.TextMuted,
             UiTypography.Body,
             3f,
-            4);
+            introMaxLines);
 
         _startButton.Draw(spriteBatch, _pixel, _font);
         _optionsButton.Draw(spriteBatch, _pixel, _font);
-        _exitButton.Draw(spriteBatch, _pixel, _font);
+        if (_view == MainMenuView.Home)
+        {
+            _exitButton.Draw(spriteBatch, _pixel, _font);
+        }
+        else
+        {
+            _backButton.Draw(spriteBatch, _pixel, _font);
+        }
 
-        var noteBounds = new Rectangle(_actionBounds.X + 24, _actionBounds.Bottom - 136, _actionBounds.Width - 48, 96);
+        var noteHeight = GetActionNoteHeight();
+        var noteBounds = new Rectangle(_actionBounds.X + 24, _actionBounds.Bottom - noteHeight - 40, _actionBounds.Width - 48, noteHeight);
         UiPanel.Draw(spriteBatch, _pixel, noteBounds, UiTheme.PanelFill, UiTheme.PanelBorder, 2);
-        spriteBatch.Draw(_pixel, new Rectangle(noteBounds.X + 1, noteBounds.Y + 1, noteBounds.Width - 2, 3), UiTheme.Warning);
-        UiLabel.Draw(spriteBatch, _font, "Current Profile", new Vector2(noteBounds.X + 14, noteBounds.Y + 14), UiTheme.Warning, UiTypography.Caption);
-        UiTextBlock.DrawWrapped(
+        spriteBatch.Draw(_pixel, new Rectangle(noteBounds.X + 1, noteBounds.Y + 1, noteBounds.Width - 2, 3), _view == MainMenuView.Home ? UiTheme.Warning : UiTheme.Success);
+        UiLabel.Draw(
             spriteBatch,
             _font,
-            $"{_settings.ThemeMode} mode  |  {UiFontCatalog.GetDisplayName(_settings.UiFont)}  |  {GetGameplayLabel(_settings.SelectedGameplayMode)}",
-            new Vector2(noteBounds.X + 14, noteBounds.Y + 38),
+            _view == MainMenuView.Home ? "Current Profile" : "Launch Summary",
+            new Vector2(noteBounds.X + 14, noteBounds.Y + 14),
+            _view == MainMenuView.Home ? UiTheme.Warning : UiTheme.Success,
+            UiTypography.Caption);
+        if (_view == MainMenuView.Home)
+        {
+            var profileSummaryY = noteBounds.Y + 38f;
+            var profileHeadlineHeight = UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"{_settings.ThemeMode}  |  {UiFontCatalog.GetDisplayName(_settings.UiFont)}  |  {GetGameplayLabel(_settings.SelectedGameplayMode)}",
+                new Vector2(noteBounds.X + 14, profileSummaryY),
+                noteBounds.Width - 28,
+                UiTheme.TextPrimary,
+                UiTypography.Body,
+                2f,
+                2);
+            profileSummaryY += profileHeadlineHeight + 8f;
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                $"{_settings.WindowMode}  |  {_settings.PreferredResolution.X} x {_settings.PreferredResolution.Y}  |  {GetDifficultyLabel(_settings.SelectedDifficulty)}  |  {GetSeedSummary()}",
+                new Vector2(noteBounds.X + 14, profileSummaryY),
+                noteBounds.Width - 28,
+                UiTheme.TextMuted,
+                UiTypography.Caption,
+                2f,
+                2);
+            return;
+        }
+
+        var summaryY = noteBounds.Y + 38f;
+        var headlineHeight = UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            $"{GetGameplayLabel(_settings.SelectedGameplayMode)}  |  {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}",
+            new Vector2(noteBounds.X + 14, summaryY),
             noteBounds.Width - 28,
             UiTheme.TextPrimary,
             UiTypography.Body,
             2f,
-            1);
-        UiTextBlock.DrawWrapped(
+            2);
+        summaryY += headlineHeight + 8f;
+
+        var metaHeight = UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"{_settings.WindowMode}  |  {_settings.PreferredResolution.X} x {_settings.PreferredResolution.Y}  |  {GetDifficultyLabel(_settings.SelectedDifficulty)}  |  {GetSeedSummary()}",
-            new Vector2(noteBounds.X + 14, noteBounds.Y + 66),
+            $"{GetDifficultyLabel(_settings.SelectedDifficulty)}  |  Realistic+ {(_settings.RealisticSubModeEnabled ? "On" : "Off")}  |  {GetSeedSummary()}",
+            new Vector2(noteBounds.X + 14, summaryY),
             noteBounds.Width - 28,
             UiTheme.TextMuted,
             UiTypography.Caption,
             2f,
-            1);
+            2);
+        summaryY += metaHeight + 8f;
+
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            GetGameplayGoalSummary(_settings.SelectedGameplayMode),
+            new Vector2(noteBounds.X + 14, summaryY),
+            noteBounds.Width - 28,
+            UiTheme.TextMuted,
+            UiTypography.Caption,
+            2f,
+            2);
     }
 
     private void DrawBriefPanel(SpriteBatch spriteBatch)
@@ -355,7 +479,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         var summaryHeight = UiTextBlock.MeasureWrappedHeight(_font, summary, contentWidth, UiTypography.Body, 3f, 4);
         var nextRowY = (int)MathF.Round(summaryTop + summaryHeight + 18f);
 
-        UiLabel.Draw(spriteBatch, _font, "Build Brief", new Vector2(left, _briefBounds.Y + 20), UiTheme.TextPrimary, UiTypography.Section);
+        UiLabel.Draw(spriteBatch, _font, "Run Preview", new Vector2(left, _briefBounds.Y + 20), UiTheme.TextPrimary, UiTypography.Section);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -476,42 +600,134 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
         return Math.Max(GetLineHeight(UiTypography.Body), 18f + bodyHeight);
     }
 
+    private int GetActionButtonsTop()
+    {
+        var introHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetActionPanelIntroText(),
+            _actionBounds.Width - 48,
+            UiTypography.Body,
+            3f,
+            _view == MainMenuView.Home ? 4 : 3);
+        return (int)MathF.Ceiling(_actionBounds.Y + 62f + introHeight + 22f);
+    }
+
+    private int GetActionNoteHeight()
+    {
+        var contentWidth = _actionBounds.Width - 76;
+
+        if (_view == MainMenuView.Home)
+        {
+            var headlineHeight = UiTextBlock.MeasureWrappedHeight(
+                _font,
+                $"{_settings.ThemeMode}  |  {UiFontCatalog.GetDisplayName(_settings.UiFont)}  |  {GetGameplayLabel(_settings.SelectedGameplayMode)}",
+                contentWidth,
+                UiTypography.Body,
+                2f,
+                2);
+            var metaHeight = UiTextBlock.MeasureWrappedHeight(
+                _font,
+                $"{_settings.WindowMode}  |  {_settings.PreferredResolution.X} x {_settings.PreferredResolution.Y}  |  {GetDifficultyLabel(_settings.SelectedDifficulty)}  |  {GetSeedSummary()}",
+                contentWidth,
+                UiTypography.Caption,
+                2f,
+                2);
+            return (int)MathF.Ceiling(Math.Max(114f, 38f + headlineHeight + 8f + metaHeight + 16f));
+        }
+
+        var summaryHeadlineHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            $"{GetGameplayLabel(_settings.SelectedGameplayMode)}  |  {GetGameplayDurationLabel(_settings.SelectedGameplayMode)}",
+            contentWidth,
+            UiTypography.Body,
+            2f,
+            2);
+        var summaryMetaHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            $"{GetDifficultyLabel(_settings.SelectedDifficulty)}  |  Realistic+ {(_settings.RealisticSubModeEnabled ? "On" : "Off")}  |  {GetSeedSummary()}",
+            contentWidth,
+            UiTypography.Caption,
+            2f,
+            2);
+        var summaryGoalHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetGameplayGoalSummary(_settings.SelectedGameplayMode),
+            contentWidth,
+            UiTypography.Caption,
+            2f,
+            2);
+        return (int)MathF.Ceiling(Math.Max(148f, 38f + summaryHeadlineHeight + 8f + summaryMetaHeight + 8f + summaryGoalHeight + 16f));
+    }
+
+    private string GetActionPanelIntroText()
+    {
+        return _view == MainMenuView.Home
+            ? "Start with a cleaner first step. Run options live on the next screen, while appearance and audio stay here."
+            : "Review the run summary on the left, then launch when the route and pressure feel right.";
+    }
+
     private void UpdateLayout()
     {
         _shellBounds = new Rectangle(70, 28, _virtualResolution.X - 140, _virtualResolution.Y - 56);
-        const int heroWidth = 892;
         const int shellTopInset = 30;
         const int shellBottomInset = 24;
         const int panelGap = 18;
-        const int baselineHeroHeight = 484;
-        const int minimumHeroHeight = 460;
-        const int briefWidth = 520;
-
         var heroX = _shellBounds.X + 24;
         var heroY = _shellBounds.Y + shellTopInset;
-        var actionX = heroX + heroWidth + panelGap;
-        var actionWidth = _shellBounds.Right - actionX - 24;
-        var lowerRightX = heroX + briefWidth + panelGap;
-        var lowerRightWidth = _shellBounds.Right - lowerRightX - 24;
-        var lowerRightGap = 18;
-        var modeWidth = (int)MathF.Round((lowerRightWidth - lowerRightGap) * 0.55f);
-        var difficultyWidth = lowerRightWidth - modeWidth - lowerRightGap;
-        var sharedVerticalBudget = _shellBounds.Height - shellTopInset - panelGap - shellBottomInset;
-        var requiredLowerPanelHeight = Math.Max(
-            MeasureBriefPanelHeight(briefWidth),
-            Math.Max(MeasureModePanelHeight(modeWidth), MeasureDifficultyPanelHeight(difficultyWidth)));
-        var heroHeight = Math.Clamp(sharedVerticalBudget - requiredLowerPanelHeight, minimumHeroHeight, baselineHeroHeight);
-        var lowerPanelHeight = sharedVerticalBudget - heroHeight;
+        var contentHeight = _shellBounds.Height - shellTopInset - shellBottomInset;
 
-        _heroBounds = new Rectangle(heroX, heroY, heroWidth, heroHeight);
-        _actionBounds = new Rectangle(actionX, heroY, actionWidth, heroHeight);
-        _briefBounds = new Rectangle(heroX, _heroBounds.Bottom + panelGap, briefWidth, lowerPanelHeight);
-        _modeBounds = new Rectangle(lowerRightX, _heroBounds.Bottom + panelGap, modeWidth, lowerPanelHeight);
-        _difficultyBounds = new Rectangle(_modeBounds.Right + lowerRightGap, _heroBounds.Bottom + panelGap, difficultyWidth, lowerPanelHeight);
+        if (_view == MainMenuView.Home)
+        {
+            const int actionWidth = 336;
+            var heroWidth = _shellBounds.Width - 48 - panelGap - actionWidth;
 
-        _startButton.Bounds = new Rectangle(_actionBounds.X + 24, _actionBounds.Y + 132, _actionBounds.Width - 48, 52);
+            _heroBounds = new Rectangle(heroX, heroY, heroWidth, contentHeight);
+            _actionBounds = new Rectangle(_heroBounds.Right + panelGap, heroY, actionWidth, contentHeight);
+            _briefBounds = Rectangle.Empty;
+            _modeBounds = Rectangle.Empty;
+            _difficultyBounds = Rectangle.Empty;
+
+            var actionButtonsTop = GetActionButtonsTop();
+            _startButton.Bounds = new Rectangle(_actionBounds.X + 24, actionButtonsTop, _actionBounds.Width - 48, 52);
+            _optionsButton.Bounds = new Rectangle(_actionBounds.X + 24, _startButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
+            _exitButton.Bounds = new Rectangle(_actionBounds.X + 24, _optionsButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
+            _backButton.Bounds = Rectangle.Empty;
+
+            foreach (var button in GetGameplayButtons())
+            {
+                button.Bounds = Rectangle.Empty;
+            }
+
+            _realisticModeButton.Bounds = Rectangle.Empty;
+            foreach (var button in GetDifficultyButtons())
+            {
+                button.Bounds = Rectangle.Empty;
+            }
+
+            return;
+        }
+
+        const int actionPanelWidth = 336;
+        const int previewWidth = 432;
+        const int headerHeight = 128;
+        var leftAreaWidth = _shellBounds.Width - 48 - panelGap - actionPanelWidth;
+        var configColumnWidth = leftAreaWidth - previewWidth - panelGap;
+        var lowerY = heroY + headerHeight + panelGap;
+        var lowerHeight = _shellBounds.Bottom - shellBottomInset - lowerY;
+        var modeHeight = Math.Max(250, (lowerHeight - panelGap) / 2);
+        var difficultyHeight = lowerHeight - modeHeight - panelGap;
+
+        _heroBounds = new Rectangle(heroX, heroY, leftAreaWidth, headerHeight);
+        _actionBounds = new Rectangle(_heroBounds.Right + panelGap, heroY, actionPanelWidth, contentHeight);
+        _briefBounds = new Rectangle(heroX, lowerY, previewWidth, lowerHeight);
+        _modeBounds = new Rectangle(_briefBounds.Right + panelGap, lowerY, configColumnWidth, modeHeight);
+        _difficultyBounds = new Rectangle(_modeBounds.X, _modeBounds.Bottom + panelGap, configColumnWidth, difficultyHeight);
+
+        var actionButtonTop = GetActionButtonsTop();
+        _startButton.Bounds = new Rectangle(_actionBounds.X + 24, actionButtonTop, _actionBounds.Width - 48, 52);
         _optionsButton.Bounds = new Rectangle(_actionBounds.X + 24, _startButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
-        _exitButton.Bounds = new Rectangle(_actionBounds.X + 24, _optionsButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
+        _backButton.Bounds = new Rectangle(_actionBounds.X + 24, _optionsButton.Bounds.Bottom + 12, _actionBounds.Width - 48, 46);
+        _exitButton.Bounds = Rectangle.Empty;
 
         const int gap = 8;
         var modeButtonX = _modeBounds.X + 24;
@@ -690,11 +906,11 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return difficulty switch
         {
-            GameDifficulty.Easy => "Easy Mode",
-            GameDifficulty.Hard => "Hard Mode",
+            GameDifficulty.Easy => "Easy",
+            GameDifficulty.Hard => "Hard",
             GameDifficulty.ContinualUpgradeLoop => "Upgrade Loop",
-            GameDifficulty.Endless => "Endless Mode",
-            _ => "Normal Mode",
+            GameDifficulty.Endless => "Endless",
+            _ => "Normal",
         };
     }
 
@@ -714,10 +930,10 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "Corporate Mode",
-            GameplayLoopMode.Indie => "Indie Mode",
-            GameplayLoopMode.Founder => "Founder Mode",
-            _ => "Interview Mode",
+            GameplayLoopMode.Corporate => "Corporate",
+            GameplayLoopMode.Indie => "Indie",
+            GameplayLoopMode.Founder => "Founder",
+            _ => "Interview",
         };
     }
 
@@ -725,14 +941,14 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         var baseSummary = gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "An indefinite work-life climb built around office hours, stricter bosses, micromanagement, and a reliable salary that pays more if you survive it.",
-            GameplayLoopMode.Indie => "An indefinite self-directed route built around shipping, goal-setting, lighter sanity drain, and leaner income that still demands discipline.",
-            GameplayLoopMode.Founder => "Start your own studio from the basement, freelance for rent, and grow a grassroots company into a house-and-retirement win.",
-            _ => "A seven-day interview sprint. Build proof, survive the week, land an offer, and branch into Corporate, Indie, or Founder after the win.",
+            GameplayLoopMode.Corporate => "Steady salary, stricter bosses, and a longer grind toward stability.",
+            GameplayLoopMode.Indie => "Self-directed pacing, lighter structure, and leaner income that rewards discipline.",
+            GameplayLoopMode.Founder => "Bootstrap a studio, freelance for rent, and grow into a real business.",
+            _ => "A seven-day sprint to build proof, land an offer, and unlock the longer career routes.",
         };
 
         return realisticMode
-            ? $"{baseSummary} Realistic+ keeps the money tighter and social choices more consequential."
+            ? $"{baseSummary} Realistic+ keeps money tighter and choices sharper."
             : baseSummary;
     }
 
@@ -740,10 +956,10 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "Office -> Check-Ins -> Code\nSalary -> Retire",
-            GameplayLoopMode.Indie => "Set Goals -> Ship -> Recover\nPublish -> Retire",
-            GameplayLoopMode.Founder => "Name Studio -> Freelance -> Build\nSell -> Scale",
-            _ => "Build Proof -> Apply -> Interview\nBranch -> Survive",
+            GameplayLoopMode.Corporate => "Office -> Code -> Endure\nSave -> Retire",
+            GameplayLoopMode.Indie => "Plan -> Build -> Recover\nShip -> Retire",
+            GameplayLoopMode.Founder => "Freelance -> Build -> Sell\nScale -> Retire",
+            _ => "Build Proof -> Apply -> Interview\nWin -> Branch",
         };
     }
 
@@ -751,10 +967,21 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return gameplayMode switch
         {
-            GameplayLoopMode.Corporate => "Keep the paycheck, survive micromanagement, buy a house, and retire.",
-            GameplayLoopMode.Indie => "Stay self-motivated, ship enough to buy a house, and retire on your own terms.",
-            GameplayLoopMode.Founder => "Bootstrap a company from scratch, grow the business, buy a house, and retire.",
-            _ => "Win an offer inside seven days, then choose the long-form route.",
+            GameplayLoopMode.Corporate => "Keep the paycheck alive long enough to buy a house and retire.",
+            GameplayLoopMode.Indie => "Stay disciplined, ship work, and retire on your own terms.",
+            GameplayLoopMode.Founder => "Turn survival freelancing into a studio that can carry you to retirement.",
+            _ => "Win the first offer in seven days, then choose the long-form route.",
+        };
+    }
+
+    private static string GetGameplayGoalSummary(GameplayLoopMode gameplayMode)
+    {
+        return gameplayMode switch
+        {
+            GameplayLoopMode.Corporate => "Survive the office climb.",
+            GameplayLoopMode.Indie => "Ship steadily and stay free.",
+            GameplayLoopMode.Founder => "Turn gigs into a studio.",
+            _ => "Land the offer and branch.",
         };
     }
 
@@ -762,7 +989,7 @@ public sealed class MainMenuScreen : IScreen, IUiFontAware
     {
         return gameplayMode == GameplayLoopMode.Interview
             ? "7-day sprint"
-            : "Indefinite career run";
+            : "Long career run";
     }
 
     private static Color GetGameplayAccent(GameplayLoopMode gameplayMode)

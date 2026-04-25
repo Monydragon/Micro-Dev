@@ -174,7 +174,65 @@ Fix Overlap on this screen for the gameplay loop box, Interview mode, is the fir
 overlap on the flow in build brief block, and difficulty easy text overlaps, go though the app fix overlap issues take screen shots if needed also add or fix any new lines where needed and consistency.
 
 [prompt 42]
-On the Build Studio screen it should be scrollable and such. make on the Indie Studio path it should be able to make money from projects when working on projects the code files being worked on should match the game or app so that it makes sense. overlap issues on the banking app clean those up, the food + kitchedn and Freelance board should be randomized and more options for both so this feels more unique and when doing freelance there will be a code popup but require focus to do the freelance work. do other clean up as well I can  get hard locked with a release blocked when using git making a feature branch, I want to make sure it cannot be locked. 
+On the Build Studio screen it should be scrollable and such. make on the Indie Studio path it should be able to make money from projects when working on projects the code files being worked on should match the game or app so that it makes sense. overlap issues on the banking app clean those up, the food + kitchen and Freelance board should be randomized and more options for both so this feels more unique and when doing freelance there will be a code popup but require focus to do the freelance work. do other clean up as well I can  get hard locked with a release blocked when using git making a feature branch, I want to make sure it cannot be locked. 
+
+[prompt 43]
+I have overlap issues and I need to mask my scrolling controls so that it stays in the container, let's correct these. then go through the app taking photos and organizing them in a folder promotional following the convention of the name and then dates. let's fix these
+
+[prompt 44]
+On the Food + Kitchen the names should show and there should be no overlap make sure all the names are visible and giving more room for names of the foods. 
+
+[prompt 45]
+I want Version control to be interactive like events will cause the player to lose their uncommitted progress. when working it's best to either commit after each file or after a number of files. since this is a single player game let's remove he Version Control button and screen and replace version control as a trigger when finishing a file you have the option to commit it. I want to reward the players for proper git understanding and usage. I want the players to feel like they are making programs and stuff. I want 20 more upgrades and upgrades can stack so +1 clicks turns into +2,+3 up to 5 per and upgraded tiers go to 5 make that apparent.
+
+[prompt 46]
+For all scrollable areas have the scroll bar able to be click and dragged and such right now on upgrades screen I cannot move the scroll bar i have to use the mouse wheel. also the upgrades are not showing the cost. also for the interview and freelance and other places where code is being simulated. I want the the players view to scroll with the code and I want to make more dating options and variety of types of prompts and proper progression there should be a communication button that allows the user to send messages and call people they have met. meet lots of people not just dates but making friends as well is part of the experience. also sanity needs to drain a lot faster and I need to balance the game more it feels it can be cheesed we need to make it proper of course respecting that easy should still remain easy and it's a decent jump to normal and hard.
+
+[prompt 47]
+Right now I cannot complete the set of code it wont let me continue to ship the option is not there. 
+
+[prompt 48]
+I want to make the communication screen show no one at first you gain contacts and make it scrollable people you meet and you should be able to pick
+
+[prompt 49]
+I want to add an event to the game where your code quality drops drastically because of either staying up to late or sanity or lack of food causes you to have bugs and errors in your code. we are going to add debugging as a more prevalent system. on realistic mode you have to find the highlighted bug and click it this could be a missing semicolon or a broken method or variable that won't compile make this more common place on hard where everything is more intense.
+
+[prompt 50]
+the goal's for Corporate, Indie or Founder is to buy a house and retire, there should always be money coming in on corporate that is paying more but is stricter and more micromanaged. where as indie self motivated and goal oriented and founder where you have to grass roots the whole company and grow a business. with all of these mods the same goals apply
+
+[prompt 51]
+Add the ability to go back to the main menu from the game screen, just a menu button placed somewhere.
+
+[prompt 52]
+I want to add a stats page with all the stats for the run like lines of code, projects released, freelance gigs etc. I want to add all of these stats and also add a simple achievements system on top of the current structure let's capture and add all these stats like bugs squashed, lines of code completed, job interviews attempted I want as many stats as possible to grab I want this to be a full slice
+
+[prompt 53]
+as you can see from the image, the text cuts off on the right it should show the entire text and no ellipsis. let's add more achievements I want a total of 100
+
+[prompt 54]
+I want to replace/add new BGM music, I want to add a casual lofi beats something that matches the energy of the game. Let's generate this and make sure the volume is loud enough to be heard.
+
+[prompt 55]
+I want to edit the lofi bgm I want the loop to be longer like a 30 second loop keep the same styling and such
+
+[prompt 56]
+When there is a prompt up events should not take priority so that the user does not have a bad experience with the UI it should queue up
+
+[prompt 57]
+- Too Much too busy main menu screen.
+- All Popups and dialogs stop time so player can read and more
+- Easier less text and more streamline process
+Above are my current issues with the game attracting and keeping users involved in the game without pressure of choice I want to separate the display so that the main menu is cleaned up and does not need all of the interaction all on that one screen feel free to interpret as having multiple screens as needed or localized popups that are more interactive.
+
+[prompt 58]
+I want you to take screen shots of every screen in the game and menus and make sure that text will not overlap and that all text is visible and not blocking other text. Text overlap and placement is important I want you to be the designer of a AA Indie Game Studio with that role looking at screen shot and comparing to other games that the UI is refined and aim towards making the UI pleasant and inviting
+
+[prompt 59]
+overlapping text still occurring do another pass on ALL screens and capture and use those images for reference when making determinations about what is visually OFF
+
+[prompt 60]
+Overlapping again here look more through and make sure to check the images your self its looking close now though
+
 
 [prompt-not yet until ready to build pipeline after jam]
 I want to be able to publish directly with butler to itch.io for fast iterations I want to be able to have an easy way to use butler to upload my project and making sure the latest version that is stable is always up

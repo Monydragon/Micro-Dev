@@ -56,6 +56,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _bankAppButton = new("Banking");
     private readonly UiButton _communicationButton = new("Communication");
     private readonly UiButton _projectStudioButton = new("Build Studio");
+    private readonly UiButton _toolsButton = new("Desk Tools");
     private readonly UiButton _guideButton = new("Guide");
     private readonly UiButton _newRunButton = new("New Run");
     private readonly UiButton _menuButton = new("Menu");
@@ -82,6 +83,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _closeFoodAppButton = new("Close");
     private readonly UiButton _closeBankAppButton = new("Close");
     private readonly UiButton _closeCommunicationButton = new("Close");
+    private readonly UiButton _closeToolsButton = new("Close");
     private readonly UiButton _closeFreelanceBoardButton = new("Close");
     private readonly UiButton _closeUpgradesButton = new("Close");
     private readonly UiButton _closeStatsButton = new("Close");
@@ -143,6 +145,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private Rectangle _lifeEventBounds;
     private Rectangle _bankAppBounds;
     private Rectangle _communicationBounds;
+    private Rectangle _toolsBounds;
     private Rectangle _communicationViewportBounds;
     private Rectangle _communicationDetailBounds;
     private Rectangle _bankAccountBounds;
@@ -186,6 +189,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private bool _foodAppOpen;
     private bool _bankAppOpen;
     private bool _communicationOpen;
+    private bool _toolsOpen;
     private bool _commitPromptOpen;
     private bool _projectStudioOpen;
     private bool _freelanceBoardOpen;
@@ -257,6 +261,116 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _font = font;
     }
 
+    internal void PrepareCaptureToolsOverlay()
+    {
+        ResetCaptureOverlayState();
+        _toolsOpen = true;
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureStatsOverlay()
+    {
+        SeedStatsForCapture();
+        ResetCaptureOverlayState();
+        _statsOpen = true;
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureCommunicationOverlay()
+    {
+        SeedContactsForCapture();
+        ResetCaptureOverlayState();
+        _communicationOpen = true;
+        _state.HasFoundLove = true;
+        _state.PartnerName = "Remy Keaton";
+        _selectedCommunicationContactId = "remy";
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureTutorialPage(int pageIndex)
+    {
+        OpenTutorial();
+        _tutorialPageIndex = Math.Clamp(pageIndex, 0, GetTutorialPageCount() - 1);
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureJobApplication(bool interviewPhase)
+    {
+        SeedContactsForCapture();
+        SeedJobApplicationForCapture(interviewPhase);
+        ResetCaptureOverlayState();
+        _jobApplicationOpen = true;
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureFirstCoinOverlay()
+    {
+        ResetCaptureOverlayState();
+        _state.HasFirstCoin = true;
+        _state.FirstCoinDecisionPending = true;
+        _state.FirstCoinRescueDeficit = 42;
+        _state.Funds = Math.Min(_state.Funds, 12);
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureLifeEventOverlay()
+    {
+        SeedContactsForCapture();
+        ResetCaptureOverlayState();
+        _state.PendingLifeEvent = new PendingLifeEvent
+        {
+            Type = IncidentType.PartnerCheckIn,
+            Title = "Dinner Or Deadline",
+            Description = "Alex finally has time tonight. You can keep the line warm, make real time for them, or stay buried in the build and hope the silence does not cost more later.",
+            SubjectName = "Alex",
+            SubjectScore = 2,
+            StageIndex = 0,
+            ProgressScore = 1,
+            TargetScore = 3,
+            OptionLabels = ["Reply Now", "Make Time", "Stay Heads-Down"],
+        };
+        _state.Funds = Math.Max(_state.Funds, 128);
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureCatOverlay()
+    {
+        ResetCaptureOverlayState();
+        _state.ActiveCatInterruption = new ActiveCatInterruption
+        {
+            Title = "Cat On Keyboard",
+            Description = "Your cat has committed to chaos. The editor is filling with nonsense, and the longer you wait the uglier the cleanup gets.",
+            ManualActionLabel = "Pet Cat",
+            FocusActionLabel = "Refocus",
+            QuickResolveLabel = "Bribe With Treats",
+            PatsRemaining = 4,
+            RemainingInGameMinutes = 26,
+            LinesDeletionPenalty = 14,
+            PhantomBugCount = 3,
+            GibberishLinesTyped = 9,
+            FocusActionFocusCost = 8,
+            FocusActionPatReduction = 2,
+            QuickResolveFundsCost = 11,
+            QuickResolveFocusCost = 2,
+            VisualSeed = 14,
+        };
+        FinalizeCapturePreparation();
+    }
+
+    internal void PrepareCaptureOutcomeOverlay(RunStatus status)
+    {
+        SeedStatsForCapture();
+        ResetCaptureOverlayState();
+        _state.Status = status;
+        _state.OutcomeMessage = status switch
+        {
+            RunStatus.Won => "The interview loop paid off. You have proof, momentum, and a real shot at the longer career climb.",
+            RunStatus.Evicted => "The desk kept moving, but the bills got there first. A calmer pace, steadier food, and earlier cash decisions would have changed this one.",
+            _ => "The code kept shipping, but the body did not. The run ended when sanity ran out before recovery caught up.",
+        };
+        FinalizeCapturePreparation();
+    }
+
     private void EnsureCommunicationButtons()
     {
         foreach (var contact in _state.KnownContacts)
@@ -285,7 +399,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         ConfigureButtons();
         AdvanceButtonAnimations((float)gameTime.ElapsedGameTime.TotalSeconds);
 
-        if (previousStatus == RunStatus.InProgress && !_tutorialOpen)
+        if (previousStatus == RunStatus.InProgress && !IsRunTimePaused())
         {
             var elapsedSeconds = gameTime.ElapsedGameTime.TotalSeconds;
             var elapsedInGameMinutes = elapsedSeconds * _simulation.Config.InGameMinutesPerRealSecond;
@@ -293,14 +407,14 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _simulation.AdvanceRealTime(_state, elapsedSeconds);
 
             var queued = _incidentScheduler.Update(_state, elapsedInGameMinutes, _simulation.Config);
-            _simulation.QueueIncidents(_state, queued, allowPromptIncidents: !HasBlockingOverlayOpen());
+            _simulation.QueueIncidents(_state, queued, allowPromptIncidents: !IsRunTimePaused());
             if (queued.Count > 0)
             {
                 _audio.PlayAlert();
             }
         }
 
-        _simulation.ProcessQueuedIncidents(_state, allowPromptIncidents: !HasBlockingOverlayOpen());
+        _simulation.ProcessQueuedIncidents(_state, allowPromptIncidents: !IsRunTimePaused());
         EnsureCommunicationButtons();
         UpdateLayout();
         UpdateButtons();
@@ -320,6 +434,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -352,6 +467,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -365,6 +481,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -372,6 +489,10 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _statsOpen = false;
             _jobApplicationOpen = false;
             HandleLifeEventInput(input);
+        }
+        else if (_toolsOpen)
+        {
+            HandleToolsInput(input);
         }
         else if (_statsOpen)
         {
@@ -437,6 +558,10 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         else if (_communicationOpen && _state.Status == RunStatus.InProgress)
         {
             DrawCommunicationOverlay(spriteBatch);
+        }
+        else if (_toolsOpen && _state.Status == RunStatus.InProgress)
+        {
+            DrawToolsOverlay(spriteBatch);
         }
         else if (_commitPromptOpen && _state.Status == RunStatus.InProgress)
         {
@@ -507,6 +632,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             button.HorizontalPadding = 10;
         }
 
+        foreach (var button in GetToolsOverlayButtons())
+        {
+            button.TextScale = UiTypography.Body;
+            button.HorizontalPadding = 12;
+        }
+
         _guideButton.TextScale = UiTypography.Body;
         _guideButton.HorizontalPadding = 10;
         _restartButton.TextScale = _state.Status == RunStatus.InProgress ? UiTypography.Body : UiTypography.Button;
@@ -532,6 +663,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _bankAppButton.AccentColor = UiTheme.Accent;
         _communicationButton.AccentColor = UiTheme.Accent;
         _projectStudioButton.AccentColor = UiTheme.Success;
+        _toolsButton.AccentColor = UiTheme.Accent;
         _guideButton.AccentColor = UiTheme.Accent;
         _newRunButton.AccentColor = UiTheme.Success;
         _menuButton.AccentColor = UiTheme.Accent;
@@ -555,6 +687,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _confirmFoodOrderButton.AccentColor = UiTheme.Success;
         _closeFoodAppButton.AccentColor = UiTheme.Warning;
         _closeBankAppButton.AccentColor = UiTheme.Warning;
+        _closeToolsButton.AccentColor = UiTheme.Warning;
         _closeFreelanceBoardButton.AccentColor = UiTheme.Warning;
         _closeUpgradesButton.AccentColor = UiTheme.Warning;
         _closeStatsButton.AccentColor = UiTheme.Warning;
@@ -624,6 +757,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _closeFoodAppButton;
         yield return _closeBankAppButton;
         yield return _closeCommunicationButton;
+        yield return _closeToolsButton;
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
         yield return _closeStatsButton;
@@ -650,6 +784,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _bankAppButton;
         yield return _communicationButton;
         yield return _projectStudioButton;
+        yield return _toolsButton;
         yield return _guideButton;
         yield return _newRunButton;
         yield return _menuButton;
@@ -673,6 +808,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _confirmFoodOrderButton;
         yield return _closeFoodAppButton;
         yield return _closeBankAppButton;
+        yield return _closeToolsButton;
         yield return _closeFreelanceBoardButton;
         yield return _closeUpgradesButton;
         yield return _closeStatsButton;
@@ -736,14 +872,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private IEnumerable<UiButton> GetSidebarActionButtons()
     {
+        yield return _toolsButton;
+        yield return _sleepButton;
+        yield return _statsButton;
+    }
+
+    private IEnumerable<UiButton> GetToolsOverlayButtons()
+    {
         yield return _foodAppButton;
         yield return _freelanceButton;
         yield return _bankAppButton;
         yield return _upgradesButton;
         yield return _communicationButton;
         yield return _projectStudioButton;
-        yield return _sleepButton;
-        yield return _statsButton;
     }
 
     private void CancelAllButtonInteractions()
@@ -841,6 +982,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return;
         }
 
+        if (_toolsButton.Update(input))
+        {
+            _toolsOpen = true;
+            _audio.PlayButtonClick();
+            return;
+        }
+
         if (_menuButton.Update(input))
         {
             _audio.PlayButtonClick();
@@ -892,6 +1040,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -927,6 +1076,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = true;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -942,6 +1092,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _upgradesOpen = false;
@@ -955,6 +1106,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _bankAppOpen = true;
             _foodAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -969,6 +1121,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _communicationOpen = true;
             _foodAppOpen = false;
             _bankAppOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -984,6 +1137,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _freelanceBoardOpen = false;
             _upgradesOpen = false;
@@ -998,6 +1152,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -1012,6 +1167,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _foodAppOpen = false;
             _bankAppOpen = false;
             _communicationOpen = false;
+            _toolsOpen = false;
             _commitPromptOpen = false;
             _projectStudioOpen = false;
             _freelanceBoardOpen = false;
@@ -1349,10 +1505,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _foodAppOpen = false;
         _bankAppOpen = false;
         _communicationOpen = false;
+        _toolsOpen = false;
         _projectStudioOpen = false;
         _freelanceBoardOpen = false;
         _upgradesOpen = false;
         _jobApplicationOpen = false;
+    }
+
+    private bool IsRunTimePaused()
+    {
+        return HasBlockingOverlayOpen() ||
+               _state.FirstCoinDecisionPending ||
+               _simulation.HasPendingLifeEvent(_state) ||
+               _state.ActiveCatInterruption is not null;
     }
 
     private bool HasBlockingOverlayOpen()
@@ -1361,12 +1526,70 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                _foodAppOpen ||
                _bankAppOpen ||
                _communicationOpen ||
+               _toolsOpen ||
                _commitPromptOpen ||
                _projectStudioOpen ||
                _freelanceBoardOpen ||
                _upgradesOpen ||
                _statsOpen ||
                (_jobApplicationOpen && _simulation.HasActiveJobApplication(_state));
+    }
+
+    private void HandleToolsInput(InputSnapshot input)
+    {
+        if (_closeToolsButton.Update(input))
+        {
+            _toolsOpen = false;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_foodAppButton.Update(input))
+        {
+            _toolsOpen = false;
+            _foodAppOpen = true;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_freelanceButton.Update(input))
+        {
+            _toolsOpen = false;
+            _freelanceBoardOpen = true;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_bankAppButton.Update(input))
+        {
+            _toolsOpen = false;
+            _bankAppOpen = true;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_upgradesButton.Update(input))
+        {
+            _toolsOpen = false;
+            _upgradesOpen = true;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_communicationButton.Update(input))
+        {
+            _toolsOpen = false;
+            _communicationOpen = true;
+            _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_projectStudioButton.Update(input))
+        {
+            _toolsOpen = false;
+            _projectStudioOpen = true;
+            _audio.PlayButtonClick();
+        }
     }
 
     private void HandleProjectStudioInput(InputSnapshot input)
@@ -1830,7 +2053,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var contentX = _editorViewportBounds.X + 18;
         var contentWidth = Math.Max(360, headerRight - contentX);
 
-        var tabBounds = new Rectangle(_editorViewportBounds.X, _editorViewportBounds.Y - 38, Math.Min(468, _editorViewportBounds.Width - 236), 34);
+        var tabBounds = new Rectangle(_editorViewportBounds.X, _editorPanelBounds.Y + 18, Math.Min(468, _editorViewportBounds.Width - 236), 34);
         UiPanel.Draw(spriteBatch, _pixel, tabBounds, UiTheme.PanelRaised, UiTheme.EditorBorder, 2);
         DrawFittedLabel(
             spriteBatch,
@@ -2536,15 +2759,57 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private void DrawActionButtons(SpriteBatch spriteBatch)
     {
-        UiLabel.Draw(spriteBatch, _font, "Actions", new Vector2(_sidebarBounds.X + 16, GetSidebarActionsHeaderY()), UiTheme.TextPrimary, 0.88f);
+        UiLabel.Draw(spriteBatch, _font, "Quick Actions", new Vector2(_sidebarBounds.X + 16, GetSidebarActionsHeaderY()), UiTheme.TextPrimary, 0.88f);
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Desk Tools groups the secondary screens into one calmer picker.",
+            new Vector2(_sidebarBounds.X + 16, GetSidebarActionsHeaderY() + 20f),
+            _sidebarBounds.Width - 32,
+            UiTheme.TextMuted,
+            UiTypography.Caption,
+            2f,
+            2);
+        _toolsButton.Draw(spriteBatch, _pixel, _font);
+        _sleepButton.Draw(spriteBatch, _pixel, _font);
+        _statsButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawToolsOverlay(SpriteBatch spriteBatch)
+    {
+        var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
+        UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
+        UiPanel.Draw(spriteBatch, _pixel, _toolsBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_toolsBounds.X + 1, _toolsBounds.Y + 1, _toolsBounds.Width - 2, 4), UiTheme.Accent);
+
+        DrawOverlayHeaderLabel(
+            spriteBatch,
+            "Desk Tools",
+            new Vector2(_toolsBounds.X + 28, _toolsBounds.Y + 22),
+            _closeToolsButton.Bounds,
+            _toolsBounds.Right - 24,
+            UiTheme.TextPrimary,
+            1.02f,
+            0.86f);
+
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Pick one focused screen to open. Time is paused while this picker is on screen.",
+            new Vector2(_toolsBounds.X + 28, _toolsBounds.Y + 62),
+            _toolsBounds.Width - 56,
+            UiTheme.TextMuted,
+            UiTypography.Body,
+            2f,
+            2);
+
         _foodAppButton.Draw(spriteBatch, _pixel, _font);
         _freelanceButton.Draw(spriteBatch, _pixel, _font);
         _bankAppButton.Draw(spriteBatch, _pixel, _font);
         _upgradesButton.Draw(spriteBatch, _pixel, _font);
         _communicationButton.Draw(spriteBatch, _pixel, _font);
         _projectStudioButton.Draw(spriteBatch, _pixel, _font);
-        _sleepButton.Draw(spriteBatch, _pixel, _font);
-        _statsButton.Draw(spriteBatch, _pixel, _font);
+        _closeToolsButton.Draw(spriteBatch, _pixel, _font);
     }
 
     private void DrawAlertsPanel(SpriteBatch spriteBatch)
@@ -3219,6 +3484,13 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             UiTheme.TextPrimary,
             1.0f,
             0.86f);
+        var communicationIntroHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            "Text or call the people already in your orbit. Dates build the relationship track, friends steady sanity, and mentor calls sharpen the stories and prep that keep the career moving.",
+            _communicationBounds.Width - 48,
+            0.74f,
+            2f,
+            4);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
@@ -3228,7 +3500,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             UiTheme.TextMuted,
             0.74f,
             2f,
-            3);
+            4);
 
         var listPanelBounds = new Rectangle(
             _communicationViewportBounds.X - 12,
@@ -3552,7 +3824,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var optionWidth = (contentWidth - 24) / 2;
         var leftX = contentX;
         var rightX = leftX + optionWidth + 24;
-        const int rowHeight = 74;
+        var rowHeight = GetProjectStudioOptionRowHeight(optionWidth);
         const int rowGap = 12;
         var topY = titleBounds.Bottom + 18;
         var productBounds = new Rectangle(leftX, topY, optionWidth, rowHeight);
@@ -3987,11 +4259,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             var border = purchased ? UiTheme.Success : UiTheme.PanelBorder;
             var railBounds = new Rectangle(cardBounds.Right - 132, cardBounds.Y + 12, 118, cardBounds.Height - 24);
             var contentLeft = cardBounds.X + 12;
-            var contentWidth = railBounds.X - contentLeft - 12;
-            var summaryTop = cardBounds.Y + 38;
-            var summaryHeight = UiTextBlock.MeasureWrappedHeight(_font, summaryText, contentWidth, 0.68f, 2f, 2);
-            var descriptionTop = summaryTop + summaryHeight + 6f;
-            var descriptionLineHeight = (_font.LineSpacing * 0.64f) + 2f;
+        var contentWidth = railBounds.X - contentLeft - 12;
+        var summaryTop = cardBounds.Y + 38;
+        var summaryHeight = UiTextBlock.MeasureWrappedHeight(_font, summaryText, contentWidth, 0.68f, 2f, 2);
+        var descriptionTop = summaryTop + summaryHeight + 6f;
+        var descriptionLineHeight = (_font.LineSpacing * 0.64f) + 2f;
             var availableDescriptionHeight = cardBounds.Bottom - 12 - descriptionTop;
             var descriptionMaxLines = Math.Max(1, (int)Math.Floor((availableDescriptionHeight + 2f) / descriptionLineHeight));
             var railBodyTop = railBounds.Y + 36;
@@ -4371,29 +4643,33 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             0.62f);
         _closeApplicationButton.Draw(spriteBatch, _pixel, _font);
 
+        var headerContentWidth = _applicationBounds.Width - 48;
+        var introText = GetJobApplicationFlowText();
+        var introY = _applicationBounds.Y + 76f;
+        var introHeight = MeasureJobApplicationFlowHeight(headerContentWidth);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Application flow: finish the take-home, then work through the interview prompts. You can close this window and return to the rest of the desk whenever you need.",
-            new Vector2(_applicationBounds.X + 24, _applicationBounds.Y + 76),
-            _applicationBounds.Width - 48,
+            introText,
+            new Vector2(_applicationBounds.X + 24, introY),
+            headerContentWidth,
             UiTheme.TextMuted,
             0.74f,
             2f,
-            3);
+            4);
 
-        var requirementsText =
-            $"Qualified on submit with {application.PortfolioLinesSnapshot} LoC, quality {application.CodeQualitySnapshot:0}, and {_simulation.GetResumeTrackLabel(application.ResumeTrack)} proof {application.ResumeProofSnapshot}. Prep notes: {application.PrepPoints}. The recruiter wants {application.MinimumCorrectAnswers} correct answer{(application.MinimumCorrectAnswers == 1 ? string.Empty : "s")} this round.";
+        var requirementsText = GetJobApplicationRequirementsText(application);
+        var requirementsY = introY + introHeight + 14f;
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
             requirementsText,
-            new Vector2(_applicationBounds.X + 24, _applicationBounds.Y + 132),
-            _applicationBounds.Width - 48,
+            new Vector2(_applicationBounds.X + 24, requirementsY),
+            headerContentWidth,
             UiTheme.Warning,
             0.68f,
             2f,
-            3);
+            4);
 
         if (!application.TakeHomeComplete)
         {
@@ -4411,12 +4687,23 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 2);
 
             var visibleLines = BuildDisplayedCodeLines(_simulation.GetVisibleJobApplicationLines(_state));
+            var footer = _state.ActiveCatInterruption is not null
+                ? $"{_state.ActiveCatInterruption.Title} is on top of the take-home. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to clear it while {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines stay smeared across the solution."
+                : "Click inside the take-home editor to reveal the solution one real line at a time, or close this panel and come back after you recover.";
+            var footerHeight = UiTextBlock.MeasureWrappedHeight(
+                _font,
+                footer,
+                _applicationEditorBounds.Width - 32,
+                0.66f,
+                2f,
+                2);
+            var footerY = _applicationEditorBounds.Bottom - 16f - footerHeight;
             var lineHeight = (_font.LineSpacing * CodeScale) + 3f;
             var lineY = _applicationEditorBounds.Y + 92f;
             var codeWidth = _applicationEditorBounds.Width - 64;
-            var maxVisibleLines = Math.Max(1, (int)Math.Floor((_applicationEditorBounds.Bottom - 44 - lineY) / lineHeight));
+            var maxVisibleLines = Math.Max(1, (int)Math.Floor((footerY - 18f - lineY) / lineHeight));
             var (displayLines, startingLine) = GetAutoFollowCodeWindow(visibleLines, maxVisibleLines);
-            for (var index = 0; index < displayLines.Count && lineY < _applicationEditorBounds.Bottom - 44; index++)
+            for (var index = 0; index < displayLines.Count && lineY < footerY - 14f; index++)
             {
                 var lineNumber = $"{startingLine + index,2}";
                 UiLabel.Draw(spriteBatch, _font, lineNumber, new Vector2(_applicationEditorBounds.X + 14, lineY), UiTheme.TextMuted, CodeScale);
@@ -4433,14 +4720,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 lineY += lineHeight;
             }
 
-            var footer = _state.ActiveCatInterruption is not null
-                ? $"{_state.ActiveCatInterruption.Title} is on top of the take-home. Click the editor {_state.ActiveCatInterruption.PatsRemaining} more times to clear it while {_state.ActiveCatInterruption.GibberishLinesTyped} gibberish lines stay smeared across the solution."
-                : "Click inside the take-home editor to reveal the solution one real line at a time, or close this panel and come back after you recover.";
             UiTextBlock.DrawWrapped(
                 spriteBatch,
                 _font,
                 footer,
-                new Vector2(_applicationEditorBounds.X + 16, _applicationEditorBounds.Bottom - 28),
+                new Vector2(_applicationEditorBounds.X + 16, footerY),
                 _applicationEditorBounds.Width - 32,
                 _state.ActiveCatInterruption is not null ? UiTheme.CatAccent : UiTheme.TextMuted,
                 0.66f,
@@ -4482,11 +4766,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             0.66f,
             2f,
             2);
+        var promptY = GetInterviewPromptTop(interviewBounds);
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
             question.Prompt,
-            new Vector2(interviewBounds.X + 16, interviewBounds.Y + 106),
+            new Vector2(interviewBounds.X + 16, promptY),
             interviewBounds.Width - 32,
             UiTheme.TextPrimary,
             0.8f,
@@ -4748,6 +5033,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var reviewReceiptEnabled = activeDelivery?.ReviewReceipt ?? _doubleCheckOrder;
         var expeditedDeliveryEnabled = activeDelivery?.Expedited ?? _expediteFoodDelivery;
 
+        _toolsButton.Enabled = _state.Status == RunStatus.InProgress;
+        _toolsButton.Text = "Desk Tools";
+        _toolsButton.IsSelected = _toolsOpen;
         _foodAppButton.Enabled = _state.Status == RunStatus.InProgress;
         _foodAppButton.Text = hasActiveFoodDelivery ? "Track Order" : "Food + Kitchen";
         _freelanceButton.Enabled = _state.Status == RunStatus.InProgress;
@@ -4772,6 +5060,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _menuButton.Enabled = true;
         _menuButton.Text = "Menu";
         _optionsButton.Enabled = true;
+        _closeToolsButton.Enabled = true;
         var manualDebugRequired = _state.IsRealisticMode && _state.ActiveTechDebtBug is not null;
         _squashBugButton.Enabled = !manualDebugRequired && _simulation.CanApplyAction(_state, PlayerAction.SquashBug);
         _squashBugButton.Text = manualDebugRequired ? "Editor" : "Fix";
@@ -4824,14 +5113,38 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         _menuButton.Bounds = new Rectangle(_sidebarBounds.Right - 220, _sidebarBounds.Y + 10, 96, 30);
         _optionsButton.Bounds = new Rectangle(_sidebarBounds.Right - 112, _sidebarBounds.Y + 10, 96, 30);
-        _foodAppButton.Bounds = new Rectangle(contentX, actionButtonsY, halfWidth, 34);
-        _freelanceButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY, halfWidth, 34);
-        _bankAppButton.Bounds = new Rectangle(contentX, actionButtonsY + 40, halfWidth, 34);
-        _upgradesButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY + 40, halfWidth, 34);
-        _communicationButton.Bounds = new Rectangle(contentX, actionButtonsY + 80, halfWidth, 34);
-        _projectStudioButton.Bounds = new Rectangle(contentX + halfWidth + gap, actionButtonsY + 80, halfWidth, 34);
-        _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 120, contentWidth, 34);
-        _statsButton.Bounds = new Rectangle(contentX, actionButtonsY + 160, contentWidth, 34);
+        _toolsButton.Bounds = new Rectangle(contentX, actionButtonsY, contentWidth, 34);
+        _sleepButton.Bounds = new Rectangle(contentX, actionButtonsY + 42, contentWidth, 34);
+        _statsButton.Bounds = new Rectangle(contentX, actionButtonsY + 84, contentWidth, 34);
+        _foodAppButton.Bounds = Rectangle.Empty;
+        _freelanceButton.Bounds = Rectangle.Empty;
+        _bankAppButton.Bounds = Rectangle.Empty;
+        _upgradesButton.Bounds = Rectangle.Empty;
+        _communicationButton.Bounds = Rectangle.Empty;
+        _projectStudioButton.Bounds = Rectangle.Empty;
+        _toolsBounds = Rectangle.Empty;
+        _closeToolsButton.Bounds = Rectangle.Empty;
+
+        if (_toolsOpen)
+        {
+            _toolsBounds = new Rectangle(472, 184, 656, 346);
+            _closeToolsButton.Bounds = new Rectangle(_toolsBounds.Right - 102, _toolsBounds.Y + 18, 78, 28);
+
+            var overlayPadding = 28;
+            var toolGridTop = _toolsBounds.Y + 112;
+            var toolGap = 12;
+            var toolWidth = (_toolsBounds.Width - (overlayPadding * 2) - toolGap) / 2;
+            var toolHeight = 42;
+            var leftColumnX = _toolsBounds.X + overlayPadding;
+            var rightColumnX = leftColumnX + toolWidth + toolGap;
+
+            _foodAppButton.Bounds = new Rectangle(leftColumnX, toolGridTop, toolWidth, toolHeight);
+            _freelanceButton.Bounds = new Rectangle(rightColumnX, toolGridTop, toolWidth, toolHeight);
+            _bankAppButton.Bounds = new Rectangle(leftColumnX, toolGridTop + 54, toolWidth, toolHeight);
+            _upgradesButton.Bounds = new Rectangle(rightColumnX, toolGridTop + 54, toolWidth, toolHeight);
+            _communicationButton.Bounds = new Rectangle(leftColumnX, toolGridTop + 108, toolWidth, toolHeight);
+            _projectStudioButton.Bounds = new Rectangle(rightColumnX, toolGridTop + 108, toolWidth, toolHeight);
+        }
 
         _coinFrameBounds = new Rectangle(_editorViewportBounds.Right - 148, _editorViewportBounds.Y + 6, 128, 86);
         _runControlsBounds = _state.Status == RunStatus.InProgress
@@ -5185,9 +5498,17 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _buyHouseButton.Bounds = new Rectangle(_bankHouseBounds.Right - 124, _bankHouseBounds.Bottom - 44, 108, 28);
         _retireButton.Bounds = new Rectangle(_bankRetirementBounds.Right - 140, _bankRetirementBounds.Bottom - 44, 124, 28);
 
-        _communicationBounds = new Rectangle(_editorViewportBounds.X + 62, _editorViewportBounds.Y + 24, 860, 480);
-        _closeCommunicationButton.Bounds = new Rectangle(_communicationBounds.Right - 112, _communicationBounds.Y + 18, 88, 30);
-        _communicationViewportBounds = new Rectangle(_communicationBounds.X + 24, _communicationBounds.Y + 122, 248, _communicationBounds.Height - 146);
+        _communicationBounds = new Rectangle(_editorViewportBounds.X + 62, _editorViewportBounds.Y + 24, 860, 500);
+        _closeCommunicationButton.Bounds = new Rectangle(_communicationBounds.Right - 124, _communicationBounds.Y + 16, 96, 34);
+        var communicationIntroHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            "Text or call the people already in your orbit. Dates build the relationship track, friends steady sanity, and mentor calls sharpen the stories and prep that keep the career moving.",
+            _communicationBounds.Width - 48,
+            0.74f,
+            2f,
+            4);
+        var communicationContentTop = (int)MathF.Ceiling(_communicationBounds.Y + 52f + communicationIntroHeight + 22f);
+        _communicationViewportBounds = new Rectangle(_communicationBounds.X + 24, communicationContentTop, 248, _communicationBounds.Bottom - communicationContentTop - 24);
         _communicationScrollbarTrackBounds = new Rectangle(_communicationViewportBounds.Right + 6, _communicationViewportBounds.Y, 10, _communicationViewportBounds.Height);
         _communicationDetailBounds = new Rectangle(
             _communicationScrollbarTrackBounds.Right + 22,
@@ -5243,12 +5564,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _closeProjectStudioButton.Bounds = new Rectangle(_projectStudioBounds.Right - 112, _projectStudioBounds.Y + 18, 88, 30);
         _projectStudioViewportBounds = new Rectangle(_projectStudioBounds.X + 24, _projectStudioBounds.Y + 118, _projectStudioBounds.Width - 64, _projectStudioBounds.Height - 150);
         _projectStudioScrollbarTrackBounds = new Rectangle(_projectStudioBounds.Right - 26, _projectStudioViewportBounds.Y, 10, _projectStudioViewportBounds.Height);
-        const int studioRowHeight = 74;
+        var studioOptionWidth = (_projectStudioViewportBounds.Width - 24) / 2;
+        var studioRowHeight = GetProjectStudioOptionRowHeight(studioOptionWidth);
         const int studioRowGap = 12;
-        const int projectStudioContentHeight = 768;
+        var projectStudioContentHeight = 428 + (studioRowHeight * 3);
         _projectStudioMaxScrollOffset = Math.Max(0f, projectStudioContentHeight - _projectStudioViewportBounds.Height);
         _projectStudioScrollOffset = Math.Clamp(_projectStudioScrollOffset, 0f, _projectStudioMaxScrollOffset);
-        var studioOptionWidth = (_projectStudioViewportBounds.Width - 24) / 2;
         var studioLeftX = _projectStudioViewportBounds.X;
         var studioRightX = studioLeftX + studioOptionWidth + 24;
         var studioContentTop = _projectStudioViewportBounds.Y - (int)MathF.Round(_projectStudioScrollOffset);
@@ -5273,7 +5594,21 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         }
 
         _applicationBounds = new Rectangle(_editorViewportBounds.X + 70, _editorViewportBounds.Y + 16, 774, 566);
-        _applicationEditorBounds = new Rectangle(_applicationBounds.X + 24, _applicationBounds.Y + 174, _applicationBounds.Width - 48, _applicationBounds.Height - 198);
+        var applicationEditorTop = _applicationBounds.Y + 174;
+        if (_state.ActiveJobApplication is not null)
+        {
+            var headerContentWidth = _applicationBounds.Width - 48;
+            var introHeight = MeasureJobApplicationFlowHeight(headerContentWidth);
+            var requirementsHeight = MeasureJobApplicationRequirementsHeight(_state.ActiveJobApplication, headerContentWidth);
+            var requirementsY = _applicationBounds.Y + 76f + introHeight + 14f;
+            applicationEditorTop = (int)MathF.Ceiling(requirementsY + requirementsHeight + 16f);
+        }
+        const int applicationEditorBottomInset = 24;
+        _applicationEditorBounds = new Rectangle(
+            _applicationBounds.X + 24,
+            applicationEditorTop,
+            _applicationBounds.Width - 48,
+            Math.Max(220, _applicationBounds.Bottom - applicationEditorBottomInset - applicationEditorTop));
         _closeApplicationButton.Bounds = new Rectangle(_applicationBounds.Right - 112, _applicationBounds.Y + 18, 88, 30);
         _tutorialBounds = new Rectangle(226, 92, 1148, 628);
         _tutorialCloseButton.Bounds = new Rectangle(_tutorialBounds.Right - 112, _tutorialBounds.Y + 18, 88, 30);
@@ -5283,10 +5618,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _tutorialNextButton.Enabled = true;
         _tutorialNextButton.Text = _tutorialPageIndex >= GetTutorialPageCount() - 1 ? "Begin Run" : "Next";
         _tutorialCloseButton.Text = "Skip";
-        var optionY = _applicationEditorBounds.Bottom - 144;
         for (var index = 0; index < _interviewOptionButtons.Length; index++)
         {
-            _interviewOptionButtons[index].Bounds = new Rectangle(_applicationEditorBounds.X + 24, optionY + (index * 42), _applicationEditorBounds.Width - 48, 34);
+            _interviewOptionButtons[index].Bounds = Rectangle.Empty;
             _interviewOptionButtons[index].Enabled = false;
             _interviewOptionButtons[index].Text = string.Empty;
         }
@@ -5296,6 +5630,19 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             !_state.ActiveJobApplication.InterviewComplete)
         {
             var question = _state.ActiveJobApplication.Questions[_state.ActiveJobApplication.CurrentQuestionIndex];
+            var optionCount = Math.Min(_interviewOptionButtons.Length, question.Options.Count);
+            var optionBlockHeight = (optionCount * 34) + (Math.Max(0, optionCount - 1) * 8);
+            var promptTop = GetInterviewPromptTop(_applicationEditorBounds);
+            var promptHeight = UiTextBlock.MeasureWrappedHeight(
+                _font,
+                question.Prompt,
+                _applicationEditorBounds.Width - 32,
+                0.8f,
+                3f,
+                3);
+            var optionY = Math.Max(
+                (int)MathF.Ceiling(promptTop + promptHeight + 18f),
+                _applicationEditorBounds.Bottom - 28 - optionBlockHeight);
             for (var index = 0; index < _interviewOptionButtons.Length; index++)
             {
                 if (index >= question.Options.Count)
@@ -5304,6 +5651,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                     continue;
                 }
 
+                _interviewOptionButtons[index].Bounds = new Rectangle(_applicationEditorBounds.X + 24, optionY + (index * 42), _applicationEditorBounds.Width - 48, 34);
                 _interviewOptionButtons[index].Enabled = _simulation.CanAnswerInterviewQuestion(_state, index);
                 _interviewOptionButtons[index].Text = question.Options[index];
             }
@@ -5386,7 +5734,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _upgradesViewportBounds = new Rectangle(_upgradesBounds.X + 24, _upgradesBounds.Y + 126, _upgradesBounds.Width - 64, _upgradesBounds.Height - 150);
         _upgradesScrollbarTrackBounds = new Rectangle(_upgradesBounds.Right - 26, _upgradesViewportBounds.Y, 10, _upgradesViewportBounds.Height);
         var upgradeCardWidth = (_upgradesViewportBounds.Width - 24) / 2;
-        var upgradeCardHeight = 132;
+        var upgradeCardHeight = GetUpgradeCardHeight(upgradeCardWidth);
         var firstCardX = _upgradesViewportBounds.X;
         var secondCardX = firstCardX + upgradeCardWidth + 24;
         var firstRowY = _upgradesViewportBounds.Y;
@@ -5535,12 +5883,318 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _foodAppOpen = false;
         _bankAppOpen = false;
         _communicationOpen = false;
+        _toolsOpen = false;
         _commitPromptOpen = false;
         _projectStudioOpen = false;
         _freelanceBoardOpen = false;
         _upgradesOpen = false;
         _statsOpen = false;
         _jobApplicationOpen = false;
+    }
+
+    private int GetProjectStudioOptionRowHeight(int optionWidth)
+    {
+        var rerollDescriptionWidth = Math.Max(180, optionWidth - 166);
+        var rerollDescriptionHeight = (int)MathF.Ceiling(UiTextBlock.MeasureWrappedHeight(
+            _font,
+            "Keep the same plan shape, but reroll the actual title and flavor to chase a fresher pitch.",
+            rerollDescriptionWidth,
+            0.62f,
+            2f,
+            3));
+        return Math.Max(88, 34 + rerollDescriptionHeight + 14);
+    }
+
+    private int GetUpgradeCardHeight(int cardWidth)
+    {
+        var contentWidth = Math.Max(220, cardWidth - 168);
+        var maxSummaryHeight = 0f;
+        var maxDescriptionHeight = 0f;
+
+        foreach (var definition in EfficiencyUpgradeCatalog.All)
+        {
+            maxSummaryHeight = Math.Max(
+                maxSummaryHeight,
+                UiTextBlock.MeasureWrappedHeight(
+                    _font,
+                    $"Per tier: {definition.SummaryEffect}",
+                    contentWidth,
+                    0.68f,
+                    2f,
+                    2));
+            maxDescriptionHeight = Math.Max(
+                maxDescriptionHeight,
+                UiTextBlock.MeasureWrappedHeight(
+                    _font,
+                    definition.Description,
+                    contentWidth,
+                    0.64f,
+                    2f,
+                    4));
+        }
+
+        var requiredHeight = (int)MathF.Ceiling(56 + maxSummaryHeight + maxDescriptionHeight);
+        return Math.Max(156, requiredHeight);
+    }
+
+    private static string GetJobApplicationFlowText()
+    {
+        return "Application flow: finish the take-home, then work through the interview prompts. You can close this window and return to the rest of the desk whenever you need.";
+    }
+
+    private string GetJobApplicationRequirementsText(ActiveJobApplication application)
+    {
+        return $"Qualified on submit with {application.PortfolioLinesSnapshot} LoC, quality {application.CodeQualitySnapshot:0}, and {_simulation.GetResumeTrackLabel(application.ResumeTrack)} proof {application.ResumeProofSnapshot}. Prep notes: {application.PrepPoints}. The recruiter wants {application.MinimumCorrectAnswers} correct answer{(application.MinimumCorrectAnswers == 1 ? string.Empty : "s")} this round.";
+    }
+
+    private float MeasureJobApplicationFlowHeight(float width)
+    {
+        return UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetJobApplicationFlowText(),
+            width,
+            0.74f,
+            2f,
+            4);
+    }
+
+    private float MeasureJobApplicationRequirementsHeight(ActiveJobApplication application, float width)
+    {
+        return UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetJobApplicationRequirementsText(application),
+            width,
+            0.68f,
+            2f,
+            4);
+    }
+
+    private float GetInterviewPromptTop(Rectangle interviewBounds)
+    {
+        var instructionHeight = UiTextBlock.MeasureWrappedHeight(
+            _font,
+            "Answer order is shuffled each round. Close returns to the desk without canceling the interview.",
+            interviewBounds.Width - 32,
+            0.66f,
+            2f,
+            2);
+        return interviewBounds.Y + 66f + instructionHeight + 14f;
+    }
+
+    private void ResetCaptureOverlayState()
+    {
+        _tutorialOpen = false;
+        _foodAppOpen = false;
+        _bankAppOpen = false;
+        _communicationOpen = false;
+        _toolsOpen = false;
+        _commitPromptOpen = false;
+        _projectStudioOpen = false;
+        _freelanceBoardOpen = false;
+        _upgradesOpen = false;
+        _statsOpen = false;
+        _jobApplicationOpen = false;
+        _state.FirstCoinDecisionPending = false;
+        _state.PendingLifeEvent = null;
+        _state.ActiveCatInterruption = null;
+        if (_state.Status != RunStatus.InProgress)
+        {
+            _state.Status = RunStatus.InProgress;
+            _state.OutcomeMessage = null;
+        }
+    }
+
+    private void FinalizeCapturePreparation()
+    {
+        _activeScrollbarDrag = OverlayScrollArea.None;
+        EnsureCommunicationButtons();
+        UpdateLayout();
+        UpdateButtons();
+        UpdateDebugSnippetLayout();
+    }
+
+    private void SeedContactsForCapture()
+    {
+        _state.KnownContacts.Clear();
+        _state.KnownContacts.Add(new SocialContact
+        {
+            Id = "sage",
+            Name = "Sage Vale",
+            Role = SocialContactRole.Friend,
+            BondProgress = 1,
+            MessageCount = 0,
+            CallCount = 0,
+        });
+        _state.KnownContacts.Add(new SocialContact
+        {
+            Id = "remy",
+            Name = "Remy Keaton",
+            Role = SocialContactRole.Date,
+            BondProgress = 145,
+            MessageCount = 72,
+            CallCount = 36,
+        });
+        _state.KnownContacts.Add(new SocialContact
+        {
+            Id = "parker",
+            Name = "Parker Quill",
+            Role = SocialContactRole.Mentor,
+            BondProgress = 4,
+            MessageCount = 0,
+            CallCount = 0,
+        });
+        _state.KnownContacts.Add(new SocialContact
+        {
+            Id = "taylor",
+            Name = "Taylor Hale",
+            Role = SocialContactRole.Friend,
+            BondProgress = 1,
+            MessageCount = 0,
+            CallCount = 0,
+        });
+    }
+
+    private void SeedStatsForCapture()
+    {
+        _state.Day = Math.Max(_state.Day, 9);
+        _state.TimeOfDayMinutes = Math.Max(_state.TimeOfDayMinutes, 18 * 60 + 24);
+        _state.Funds = Math.Max(_state.Funds, 684);
+        _state.Focus = Math.Max(_state.Focus, 61);
+        _state.Sanity = Math.Min(_state.Sanity, 52);
+        _state.LinesOfCode = Math.Max(_state.LinesOfCode, 418);
+        _state.PublishedAppCount = Math.Max(_state.PublishedAppCount, 2);
+        _state.PublishedAppSaleCount = Math.Max(_state.PublishedAppSaleCount, 11);
+        _state.SuccessfulApplications = Math.Max(_state.SuccessfulApplications, 1);
+        _state.GameplayMode = GameplayLoopMode.Interview;
+
+        var stats = _state.Stats;
+        stats.HighestDayReached = Math.Max(stats.HighestDayReached, 9);
+        stats.TotalInGameMinutes = Math.Max(stats.TotalInGameMinutes, 9 * 24 * 60);
+        stats.TotalLinesTyped = Math.Max(stats.TotalLinesTyped, 742);
+        stats.PortfolioLinesTyped = Math.Max(stats.PortfolioLinesTyped, 516);
+        stats.FreelanceLinesTyped = Math.Max(stats.FreelanceLinesTyped, 118);
+        stats.TakeHomeLinesTyped = Math.Max(stats.TakeHomeLinesTyped, 108);
+        stats.CodingActions = Math.Max(stats.CodingActions, 192);
+        stats.PortfolioFilesCompleted = Math.Max(stats.PortfolioFilesCompleted, 14);
+        stats.FreelanceGigsStarted = Math.Max(stats.FreelanceGigsStarted, 3);
+        stats.FreelanceGigsCompleted = Math.Max(stats.FreelanceGigsCompleted, 2);
+        stats.MealsOrdered = Math.Max(stats.MealsOrdered, 7);
+        stats.HomeCookedMealsOrdered = Math.Max(stats.HomeCookedMealsOrdered, 3);
+        stats.ExpeditedDeliveries = Math.Max(stats.ExpeditedDeliveries, 2);
+        stats.OrdersReviewed = Math.Max(stats.OrdersReviewed, 4);
+        stats.CleanMeals = Math.Max(stats.CleanMeals, 5);
+        stats.SluggishMeals = Math.Max(stats.SluggishMeals, 1);
+        stats.SleepSessions = Math.Max(stats.SleepSessions, 5);
+        stats.JobListingsSeen = Math.Max(stats.JobListingsSeen, 4);
+        stats.JobApplicationsStarted = Math.Max(stats.JobApplicationsStarted, 2);
+        stats.ResumeLinesSpent = Math.Max(stats.ResumeLinesSpent, 36);
+        stats.TakeHomesCompleted = Math.Max(stats.TakeHomesCompleted, 1);
+        stats.InterviewsAttempted = Math.Max(stats.InterviewsAttempted, 1);
+        stats.InterviewQuestionsAnswered = Math.Max(stats.InterviewQuestionsAnswered, 3);
+        stats.InterviewQuestionsCorrect = Math.Max(stats.InterviewQuestionsCorrect, 2);
+        stats.JobOffersEarned = Math.Max(stats.JobOffersEarned, 1);
+        stats.BugsSpawned = Math.Max(stats.BugsSpawned, 4);
+        stats.BugsSquashed = Math.Max(stats.BugsSquashed, 4);
+        stats.CatInterruptions = Math.Max(stats.CatInterruptions, 1);
+        stats.DeepWorkWindows = Math.Max(stats.DeepWorkWindows, 2);
+        stats.ContextSwitches = Math.Max(stats.ContextSwitches, 5);
+        stats.ContactsDiscovered = Math.Max(stats.ContactsDiscovered, 2);
+        stats.MessagesSent = Math.Max(stats.MessagesSent, 8);
+        stats.CallsMade = Math.Max(stats.CallsMade, 3);
+        stats.RelationshipsStarted = Math.Max(stats.RelationshipsStarted, 1);
+        stats.LifeEventsResolved = Math.Max(stats.LifeEventsResolved, 2);
+        stats.CareerRouteChoicesMade = Math.Max(stats.CareerRouteChoicesMade, 1);
+        stats.TotalFundsEarned = Math.Max(stats.TotalFundsEarned, 1412);
+        stats.TotalFundsSpent = Math.Max(stats.TotalFundsSpent, 728);
+        stats.FoodSpend = Math.Max(stats.FoodSpend, 84);
+        stats.UpgradeSpend = Math.Max(stats.UpgradeSpend, 190);
+        stats.BillSpend = Math.Max(stats.BillSpend, 310);
+        stats.FreelanceIncome = Math.Max(stats.FreelanceIncome, 346);
+        stats.PublishIncome = Math.Max(stats.PublishIncome, 412);
+        stats.SaleIncome = Math.Max(stats.SaleIncome, 128);
+        stats.ApplicationIncome = Math.Max(stats.ApplicationIncome, 250);
+        stats.HighestFundsBalance = Math.Max(stats.HighestFundsBalance, 812);
+        stats.LowestFundsBalance = Math.Min(stats.LowestFundsBalance, 24);
+        stats.HighestFocus = Math.Max(stats.HighestFocus, 86);
+        stats.LowestSanity = Math.Min(stats.LowestSanity, 34);
+        stats.HighestCodeQuality = Math.Max(stats.HighestCodeQuality, 100);
+        stats.LowestCodeQuality = Math.Min(stats.LowestCodeQuality, 72);
+
+        for (var index = 0; index < Math.Min(6, RunAchievementCatalog.All.Count); index++)
+        {
+            var achievement = RunAchievementCatalog.All[index];
+            stats.UnlockedAchievementIds.Add(achievement.Id);
+            if (!stats.AchievementUnlockOrder.Contains(achievement.Id, StringComparer.Ordinal))
+            {
+                stats.AchievementUnlockOrder.Add(achievement.Id);
+            }
+        }
+    }
+
+    private void SeedJobApplicationForCapture(bool interviewPhase)
+    {
+        var application = new ActiveJobApplication
+        {
+            ListingTitle = "Gameplay Systems Engineer",
+            TechStack = "C#  |  MonoGame  |  UI layout polish",
+            CompanyName = "North Anchor Games",
+            OfferMode = GameplayLoopMode.Corporate,
+            ChallengeTitle = "Refactor the HUD layout pass",
+            ChallengeDescription = "Implement a layout pass that keeps action labels readable and prevents panel text from clipping at multiple viewport sizes.",
+            ResumeLinesSpent = 18,
+            PortfolioLinesSnapshot = 386,
+            CodeQualitySnapshot = 94,
+            MinimumPortfolioLines = 220,
+            MinimumCodeQuality = 70,
+            ResumeTrack = ResumeTrack.UI,
+            ResumeProofSnapshot = 5,
+            VisibleLineCount = interviewPhase ? 9 : 6,
+            CurrentQuestionIndex = 0,
+            CorrectAnswers = 1,
+            MinimumCorrectAnswers = 2,
+            PrepPoints = 3,
+        };
+
+        application.CodeLines.AddRange(
+        [
+            "public static Rectangle FitFooter(Rectangle bounds, int height)",
+            "{",
+            "    var footerHeight = Math.Clamp(height, 48, 96);",
+            "    var footerTop = bounds.Bottom - footerHeight - 12;",
+            "    return new Rectangle(",
+            "        bounds.X + 24,",
+            "        footerTop,",
+            "        bounds.Width - 48,",
+            "        footerHeight);",
+            "}",
+        ]);
+
+        application.Questions.Add(new InterviewQuestion(
+            "A modal header starts colliding with its close button on smaller resolutions. What is the safest first fix?",
+            [
+                "Measure the title width and reduce scale or trim before drawing into the header rail.",
+                "Leave the title alone and just make the close button transparent.",
+                "Move the title into the body and let it overlap if needed.",
+            ],
+            0));
+        application.Questions.Add(new InterviewQuestion(
+            "Which change is most likely to make a busy strategy UI feel calmer without hiding information?",
+            [
+                "Group secondary actions behind a single clear entry point and keep the primary action visible.",
+                "Add more accent colors so each button feels unique.",
+                "Increase every panel border thickness equally.",
+            ],
+            0));
+
+        if (interviewPhase)
+        {
+            application.VisibleLineCount = application.CodeLines.Count;
+        }
+
+        _state.ActiveJobApplication = application;
+        _state.Stats.JobApplicationsStarted = Math.Max(_state.Stats.JobApplicationsStarted, 2);
+        _state.Stats.InterviewsAttempted = Math.Max(_state.Stats.InterviewsAttempted, interviewPhase ? 1 : 0);
+        _state.Stats.TakeHomesCompleted = Math.Max(_state.Stats.TakeHomesCompleted, interviewPhase ? 1 : 0);
     }
 
     private void RestartCurrentRun()
@@ -5731,12 +6385,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private int GetSidebarActionButtonsTop()
     {
-        return GetSidebarStatusStripBounds().Bottom + 36;
+        return GetSidebarStatusStripBounds().Bottom + 68;
     }
 
     private int GetSidebarAlertsTop()
     {
-        return GetSidebarActionButtonsTop() + 206;
+        return GetSidebarActionButtonsTop() + 134;
     }
 
     private void DrawOverlayHeaderLabel(
@@ -6023,6 +6677,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             }
 
             return null;
+        }
+
+        if (_toolsButton.IsHovered)
+        {
+            return ("Desk Tools", "Open a single picker for food, contracts, banking, upgrades, communication, and studio planning instead of keeping every app button in the sidebar.");
         }
 
         if (_foodAppButton.IsHovered)

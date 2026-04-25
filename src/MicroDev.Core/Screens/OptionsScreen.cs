@@ -1093,7 +1093,15 @@ public sealed class OptionsScreen : IScreen, IUiFontAware
     private void UpdateLayout()
     {
         _modalBounds = new Rectangle(72, 34, _virtualResolution.X - 144, _virtualResolution.Y - 68);
-        _headerBandBounds = new Rectangle(_modalBounds.X + 1, _modalBounds.Y + 1, _modalBounds.Width - 2, 90);
+        var headerSummaryHeight = (int)MathF.Ceiling(UiTextBlock.MeasureWrappedHeight(
+            _font,
+            GetHeaderSummaryText(),
+            _modalBounds.Width - 268,
+            UiTypography.Body,
+            3f,
+            2));
+        var headerBandHeight = Math.Max(102, 58 + headerSummaryHeight + 18);
+        _headerBandBounds = new Rectangle(_modalBounds.X + 1, _modalBounds.Y + 1, _modalBounds.Width - 2, headerBandHeight);
         _contentFrameBounds = new Rectangle(_modalBounds.X + 18, _headerBandBounds.Bottom + 14, _modalBounds.Width - 36, _modalBounds.Bottom - _headerBandBounds.Bottom - 24);
         _contentViewportBounds = new Rectangle(_contentFrameBounds.X + 12, _contentFrameBounds.Y + 12, _contentFrameBounds.Width - 24, _contentFrameBounds.Height - 24);
         _backButton.Bounds = new Rectangle(_modalBounds.Right - 208, _modalBounds.Y + 22, 180, 40);
