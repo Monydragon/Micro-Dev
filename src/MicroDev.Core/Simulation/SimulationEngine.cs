@@ -106,6 +106,22 @@ public sealed class SimulationEngine
         Misc,
     }
 
+    private static IReadOnlyList<string> GetVisibleCodeLines(
+        IReadOnlyList<string> codeLines,
+        int visibleLineCount,
+        int visibleCharacterCount)
+    {
+        var visibleLines = codeLines.Take(visibleLineCount).ToList();
+        if (visibleLineCount < codeLines.Count && visibleCharacterCount > 0)
+        {
+            var currentLine = codeLines[visibleLineCount];
+            var visibleCharacters = Math.Clamp(visibleCharacterCount, 0, currentLine.Length);
+            visibleLines.Add(currentLine[..visibleCharacters]);
+        }
+
+        return visibleLines;
+    }
+
     private sealed record TechDebtSnippetTemplate(
         string Id,
         string IssueLabel,
@@ -148,6 +164,8 @@ public sealed class SimulationEngine
             HasFirstCoin = Config.StartWithFirstCoin,
             FirstCoinDecisionPending = false,
             FirstCoinRescueDeficit = 0,
+            NextRentInvoiceDay = Config.StartingDay + Math.Max(1, Config.RentInvoiceIntervalDays - 1),
+            LastRentWarningDay = 0,
             LinesOfCode = Config.StartingLinesOfCode,
             CurrentPortfolioLinesOfCode = Config.StartingLinesOfCode,
             CodeQuality = Config.StartingCodeQuality,
@@ -190,7 +208,7 @@ public sealed class SimulationEngine
         state.VersionControl.CommittedPortfolioLinesOfCode = state.CurrentPortfolioLinesOfCode;
         RefreshPendingChangeLines(state);
 
-        AppendLog(state, "Another week begins. Rent hits at midnight and recruiters are watching.");
+        AppendLog(state, $"Another week begins. Daily bills hit at midnight; the monthly rent invoice lands on Day {state.NextRentInvoiceDay}.");
         AppendLog(state, $"{GetGameplayModeLabel(state)} is active{(state.IsRealisticMode ? " with Realistic+ pressure layered on top." : ".")}");
         AppendLog(state, $"Run seed {state.RunSeed} locked in. Project order, desk incidents, food flavor, and life events will all riff on it.");
         AppendLog(state, $"Current build plan: {state.CurrentProjectBlueprint.Title}. {state.CurrentProjectBlueprint.Pitch}");
@@ -346,9 +364,10 @@ public sealed class SimulationEngine
             return Array.Empty<string>();
         }
 
-        return state.ActiveFreelanceGig.CodeLines
-            .Take(state.ActiveFreelanceGig.VisibleLineCount)
-            .ToArray();
+        return GetVisibleCodeLines(
+            state.ActiveFreelanceGig.CodeLines,
+            state.ActiveFreelanceGig.VisibleLineCount,
+            state.ActiveFreelanceGig.VisibleCharacterCount);
     }
 
     public IReadOnlyList<SocialContact> GetKnownContacts(RunState state)
@@ -636,15 +655,15 @@ public sealed class SimulationEngine
         }
 
         var gig = state.ActiveFreelanceGig!;
-        var linesAdded = RevealFreelanceLines(gig, GetWriteCodeLinesGain(state));
-        if (linesAdded == 0)
+        var revealResult = RevealFreelanceCharacters(gig, GetWriteCodeCharactersGain(state));
+        if (revealResult.CharactersAdded == 0)
         {
             return false;
         }
 
-        state.Stats.TotalLinesTyped += linesAdded;
-        state.Stats.FreelanceLinesTyped += linesAdded;
-        AppendLog(state, $"Freelance progress: +{linesAdded} contract LoC for {gig.Title}.");
+        state.Stats.TotalLinesTyped += revealResult.LinesAdded;
+        state.Stats.FreelanceLinesTyped += revealResult.LinesAdded;
+        AppendLog(state, $"Freelance progress: +{revealResult.CharactersAdded} contract character{(revealResult.CharactersAdded == 1 ? string.Empty : "s")} for {gig.Title}.");
         if (!gig.IsComplete)
         {
             RefreshRunProgress(state);
@@ -1099,6 +1118,7 @@ public sealed class SimulationEngine
                state.PendingLifeEvent is null &&
                state.ActiveJobApplication is null &&
                state.CurrentPortfolioLinesOfCode == 0 &&
+               state.CurrentProgramVisibleCharacterCount == 0 &&
                state.VersionControl.PendingChangeLines == 0;
     }
 
@@ -1195,6 +1215,30 @@ public sealed class SimulationEngine
         return true;
     }
 
+    public bool CanBuyBackFirstCoin(RunState state)
+    {
+        return state.Status == RunStatus.InProgress &&
+               !state.FirstCoinDecisionPending &&
+               state.PendingLifeEvent is null &&
+               !state.HasFirstCoin &&
+               state.Funds >= Config.FirstCoinBuyBackCost;
+    }
+
+    public bool BuyBackFirstCoin(RunState state)
+    {
+        if (!CanBuyBackFirstCoin(state))
+        {
+            return false;
+        }
+
+        state.Funds -= Config.FirstCoinBuyBackCost;
+        state.HasFirstCoin = true;
+        RecordFundsSpent(state, Config.FirstCoinBuyBackCost, FundsSink.Misc);
+        AppendLog(state, $"Bought the first coin back for ${Config.FirstCoinBuyBackCost:0}. The emergency rent buffer is restored.");
+        RefreshRunProgress(state);
+        return true;
+    }
+
     public bool DeclineFirstCoin(RunState state)
     {
         if (state.Status != RunStatus.InProgress || !state.FirstCoinDecisionPending)
@@ -1252,6 +1296,13 @@ public sealed class SimulationEngine
             IncidentType.BossCheckIn => optionIndex is >= 0 and <= 2,
             IncidentType.CoworkerInterruption => optionIndex is >= 0 and <= 2,
             IncidentType.FounderNaming => optionIndex is >= 0 and <= 2,
+            IncidentType.RentInvoice => optionIndex switch
+            {
+                0 => state.Funds >= state.PendingLifeEvent.SubjectScore,
+                1 => state.HasFirstCoin,
+                2 => !state.HasFirstCoin && state.Funds < state.PendingLifeEvent.SubjectScore,
+                _ => false,
+            },
             _ => false,
         };
     }
@@ -1303,6 +1354,10 @@ public sealed class SimulationEngine
                 resolved = ResolveFounderNaming(state, lifeEvent, optionIndex);
                 break;
 
+            case IncidentType.RentInvoice:
+                resolved = ResolveRentInvoice(state, lifeEvent, optionIndex);
+                break;
+
             default:
                 resolved = false;
                 break;
@@ -1316,9 +1371,9 @@ public sealed class SimulationEngine
         return resolved;
     }
 
-    public int GetCurrentWriteLinesPerClick(RunState state)
+    public int GetCurrentWriteCharactersPerClick(RunState state)
     {
-        return GetWriteCodeLinesGain(state);
+        return GetWriteCodeCharactersGain(state);
     }
 
     public double GetCurrentWriteFocusCost(RunState state)
@@ -1403,9 +1458,10 @@ public sealed class SimulationEngine
             return Array.Empty<string>();
         }
 
-        return state.ActiveJobApplication.CodeLines
-            .Take(state.ActiveJobApplication.VisibleLineCount)
-            .ToArray();
+        return GetVisibleCodeLines(
+            state.ActiveJobApplication.CodeLines,
+            state.ActiveJobApplication.VisibleLineCount,
+            state.ActiveJobApplication.VisibleCharacterCount);
     }
 
     public bool CanWorkOnJobApplication(RunState state)
@@ -1441,17 +1497,17 @@ public sealed class SimulationEngine
         }
 
         var application = state.ActiveJobApplication!;
-        var linesAdded = RevealApplicationLines(application, GetWriteCodeLinesGain(state));
-        if (linesAdded == 0)
+        var revealResult = RevealApplicationCharacters(application, GetWriteCodeCharactersGain(state));
+        if (revealResult.CharactersAdded == 0)
         {
             return false;
         }
 
-        state.Stats.TotalLinesTyped += linesAdded;
-        state.Stats.TakeHomeLinesTyped += linesAdded;
+        state.Stats.TotalLinesTyped += revealResult.LinesAdded;
+        state.Stats.TakeHomeLinesTyped += revealResult.LinesAdded;
         state.Focus = Clamp(state.Focus - GetWriteCodeFocusCost(state), 0, Config.MaxFocus);
         state.CodeQuality = Clamp(state.CodeQuality + (GetWriteCodeQualityGain(state) * 0.5), 0, Config.MaxCodeQuality);
-        AppendLog(state, $"Take-home progress: +{linesAdded} challenge LoC for {application.ListingTitle}.");
+        AppendLog(state, $"Take-home progress: +{revealResult.CharactersAdded} challenge character{(revealResult.CharactersAdded == 1 ? string.Empty : "s")} for {application.ListingTitle}.");
 
         if (application.TakeHomeComplete)
         {
@@ -1659,6 +1715,11 @@ public sealed class SimulationEngine
                     }
                     break;
                 }
+
+                if (TryCreateMonthlyRentInvoice(state))
+                {
+                    break;
+                }
             }
 
             ResolveExpiredIncidents(state);
@@ -1783,11 +1844,11 @@ public sealed class SimulationEngine
                 }
 
                 var currentProgram = PortfolioWorkspace.GetCurrentProgram(state);
-                var requestedLinesGain = GetWriteCodeLinesGain(state);
+                var requestedCharacterGain = GetWriteCodeCharactersGain(state);
                 var qualityGain = GetWriteCodeQualityGain(state);
-                var writeResult = PortfolioWorkspace.RevealLines(state, requestedLinesGain);
+                var writeResult = PortfolioWorkspace.RevealCharacters(state, requestedCharacterGain);
 
-                if (writeResult.LinesAdded == 0)
+                if (writeResult.CharactersAdded == 0)
                 {
                     AppendLog(state, "The portfolio files are fully typed out. Ship what you have.");
                     return false;
@@ -1805,7 +1866,7 @@ public sealed class SimulationEngine
                 var sluggishSuffix = IsSluggish(state) ? " Sluggish food haze is slowing the session." : string.Empty;
                 AppendLog(
                     state,
-                    $"+{writeResult.LinesAdded} LoC. Focus now {state.Focus:0}. Portfolio quality {state.CodeQuality:0}.{sluggishSuffix}");
+                    $"+{writeResult.CharactersAdded} character{(writeResult.CharactersAdded == 1 ? string.Empty : "s")} typed. Completed +{writeResult.LinesAdded} LoC. Focus now {state.Focus:0}. Portfolio quality {state.CodeQuality:0}.{sluggishSuffix}");
 
                 if (!string.IsNullOrEmpty(writeResult.CompletedFileName))
                 {
@@ -2251,6 +2312,52 @@ public sealed class SimulationEngine
         state.Sanity = Clamp(state.Sanity + 2, 0, Config.MaxSanity);
         AppendLog(state, $"{state.StudioName} is real now. Founder Mode starts with a name, a bill timer, and a studio nobody else is going to save for you.");
         return true;
+    }
+
+    private bool ResolveRentInvoice(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
+    {
+        var invoiceAmount = Math.Max(0, lifeEvent.SubjectScore);
+        switch (optionIndex)
+        {
+            case 0:
+                if (state.Funds < invoiceAmount)
+                {
+                    state.PendingLifeEvent = lifeEvent;
+                    return false;
+                }
+
+                state.Funds -= invoiceAmount;
+                RecordFundsSpent(state, invoiceAmount, FundsSink.Bills);
+                ScheduleNextRentInvoice(state);
+                AppendLog(state, $"Monthly rent invoice paid: -${invoiceAmount:0}. Next invoice is scheduled for Day {state.NextRentInvoiceDay}.");
+                EvaluateLossState(state);
+                return true;
+
+            case 1:
+                if (!state.HasFirstCoin)
+                {
+                    state.PendingLifeEvent = lifeEvent;
+                    return false;
+                }
+
+                state.HasFirstCoin = false;
+                state.Sanity = Clamp(state.Sanity - Config.FirstCoinBreakSanityLoss, 0, Config.MaxSanity);
+                state.Stats.FirstCoinUses += 1;
+                ScheduleNextRentInvoice(state);
+                AppendLog(state, $"The first coin is handed over at its ${Config.FirstCoinBuyBackCost:0} emergency value. Rent clears, but the passive sanity buffer is gone until you buy it back.");
+                EvaluateLossState(state);
+                return true;
+
+            case 2:
+                state.Status = RunStatus.Evicted;
+                state.OutcomeMessage = "The monthly rent invoice went unpaid and there was no first coin left to cover it.";
+                AppendLog(state, "The rent invoice goes unpaid. Eviction notice posted on the door.");
+                return true;
+
+            default:
+                state.PendingLifeEvent = lifeEvent;
+                return false;
+        }
     }
 
     private bool ResolveBossCheckIn(RunState state, PendingLifeEvent lifeEvent, int optionIndex)
@@ -2916,6 +3023,39 @@ public sealed class SimulationEngine
         return profiles;
     }
 
+    private static CharacterRevealResult RevealApplicationCharacters(ActiveJobApplication application, int requestedCharacters)
+    {
+        var charactersToReveal = Math.Max(0, requestedCharacters);
+        var charactersAdded = 0;
+        var linesAdded = 0;
+
+        while (charactersToReveal > 0 && application.VisibleLineCount < application.CodeLines.Count)
+        {
+            var nextLine = application.CodeLines[application.VisibleLineCount];
+            var visibleCharacterLimit = GetRevealCharacterLength(nextLine);
+            var remainingLineCharacters = visibleCharacterLimit - application.VisibleCharacterCount;
+            if (remainingLineCharacters <= 0)
+            {
+                CompleteApplicationLine(application, nextLine, ref linesAdded);
+                continue;
+            }
+
+            var revealedCharacters = Math.Min(charactersToReveal, remainingLineCharacters);
+            application.VisibleCharacterCount += revealedCharacters;
+            charactersToReveal -= revealedCharacters;
+            charactersAdded += revealedCharacters;
+
+            if (application.VisibleCharacterCount < visibleCharacterLimit)
+            {
+                continue;
+            }
+
+            CompleteApplicationLine(application, nextLine, ref linesAdded);
+        }
+
+        return new CharacterRevealResult(linesAdded, charactersAdded);
+    }
+
     private static int RevealApplicationLines(ActiveJobApplication application, int requestedLinesOfCode)
     {
         var linesToReveal = Math.Max(0, requestedLinesOfCode);
@@ -2924,41 +3064,75 @@ public sealed class SimulationEngine
         while (linesToReveal > 0 && application.VisibleLineCount < application.CodeLines.Count)
         {
             var nextLine = application.CodeLines[application.VisibleLineCount];
-            application.VisibleLineCount++;
-
-            if (string.IsNullOrWhiteSpace(nextLine))
+            CompleteApplicationLine(application, nextLine, ref linesAdded);
+            if (!string.IsNullOrWhiteSpace(nextLine))
             {
-                continue;
+                linesToReveal--;
             }
-
-            linesAdded++;
-            linesToReveal--;
         }
 
         return linesAdded;
     }
 
-    private static int RevealFreelanceLines(ActiveFreelanceGig gig, int requestedLinesOfCode)
+    private static CharacterRevealResult RevealFreelanceCharacters(ActiveFreelanceGig gig, int requestedCharacters)
     {
-        var linesToReveal = Math.Max(0, requestedLinesOfCode);
+        var charactersToReveal = Math.Max(0, requestedCharacters);
+        var charactersAdded = 0;
         var linesAdded = 0;
 
-        while (linesToReveal > 0 && gig.VisibleLineCount < gig.CodeLines.Count)
+        while (charactersToReveal > 0 && gig.VisibleLineCount < gig.CodeLines.Count)
         {
             var nextLine = gig.CodeLines[gig.VisibleLineCount];
-            gig.VisibleLineCount++;
+            var visibleCharacterLimit = GetRevealCharacterLength(nextLine);
+            var remainingLineCharacters = visibleCharacterLimit - gig.VisibleCharacterCount;
+            if (remainingLineCharacters <= 0)
+            {
+                CompleteFreelanceLine(gig, nextLine, ref linesAdded);
+                continue;
+            }
 
-            if (string.IsNullOrWhiteSpace(nextLine))
+            var revealedCharacters = Math.Min(charactersToReveal, remainingLineCharacters);
+            gig.VisibleCharacterCount += revealedCharacters;
+            charactersToReveal -= revealedCharacters;
+            charactersAdded += revealedCharacters;
+
+            if (gig.VisibleCharacterCount < visibleCharacterLimit)
             {
                 continue;
             }
 
-            linesAdded++;
-            linesToReveal--;
+            CompleteFreelanceLine(gig, nextLine, ref linesAdded);
         }
 
-        return linesAdded;
+        return new CharacterRevealResult(linesAdded, charactersAdded);
     }
+
+    private static void CompleteApplicationLine(ActiveJobApplication application, string line, ref int linesAdded)
+    {
+        application.VisibleLineCount++;
+        application.VisibleCharacterCount = 0;
+        if (!string.IsNullOrWhiteSpace(line))
+        {
+            linesAdded++;
+        }
+    }
+
+    private static void CompleteFreelanceLine(ActiveFreelanceGig gig, string line, ref int linesAdded)
+    {
+        gig.VisibleLineCount++;
+        gig.VisibleCharacterCount = 0;
+        if (!string.IsNullOrWhiteSpace(line))
+        {
+            linesAdded++;
+        }
+    }
+
+    private static int GetRevealCharacterLength(string line)
+    {
+        return Math.Max(1, line.Length);
+    }
+
+    private readonly record struct CharacterRevealResult(int LinesAdded, int CharactersAdded);
 
     private ActiveFreelanceGig CreateFreelanceGig(RunState state, FreelanceGigType type)
     {
@@ -3869,31 +4043,31 @@ public sealed class SimulationEngine
         };
     }
 
-    private int GetWriteCodeLinesGain(RunState state)
+    private int GetWriteCodeCharactersGain(RunState state)
     {
-        var lines = Config.WriteCodeLinesGain;
-        lines += GetUpgradeBonusTotal(state, definition => definition.BonusLinesPerClick);
+        var characters = Config.WriteCodeCharactersGain;
+        characters += GetUpgradeBonusTotal(state, definition => definition.BonusCharactersPerClick);
 
         if (IsDeepWorkActive(state))
         {
-            lines += Config.DeepWorkBonusLinesPerClick;
+            characters += Config.DeepWorkBonusCharactersPerClick;
         }
 
         if (state.GameplayMode == GameplayLoopMode.Indie)
         {
-            lines += 1;
+            characters += 1;
         }
         else if (state.GameplayMode == GameplayLoopMode.Founder)
         {
-            lines += 1;
+            characters += 1;
         }
 
         if (!IsSluggish(state))
         {
-            return Math.Max(1, lines);
+            return Math.Max(1, characters);
         }
 
-        return Math.Max(1, (int)Math.Round(lines * Config.SluggishLinesMultiplier));
+        return Math.Max(1, (int)Math.Round(characters * Config.SluggishLinesMultiplier));
     }
 
     private double GetWriteCodeFocusCost(RunState state)
@@ -3929,7 +4103,7 @@ public sealed class SimulationEngine
             focusCost += 0.4;
         }
 
-        return Math.Max(0.5, focusCost);
+        return Math.Max(0.04, focusCost);
     }
 
     private double GetWriteCodeQualityGain(RunState state)
@@ -4626,6 +4800,142 @@ public sealed class SimulationEngine
         return Math.Max(step, BoundaryEpsilon);
     }
 
+    private bool TryCreateMonthlyRentInvoice(RunState state)
+    {
+        AppendRentInvoiceWarningIfNeeded(state);
+        if (state.PendingLifeEvent is not null ||
+            state.Day < state.NextRentInvoiceDay)
+        {
+            return false;
+        }
+
+        var amount = GetCurrentMonthlyRentInvoiceAmount(state);
+        state.PendingLifeEvent = new PendingLifeEvent
+        {
+            Type = IncidentType.RentInvoice,
+            Title = "Monthly Rent Invoice",
+            Description = $"The landlord invoice is due before the next month can start. Pay ${amount:0}, or use the first coin at its ${Config.FirstCoinBuyBackCost:0} emergency value if cash is short.",
+            SubjectScore = (int)Math.Round(amount),
+            TargetScore = state.NextRentInvoiceDay,
+            OptionLabels = ["Pay Invoice", "Use First Coin", "Accept Eviction"],
+        };
+        AppendLog(state, $"Monthly rent invoice arrived for ${amount:0}. Address it to continue.");
+        return true;
+    }
+
+    private void AppendRentInvoiceWarningIfNeeded(RunState state)
+    {
+        var daysUntilInvoice = state.NextRentInvoiceDay - state.Day;
+        if (daysUntilInvoice < 0 ||
+            daysUntilInvoice > Math.Max(0, Config.RentInvoiceWarningDays) ||
+            state.LastRentWarningDay == state.Day)
+        {
+            return;
+        }
+
+        state.LastRentWarningDay = state.Day;
+        AppendLog(
+            state,
+            $"Invoice heads-up: monthly rent is due on Day {state.NextRentInvoiceDay}. Keep ${GetCurrentMonthlyRentInvoiceAmount(state):0} ready or the first coin may be forced into service.");
+    }
+
+    private void ScheduleNextRentInvoice(RunState state)
+    {
+        state.NextRentInvoiceDay += Math.Max(1, Config.RentInvoiceIntervalDays);
+        state.LastRentWarningDay = 0;
+    }
+
+    public double GetCurrentMonthlyRentInvoiceAmount(RunState state)
+    {
+        var amount = Config.MonthlyRentInvoiceAmount;
+        if (state.HasApartment)
+        {
+            amount += 150;
+        }
+
+        if (state.HasHouse)
+        {
+            amount = Math.Max(0, amount - 250);
+        }
+
+        if (state.IsRealisticMode)
+        {
+            amount += 75;
+        }
+
+        return Math.Round(Math.Max(0, amount), 0);
+    }
+
+    public string GetCurrentProgressionHint(RunState state)
+    {
+        var prefix = state.Difficulty switch
+        {
+            GameDifficulty.Easy => "Hint",
+            GameDifficulty.Hard => "Hard hint",
+            GameDifficulty.Endless => "Endless hint",
+            GameDifficulty.ContinualUpgradeLoop => "Upgrade-loop hint",
+            _ => "Guide hint",
+        };
+
+        if (state.PendingLifeEvent?.Type == IncidentType.RentInvoice)
+        {
+            return $"{prefix}: resolve the rent invoice first. It blocks time until paid, and the first coin can cover it at ${Config.FirstCoinBuyBackCost:0} value.";
+        }
+
+        if (!state.HasFirstCoin && state.Funds >= Config.FirstCoinBuyBackCost)
+        {
+            return $"{prefix}: you can buy the first coin back in Banking for ${Config.FirstCoinBuyBackCost:0}. It restores the emergency rent buffer.";
+        }
+
+        var daysUntilRent = state.NextRentInvoiceDay - state.Day;
+        if (daysUntilRent <= Math.Max(1, Config.RentInvoiceWarningDays + 1))
+        {
+            return $"{prefix}: rent invoice lands on Day {state.NextRentInvoiceDay}. Keep ${GetCurrentMonthlyRentInvoiceAmount(state):0} ready before chasing optional upgrades.";
+        }
+
+        if (GetSleepStage(state) >= 3)
+        {
+            return $"{prefix}: sleep now. At this fatigue level, sanity and code quality drain faster than most gigs can repay.";
+        }
+
+        if (GetHungerStage(state) >= 2)
+        {
+            return $"{prefix}: order food before another work block. Hunger is already turning into sanity loss and bug pressure.";
+        }
+
+        if (state.ActiveTechDebtBug is not null)
+        {
+            return $"{prefix}: fix the active compile issue before it drains more quality. In realistic mode, use the highlighted editor token.";
+        }
+
+        if (PortfolioWorkspace.IsCurrentBatchComplete(state))
+        {
+            return state.VersionControl.PendingChangeLines > 0
+                ? $"{prefix}: commit the finished batch, then publish. Dirty lines are the only thing blocking release money."
+                : $"{prefix}: publish the finished batch now. Releases unlock cash flow and future storefront sales.";
+        }
+
+        var nextBill = GetCurrentDailyBillAmount(state);
+        if (state.Funds < nextBill * (state.Difficulty == GameDifficulty.Hard ? 3 : 2))
+        {
+            return $"{prefix}: cash runway is thin. Take a freelance gig or ship a small release before spending on upgrades.";
+        }
+
+        if (state.ActiveJobListing is not null)
+        {
+            return $"{prefix}: a listing is live. Apply only if your proof, focus, and code quality can survive the take-home.";
+        }
+
+        return state.Difficulty switch
+        {
+            GameDifficulty.Easy => "Hint: write until a file finishes, commit it, then decide between food, publishing, or a paid gig.",
+            GameDifficulty.Hard => "Hard hint: keep two bills of cash, commit every file, and pre-order food before hunger turns into bugs.",
+            GameDifficulty.Endless => "Endless hint: build a release rhythm. Ship, buy efficient upgrades, keep rent money untouched.",
+            GameDifficulty.ContinualUpgradeLoop => "Upgrade-loop hint: publish early, stack upgrades in tiers, and keep enough cash for the next rent invoice.",
+            _ => "Guide hint: write code, commit finished files, publish batches, and use Food/Sleep before the bars become emergencies.",
+        };
+    }
+
     private double GetMinutesUntilNextThreshold(double currentMinutes, params double[] thresholds)
     {
         foreach (var threshold in thresholds)
@@ -4823,6 +5133,7 @@ public sealed class SimulationEngine
         state.CurrentPortfolioLinesOfCode = 0;
         state.CurrentProgramIndex = 0;
         state.CurrentProgramVisibleLineCount = 0;
+        state.CurrentProgramVisibleCharacterCount = 0;
         state.RecentCompletedFileName = null;
         state.FileCompletionCelebrationMinutesRemaining = 0;
         state.VersionControl.CommittedPortfolioLinesOfCode = 0;

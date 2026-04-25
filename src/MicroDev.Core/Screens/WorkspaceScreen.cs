@@ -20,6 +20,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         Stats,
     }
 
+    private enum TutorialOverlayMode
+    {
+        Overview,
+        Guide,
+    }
+
     private const float CodeScale = UiTypography.Code;
     private const float CardBodyScale = UiTypography.Caption;
     private const float BodyScale = UiTypography.Body;
@@ -98,6 +104,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private readonly UiButton _projectRerollButton = new("Reroll Title");
     private readonly UiButton _buyHouseButton = new("Buy House");
     private readonly UiButton _retireButton = new("Retire");
+    private readonly UiButton _buyBackCoinButton = new("Buy Back Coin");
     private readonly UiButton _openApplicationButton = new("Continue");
     private readonly UiButton _closeApplicationButton = new("Close");
     private readonly UiButton _tutorialBackButton = new("Back");
@@ -214,6 +221,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private string? _selectedCommunicationContactId;
     private Point _mousePosition;
     private bool _tutorialOpen;
+    private TutorialOverlayMode _tutorialMode = TutorialOverlayMode.Overview;
     private int _tutorialPageIndex;
     private OverlayScrollArea _activeScrollbarDrag;
     private int _scrollbarDragStartMouseY;
@@ -289,7 +297,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     internal void PrepareCaptureTutorialPage(int pageIndex)
     {
-        OpenTutorial();
+        OpenGuide();
         _tutorialPageIndex = Math.Clamp(pageIndex, 0, GetTutorialPageCount() - 1);
         FinalizeCapturePreparation();
     }
@@ -702,6 +710,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _projectRerollButton.AccentColor = UiTheme.Warning;
         _buyHouseButton.AccentColor = UiTheme.Success;
         _retireButton.AccentColor = UiTheme.Success;
+        _buyBackCoinButton.AccentColor = UiTheme.CoinAccent;
         _openApplicationButton.AccentColor = UiTheme.Accent;
         _closeApplicationButton.AccentColor = UiTheme.Warning;
         _tutorialBackButton.AccentColor = UiTheme.Warning;
@@ -823,6 +832,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         yield return _projectRerollButton;
         yield return _buyHouseButton;
         yield return _retireButton;
+        yield return _buyBackCoinButton;
         yield return _openApplicationButton;
         yield return _closeApplicationButton;
         yield return _tutorialBackButton;
@@ -963,7 +973,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     {
         if (_guideButton.Update(input))
         {
-            OpenTutorial();
+            OpenGuide();
             _audio.PlayButtonClick();
             return;
         }
@@ -1370,6 +1380,18 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             if (_simulation.Retire(_state))
             {
                 _bankAppOpen = false;
+                _audio.PlaySuccess();
+            }
+            else
+            {
+                _audio.PlayFailure();
+            }
+        }
+
+        if (_buyBackCoinButton.Update(input))
+        {
+            if (_simulation.BuyBackFirstCoin(_state))
+            {
                 _audio.PlaySuccess();
             }
             else
@@ -1819,6 +1841,17 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             _tutorialOpen = false;
             _audio.PlayButtonClick();
+            return;
+        }
+
+        if (_tutorialMode == TutorialOverlayMode.Overview)
+        {
+            if (_tutorialNextButton.Update(input))
+            {
+                OpenGuide();
+                _audio.PlayButtonClick();
+            }
+
             return;
         }
 
@@ -2585,7 +2618,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var stripBounds = GetSidebarStatusStripBounds();
         var fill = UiTheme.PanelRaised;
         var border = UiTheme.PanelBorder;
-        var message = $"Typing {_simulation.GetCurrentWriteLinesPerClick(_state)} line/click at {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus. Upgrades buy speed back.";
+        var message = $"Typing {_simulation.GetCurrentWriteCharactersPerClick(_state)} CPC at {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus. Upgrades buy speed back.";
         var textColor = UiTheme.TextMuted;
         var sleepStage = _simulation.GetSleepStage(_state);
         var hungerStage = _simulation.GetHungerStage(_state);
@@ -2824,13 +2857,20 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             !_simulation.IsPortfolioPublishReady(_state) &&
             !_simulation.HasPublishedApps(_state))
         {
+            UiPanel.Draw(
+                spriteBatch,
+                _pixel,
+                new Rectangle(_alertsPanelBounds.X + 10, _alertsPanelBounds.Y + 36, _alertsPanelBounds.Width - 20, Math.Min(96, _alertsPanelBounds.Height - 46)),
+                UiTheme.PanelMuted,
+                UiTheme.Accent,
+                1);
             UiTextBlock.DrawWrapped(
                 spriteBatch,
                 _font,
-                "No urgent bug fires or recruiter pings right now. Keep building until the next break or opportunity lands.",
-                new Vector2(_alertsPanelBounds.X + 12, _alertsPanelBounds.Y + 38),
-                _alertsPanelBounds.Width - 24,
-                UiTheme.TextMuted,
+                _simulation.GetCurrentProgressionHint(_state),
+                new Vector2(_alertsPanelBounds.X + 20, _alertsPanelBounds.Y + 48),
+                _alertsPanelBounds.Width - 40,
+                UiTheme.TextPrimary,
                 BodyScale,
                 2f,
                 4);
@@ -3344,10 +3384,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiPanel.Draw(spriteBatch, _pixel, ledgerBounds, UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
 
         var dailyBill = _simulation.GetCurrentDailyBillAmount(_state);
+        var rentInvoice = _simulation.GetCurrentMonthlyRentInvoiceAmount(_state);
         var runwayBills = dailyBill <= 0
             ? 0
             : Math.Max(0, (int)Math.Floor(_state.Funds / dailyBill));
         var billMinutesRemaining = Math.Max(1d, SimulationConfig.MinutesPerDay - _state.TimeOfDayMinutes);
+        var rentDaysRemaining = Math.Max(0, _state.NextRentInvoiceDay - _state.Day);
 
         UiLabel.Draw(spriteBatch, _font, "Available Cash", new Vector2(accountBounds.X + 16, accountBounds.Y + 14), UiTheme.TextMuted, 0.72f);
         DrawFittedLabel(spriteBatch, $"${_state.Funds:0}", new Vector2(accountBounds.X + 16, accountBounds.Y + 40), accountBounds.Width - 32, UiTheme.Warning, 1.16f, 0.76f);
@@ -3365,7 +3407,9 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiLabel.Draw(spriteBatch, _font, "Rent Pressure", new Vector2(rentBounds.X + 16, rentBounds.Y + 14), UiTheme.TextMuted, 0.72f);
         DrawFittedLabel(
             spriteBatch,
-            $"Next bill in {FormatRemainingTime(billMinutesRemaining)}",
+            rentDaysRemaining <= 1
+                ? $"Invoice Day {_state.NextRentInvoiceDay}"
+                : $"Invoice in {rentDaysRemaining} days",
             new Vector2(rentBounds.X + 16, rentBounds.Y + 40),
             rentBounds.Width - 32,
             UiTheme.TextPrimary,
@@ -3374,7 +3418,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"Daily bill: -${dailyBill:0}. Difficulty: {_state.Difficulty}. Seed: {_state.RunSeed}.",
+            $"Monthly rent: ${rentInvoice:0}. Daily bills: -${dailyBill:0} at midnight in {FormatRemainingTime(billMinutesRemaining)}.",
             new Vector2(rentBounds.X + 16, rentBounds.Y + 78),
             rentBounds.Width - 32,
             UiTheme.TextMuted,
@@ -3434,11 +3478,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _font,
             GetEmergencyBufferDescription(),
             new Vector2(coinBounds.X + 16, coinBounds.Y + 40),
-            coinBounds.Width - 32,
+            coinBounds.Width - 196,
             _state.HasFirstCoin ? UiTheme.TextPrimary : UiTheme.TextMuted,
             0.7f,
             2f,
             3);
+        _buyBackCoinButton.Draw(spriteBatch, _pixel, _font);
 
         UiLabel.Draw(spriteBatch, _font, "Recent Transactions", new Vector2(ledgerBounds.X + 16, ledgerBounds.Y + 14), UiTheme.TextPrimary, 0.82f);
         var transactionY = ledgerBounds.Y + 42f;
@@ -4053,7 +4098,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             UiLabel.Draw(
                 spriteBatch,
                 _font,
-                $"{gig.VisibleLineCount}/{gig.CodeLines.Count} lines revealed",
+                $"{gig.VisibleLineCount}/{gig.CodeLines.Count} lines, {gig.VisibleCharacterCount} chars on current line",
                 new Vector2(_freelanceGigEditorBounds.X + 16, _freelanceGigEditorBounds.Y + 40),
                 UiTheme.TextMuted,
                 0.66f);
@@ -4423,7 +4468,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             spriteBatch,
             new Rectangle(contentX + summaryWidth + summaryGap, contentY, summaryWidth, summaryHeight),
             "Output",
-            $"{_state.Stats.TotalLinesTyped:0} LoC typed",
+            $"{_state.Stats.TotalLinesTyped:0} LoC completed",
             $"{_state.Stats.PortfolioFilesCompleted} files  |  {_state.PublishedAppCount} releases",
             UiTheme.Accent);
         DrawStatsSummaryCard(
@@ -4808,7 +4853,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            $"Current deficit: ${_state.FirstCoinRescueDeficit:0}. Breaking the frame grants +${_simulation.Config.FirstCoinEmergencyFundsGain:0} and permanently removes the passive sanity regen buff.",
+            $"Current deficit: ${_state.FirstCoinRescueDeficit:0}. Breaking the frame grants +${_simulation.Config.FirstCoinEmergencyFundsGain:0}, matching the coin's emergency rent value, and removes the passive sanity regen buff until you buy it back.",
             new Vector2(modalBounds.X + 28, modalBounds.Y + 154),
             modalBounds.Width - 56,
             UiTheme.TextMuted,
@@ -4819,7 +4864,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiTextBlock.DrawWrapped(
             spriteBatch,
             _font,
-            "Keep the coin framed and the run ends here. Break it, and the week gets colder from this point forward.",
+            $"Keep the coin framed and the run ends here. Break it, and the week gets colder until Banking can buy it back for ${_simulation.Config.FirstCoinBuyBackCost:0}.",
             new Vector2(modalBounds.X + 28, modalBounds.Y + 232),
             modalBounds.Width - 56,
             UiTheme.TextMuted,
@@ -4840,6 +4885,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         var borderColor = lifeEvent.Type switch
         {
             IncidentType.ComputerFreeze => UiTheme.Warning,
+            IncidentType.RentInvoice => UiTheme.CoinAccent,
             IncidentType.BossCheckIn => UiTheme.Warning,
             IncidentType.OnlineMatch or IncidentType.PartnerCheckIn => UiTheme.Success,
             _ => UiTheme.Accent,
@@ -4949,6 +4995,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
     private void DrawTutorialOverlay(SpriteBatch spriteBatch)
     {
+        if (_tutorialMode == TutorialOverlayMode.Overview)
+        {
+            DrawTutorialOverviewOverlay(spriteBatch);
+            return;
+        }
+
         var page = GetTutorialPage(_tutorialPageIndex);
         var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
         UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
@@ -4956,11 +5008,11 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         UiPanel.Draw(spriteBatch, _pixel, _tutorialBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
         spriteBatch.Draw(_pixel, new Rectangle(_tutorialBounds.X + 1, _tutorialBounds.Y + 1, _tutorialBounds.Width - 2, 4), UiTheme.Accent);
 
-        UiLabel.Draw(spriteBatch, _font, "How To Survive The Run", new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 24), UiTheme.TextPrimary, 1.08f);
+        UiLabel.Draw(spriteBatch, _font, "Micro Dev Guide", new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 24), UiTheme.TextPrimary, 1.08f);
         UiLabel.Draw(
             spriteBatch,
             _font,
-            $"Page {_tutorialPageIndex + 1}/{GetTutorialPageCount()}  |  Seed {_state.RunSeed}",
+            $"Section {_tutorialPageIndex + 1}/{GetTutorialPageCount()}  |  Seed {_state.RunSeed}",
             new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 56),
             UiTheme.TextMuted,
             0.68f);
@@ -5010,6 +5062,88 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         }
 
         _tutorialBackButton.Draw(spriteBatch, _pixel, _font);
+        _tutorialNextButton.Draw(spriteBatch, _pixel, _font);
+        _tutorialCloseButton.Draw(spriteBatch, _pixel, _font);
+    }
+
+    private void DrawTutorialOverviewOverlay(SpriteBatch spriteBatch)
+    {
+        var fullscreen = new Rectangle(0, 0, _virtualResolution.X, _virtualResolution.Y);
+        UiPanel.Draw(spriteBatch, _pixel, fullscreen, UiTheme.Overlay, Color.Transparent, 0);
+
+        UiPanel.Draw(spriteBatch, _pixel, _tutorialBounds, UiTheme.PanelFill, UiTheme.Accent, 3);
+        spriteBatch.Draw(_pixel, new Rectangle(_tutorialBounds.X + 1, _tutorialBounds.Y + 1, _tutorialBounds.Width - 2, 4), UiTheme.Accent);
+
+        UiLabel.Draw(spriteBatch, _font, "Gameplay At A Glance", new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 24), UiTheme.TextPrimary, 1.08f);
+        UiLabel.Draw(
+            spriteBatch,
+            _font,
+            $"Seed {_state.RunSeed}  |  Keep coding, keep steady, keep solvent.",
+            new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 56),
+            UiTheme.TextMuted,
+            0.68f);
+
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "Click the editor to write code, finish files, commit safe progress, and ship releases while your focus, sanity, hunger, fatigue, bills, alerts, and relationships keep pushing back.",
+            new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Y + 96),
+            _tutorialBounds.Width - 56,
+            UiTheme.TextPrimary,
+            0.76f,
+            2f,
+            3);
+
+        var dailyBill = _simulation.GetCurrentDailyBillAmount(_state);
+        var monthlyRent = _simulation.GetCurrentMonthlyRentInvoiceAmount(_state);
+        var sections = new[]
+        {
+            new TutorialSection("1. Work The Desk", "Click inside the editor to write code. Finished files can be committed, and release batches turn your work into progress."),
+            new TutorialSection("2. Watch The Bars", "Focus powers work. Sanity, hunger, fatigue, and food timing decide how long you can keep going before the run bites back."),
+            new TutorialSection("3. Use The Sidebar", "Food, sleep, freelance, banking, communication, upgrades, stats, and Build Studio are your control room. Alerts tell you what needs attention now."),
+            new TutorialSection("4. Survive The Money Clock", $"Bills hit at midnight, and rent invoices arrive monthly. Today's bills are about ${dailyBill:0}; the next rent invoice asks for ${monthlyRent:0}.")
+        };
+
+        const int cardGap = 12;
+        var cardTop = _tutorialBounds.Y + 188;
+        var cardWidth = (_tutorialBounds.Width - 56 - cardGap) / 2;
+        var cardHeight = 120;
+
+        for (var index = 0; index < sections.Length; index++)
+        {
+            var section = sections[index];
+            var column = index % 2;
+            var row = index / 2;
+            var bounds = new Rectangle(
+                _tutorialBounds.X + 28 + (column * (cardWidth + cardGap)),
+                cardTop + (row * (cardHeight + cardGap)),
+                cardWidth,
+                cardHeight);
+            UiPanel.Draw(spriteBatch, _pixel, bounds, index == 0 ? UiTheme.PanelRaised : UiTheme.PanelMuted, UiTheme.PanelBorder, 2);
+            UiLabel.Draw(spriteBatch, _font, section.Heading, new Vector2(bounds.X + 16, bounds.Y + 14), UiTheme.TextPrimary, 0.78f);
+            UiTextBlock.DrawWrapped(
+                spriteBatch,
+                _font,
+                section.Body,
+                new Vector2(bounds.X + 16, bounds.Y + 42),
+                bounds.Width - 32,
+                UiTheme.TextMuted,
+                0.66f,
+                2f,
+                4);
+        }
+
+        UiTextBlock.DrawWrapped(
+            spriteBatch,
+            _font,
+            "For detailed route rules, housing goals, seeds, run controls, food choices, freelance timing, and deeper survival advice, open the Guide from the sidebar.",
+            new Vector2(_tutorialBounds.X + 28, _tutorialBounds.Bottom - 100),
+            _tutorialBounds.Width - 230,
+            UiTheme.Warning,
+            0.7f,
+            2f,
+            3);
+
         _tutorialNextButton.Draw(spriteBatch, _pixel, _font);
         _tutorialCloseButton.Draw(spriteBatch, _pixel, _font);
     }
@@ -5087,6 +5221,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _buyHouseButton.Enabled = _simulation.CanMoveToApartment(_state);
         }
         _retireButton.Enabled = _simulation.CanRetire(_state);
+        _buyBackCoinButton.Enabled = _simulation.CanBuyBackFirstCoin(_state);
         var canEditProjectBlueprint = _simulation.CanEditProjectBlueprint(_state);
         _projectTypeButton.Enabled = canEditProjectBlueprint;
         _projectThemeButton.Enabled = canEditProjectBlueprint;
@@ -5110,6 +5245,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 ? "Buy House"
                 : "Move Out";
         _retireButton.Text = _state.HasRetired ? "Retired" : "Retire";
+        _buyBackCoinButton.Text = _state.HasFirstCoin ? "Coin Ready" : $"Buy Back ${_simulation.Config.FirstCoinBuyBackCost:0}";
 
         _menuButton.Bounds = new Rectangle(_sidebarBounds.Right - 220, _sidebarBounds.Y + 10, 96, 30);
         _optionsButton.Bounds = new Rectangle(_sidebarBounds.Right - 112, _sidebarBounds.Y + 10, 96, 30);
@@ -5154,6 +5290,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _deskDistractionQuickFixButton.Bounds = Rectangle.Empty;
         _buyHouseButton.Bounds = Rectangle.Empty;
         _retireButton.Bounds = Rectangle.Empty;
+        _buyBackCoinButton.Bounds = Rectangle.Empty;
         _commitFileButton.Bounds = Rectangle.Empty;
         _keepCodingButton.Bounds = Rectangle.Empty;
         _closeProjectStudioButton.Bounds = Rectangle.Empty;
@@ -5497,6 +5634,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             _bankAppBounds.Bottom - (_bankCoinBounds.Bottom + 40));
         _buyHouseButton.Bounds = new Rectangle(_bankHouseBounds.Right - 124, _bankHouseBounds.Bottom - 44, 108, 28);
         _retireButton.Bounds = new Rectangle(_bankRetirementBounds.Right - 140, _bankRetirementBounds.Bottom - 44, 124, 28);
+        _buyBackCoinButton.Bounds = new Rectangle(_bankCoinBounds.Right - 172, _bankCoinBounds.Y + 16, 148, 30);
 
         _communicationBounds = new Rectangle(_editorViewportBounds.X + 62, _editorViewportBounds.Y + 24, 860, 500);
         _closeCommunicationButton.Bounds = new Rectangle(_communicationBounds.Right - 124, _communicationBounds.Y + 16, 96, 34);
@@ -5614,10 +5752,12 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         _tutorialCloseButton.Bounds = new Rectangle(_tutorialBounds.Right - 112, _tutorialBounds.Y + 18, 88, 30);
         _tutorialBackButton.Bounds = new Rectangle(_tutorialBounds.X + 28, _tutorialBounds.Bottom - 52, 136, 34);
         _tutorialNextButton.Bounds = new Rectangle(_tutorialBounds.Right - 188, _tutorialBounds.Bottom - 52, 160, 34);
-        _tutorialBackButton.Enabled = _tutorialPageIndex > 0;
+        _tutorialBackButton.Enabled = _tutorialMode == TutorialOverlayMode.Guide && _tutorialPageIndex > 0;
         _tutorialNextButton.Enabled = true;
-        _tutorialNextButton.Text = _tutorialPageIndex >= GetTutorialPageCount() - 1 ? "Begin Run" : "Next";
-        _tutorialCloseButton.Text = "Skip";
+        _tutorialNextButton.Text = _tutorialMode == TutorialOverlayMode.Overview
+            ? "Open Guide"
+            : _tutorialPageIndex >= GetTutorialPageCount() - 1 ? "Close Guide" : "Next";
+        _tutorialCloseButton.Text = _tutorialMode == TutorialOverlayMode.Overview ? "Start" : "Close";
         for (var index = 0; index < _interviewOptionButtons.Length; index++)
         {
             _interviewOptionButtons[index].Bounds = Rectangle.Empty;
@@ -5879,7 +6019,21 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private void OpenTutorial()
     {
         _tutorialOpen = true;
+        _tutorialMode = TutorialOverlayMode.Overview;
         _tutorialPageIndex = 0;
+        CloseWorkspaceOverlaysForGuide();
+    }
+
+    private void OpenGuide()
+    {
+        _tutorialOpen = true;
+        _tutorialMode = TutorialOverlayMode.Guide;
+        _tutorialPageIndex = 0;
+        CloseWorkspaceOverlaysForGuide();
+    }
+
+    private void CloseWorkspaceOverlaysForGuide()
+    {
         _foodAppOpen = false;
         _bankAppOpen = false;
         _communicationOpen = false;
@@ -6257,7 +6411,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
         {
             0 => new TutorialPage(
                 "What A Run Actually Is",
-                $"You start on Day {_state.Day} with ${_state.Funds:0}, focus {_state.Focus:0}, sanity {_state.Sanity:0}, and a daily bill currently landing for ${dailyBill:0} at in-game midnight. Micro Dev is now a branching life-and-career sim: Interview is the seven-day opener, and the other main modes keep running indefinitely.",
+                $"You start on Day {_state.Day} with ${_state.Funds:0}, focus {_state.Focus:0}, sanity {_state.Sanity:0}, daily bills of about ${dailyBill:0}, and a Day {_state.NextRentInvoiceDay} rent invoice for ${_simulation.GetCurrentMonthlyRentInvoiceAmount(_state):0}. Micro Dev is now a branching life-and-career sim: Interview is the seven-day opener, and the other main modes keep running indefinitely.",
                 [
                     new TutorialSection(
                         "How you lose",
@@ -6303,7 +6457,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 [
                     new TutorialSection(
                         "Writing code",
-                        $"Click inside the editor to type. Each click currently spends about {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus for {_simulation.GetCurrentWriteLinesPerClick(_state)} line{(_simulation.GetCurrentWriteLinesPerClick(_state) == 1 ? string.Empty : "s")}, while steady work keeps pushing code quality upward."),
+                        $"Click inside the editor to type. Each click currently spends about {_simulation.GetCurrentWriteFocusCost(_state):0.0} focus for {_simulation.GetCurrentWriteCharactersPerClick(_state)} CPC, while completed lines keep pushing code quality upward."),
                     new TutorialSection(
                         "Build Studio and coherent snippets",
                         "Each batch is now tied to a project plan. Before you start typing, Build Studio lets you decide whether you are making an app or a game and tune the theme, tone, platform, and business model so the snippets stay related to the actual project."),
@@ -6572,6 +6726,15 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                         : $"Requires a house and ${_simulation.GetRetirementCost(_state):0} in savings. This ends the run on the shared life-sim finish line.");
             }
 
+            if (_buyBackCoinButton.IsHovered)
+            {
+                return (
+                    "First Coin",
+                    _state.HasFirstCoin
+                        ? "The emergency rent buffer is already restored."
+                        : $"Spend ${_simulation.Config.FirstCoinBuyBackCost:0} to buy the first coin back and restore the rent-invoice safety net.");
+            }
+
             return null;
         }
 
@@ -6726,7 +6889,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
 
         if (_guideButton.IsHovered)
         {
-            return ("Guide", "Reopen the multi-step tutorial with survival advice, core loop guidance, and seed/run-control explanations.");
+            return ("Guide", "Open the detailed reference for survival advice, route rules, core loop guidance, and seed/run-control explanations.");
         }
 
         if (_restartButton.IsHovered)
@@ -6978,6 +7141,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
                 $"{lifeEvent.SubjectName} needs something during office hours. Pairing can improve the work, deflecting protects the block at a social cost, and taking the fire drill buys money or standing by burning yourself harder.",
             IncidentType.FounderNaming =>
                 "Founder Mode starts with choosing the studio name you are going to ship under. Pick the one that feels like something you would actually keep building when rent is due.",
+            IncidentType.RentInvoice =>
+                $"The monthly invoice blocks the run until it is handled. Pay ${lifeEvent.SubjectScore:0} from cash, use the first coin at its ${_simulation.Config.FirstCoinBuyBackCost:0} emergency value, or accept eviction if no buffer is left.",
             _ =>
                 $"{lifeEvent.SubjectName} is queued and autoplay is ready to steal the rest of the night. Binging buys sanity at the cost of real time, one episode is the compromise line, and shutting it off protects the schedule but feels bad in the moment.",
         };
@@ -7133,7 +7298,7 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
             return "Focus is empty. Order food or sleep before coding again.";
         }
 
-        return $"Each click adds {_simulation.GetCurrentWriteLinesPerClick(_state)} LoC. Upgrades can improve throughput and code quality.";
+        return $"Each click adds {_simulation.GetCurrentWriteCharactersPerClick(_state)} character{(_simulation.GetCurrentWriteCharactersPerClick(_state) == 1 ? string.Empty : "s")}. Upgrades increase CPC and code quality.";
     }
 
     private IReadOnlyList<string> BuildDisplayedCodeLines(IReadOnlyList<string> visibleLines)
@@ -7389,8 +7554,8 @@ public sealed class WorkspaceScreen : IScreen, IUiFontAware
     private string GetEmergencyBufferDescription()
     {
         return _state.HasFirstCoin
-            ? $"The framed first coin is still intact. It steadies sanity and can still rescue one missed rent cycle for +${_simulation.Config.FirstCoinEmergencyFundsGain:0}."
-            : "The first coin rescue has already been spent. There is no second emergency buffer on this desk.";
+            ? $"The framed first coin is intact. It steadies sanity and can settle a rent invoice at ${_simulation.Config.FirstCoinBuyBackCost:0} emergency value."
+            : $"The first coin rescue has been spent. Buy it back for ${_simulation.Config.FirstCoinBuyBackCost:0} once cash flow recovers.";
     }
 
     private IReadOnlyList<string> GetRecentMoneyEntries()

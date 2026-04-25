@@ -36,6 +36,7 @@ public sealed class MicroDevGame : Game
     private int _captureStepIndex = -1;
     private int _captureFramesRemaining;
     private bool _captureSavePending;
+    private DisplaySettingsState? _appliedDisplaySettings;
 
     public MicroDevGame(string? captureDirectory = null)
     {
@@ -280,12 +281,26 @@ public sealed class MicroDevGame : Game
             }
         }
 
+        ApplyDisplaySettingsIfNeeded();
+    }
+
+    private void ApplyDisplaySettingsIfNeeded()
+    {
         var backBufferSize = OperatingSystem.IsBrowser()
             ? _browserBackBufferSize
             : _settings.PreferredResolution;
+        var displaySettings = new DisplaySettingsState(
+            backBufferSize,
+            OperatingSystem.IsBrowser() ? WindowModeSetting.Windowed : _settings.WindowMode);
+
+        if (_appliedDisplaySettings == displaySettings)
+        {
+            return;
+        }
 
         _graphics.PreferredBackBufferWidth = backBufferSize.X;
         _graphics.PreferredBackBufferHeight = backBufferSize.Y;
+
         if (!OperatingSystem.IsBrowser())
         {
             _graphics.HardwareModeSwitch = _settings.WindowMode == WindowModeSetting.Fullscreen;
@@ -294,6 +309,13 @@ public sealed class MicroDevGame : Game
         }
 
         _graphics.ApplyChanges();
+
+        if (!OperatingSystem.IsBrowser())
+        {
+            Window.AllowUserResizing = _settings.WindowMode == WindowModeSetting.Windowed;
+        }
+
+        _appliedDisplaySettings = displaySettings;
     }
 
     private int ResolveRunSeed()
@@ -806,6 +828,8 @@ public sealed class MicroDevGame : Game
     }
 
     private readonly record struct BrowserViewportState(Point RenderSize, Point InputViewportSize);
+
+    private readonly record struct DisplaySettingsState(Point BackBufferSize, WindowModeSetting WindowMode);
 
     private readonly record struct UiCaptureStep(string FileName, Action<MicroDevGame> Configure);
 }

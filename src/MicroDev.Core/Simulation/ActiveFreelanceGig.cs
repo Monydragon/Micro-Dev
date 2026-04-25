@@ -24,6 +24,8 @@ public sealed class ActiveFreelanceGig
 
     public int VisibleLineCount { get; set; }
 
+    public int VisibleCharacterCount { get; set; }
+
     public List<string> CodeLines { get; } = [];
 
     public bool IsComplete => VisibleLineCount >= CodeLines.Count;
@@ -43,6 +45,7 @@ public sealed class ActiveFreelanceGig
             SanityCost = SanityCost,
             CodeQualityGain = CodeQualityGain,
             VisibleLineCount = VisibleLineCount,
+            VisibleCharacterCount = VisibleCharacterCount,
         };
 
         clone.CodeLines.AddRange(CodeLines);

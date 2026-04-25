@@ -62,6 +62,10 @@ public sealed class RunState
 
     public double FirstCoinRescueDeficit { get; set; }
 
+    public int NextRentInvoiceDay { get; set; }
+
+    public int LastRentWarningDay { get; set; }
+
     public PendingLifeEvent? PendingLifeEvent { get; set; }
 
     public int RelationshipProgress { get; set; }
@@ -95,6 +99,8 @@ public sealed class RunState
     public int CurrentProgramIndex { get; set; }
 
     public int CurrentProgramVisibleLineCount { get; set; }
+
+    public int CurrentProgramVisibleCharacterCount { get; set; }
 
     public int PublishedAppCount { get; set; }
 
@@ -185,6 +191,8 @@ public sealed class RunState
             HasFirstCoin = HasFirstCoin,
             FirstCoinDecisionPending = FirstCoinDecisionPending,
             FirstCoinRescueDeficit = FirstCoinRescueDeficit,
+            NextRentInvoiceDay = NextRentInvoiceDay,
+            LastRentWarningDay = LastRentWarningDay,
             PendingLifeEvent = PendingLifeEvent?.Clone(),
             RelationshipProgress = RelationshipProgress,
             HasFoundLove = HasFoundLove,
@@ -202,6 +210,7 @@ public sealed class RunState
             CurrentPortfolioLinesOfCode = CurrentPortfolioLinesOfCode,
             CurrentProgramIndex = CurrentProgramIndex,
             CurrentProgramVisibleLineCount = CurrentProgramVisibleLineCount,
+            CurrentProgramVisibleCharacterCount = CurrentProgramVisibleCharacterCount,
             PublishedAppCount = PublishedAppCount,
             PublishedAppSaleCount = PublishedAppSaleCount,
             NextPublishedAppSaleDeskMinute = NextPublishedAppSaleDeskMinute,
@@ -269,6 +278,8 @@ public sealed class RunState
         HasFirstCoin = other.HasFirstCoin;
         FirstCoinDecisionPending = other.FirstCoinDecisionPending;
         FirstCoinRescueDeficit = other.FirstCoinRescueDeficit;
+        NextRentInvoiceDay = other.NextRentInvoiceDay;
+        LastRentWarningDay = other.LastRentWarningDay;
         PendingLifeEvent = other.PendingLifeEvent?.Clone();
         RelationshipProgress = other.RelationshipProgress;
         HasFoundLove = other.HasFoundLove;
@@ -286,6 +297,7 @@ public sealed class RunState
         CurrentPortfolioLinesOfCode = other.CurrentPortfolioLinesOfCode;
         CurrentProgramIndex = other.CurrentProgramIndex;
         CurrentProgramVisibleLineCount = other.CurrentProgramVisibleLineCount;
+        CurrentProgramVisibleCharacterCount = other.CurrentProgramVisibleCharacterCount;
         PublishedAppCount = other.PublishedAppCount;
         PublishedAppSaleCount = other.PublishedAppSaleCount;
         NextPublishedAppSaleDeskMinute = other.NextPublishedAppSaleDeskMinute;

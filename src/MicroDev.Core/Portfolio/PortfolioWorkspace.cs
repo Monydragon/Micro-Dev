@@ -664,17 +664,27 @@ public static class PortfolioWorkspace
     public static IReadOnlyList<string> GetVisibleLines(RunState state)
     {
         var program = GetCurrentProgram(state);
-        return program.CodeLines.Take(state.CurrentProgramVisibleLineCount).ToArray();
+        var visibleLines = program.CodeLines.Take(state.CurrentProgramVisibleLineCount).ToList();
+        if (state.CurrentProgramVisibleLineCount < program.CodeLines.Count &&
+            state.CurrentProgramVisibleCharacterCount > 0)
+        {
+            var currentLine = program.CodeLines[state.CurrentProgramVisibleLineCount];
+            var visibleCharacters = Math.Clamp(state.CurrentProgramVisibleCharacterCount, 0, currentLine.Length);
+            visibleLines.Add(currentLine[..visibleCharacters]);
+        }
+
+        return visibleLines;
     }
 
-    public static PortfolioWriteResult RevealLines(RunState state, int requestedLinesOfCode)
+    public static PortfolioWriteResult RevealCharacters(RunState state, int requestedCharacters)
     {
-        var linesToReveal = Math.Max(0, requestedLinesOfCode);
+        var charactersToReveal = Math.Max(0, requestedCharacters);
+        var charactersAdded = 0;
         var linesAdded = 0;
         string? completedFileName = null;
         string? startedFileName = null;
 
-        while (linesToReveal > 0)
+        while (charactersToReveal > 0)
         {
             var program = GetCurrentProgram(state);
 
@@ -688,17 +698,31 @@ public static class PortfolioWorkspace
 
                 state.CurrentProgramIndex++;
                 state.CurrentProgramVisibleLineCount = 0;
+                state.CurrentProgramVisibleCharacterCount = 0;
                 startedFileName ??= GetCurrentProgram(state).FileName;
                 continue;
             }
 
             var nextLine = program.CodeLines[state.CurrentProgramVisibleLineCount];
-            state.CurrentProgramVisibleLineCount++;
-
-            if (!string.IsNullOrWhiteSpace(nextLine))
+            var visibleCharacterLimit = GetRevealCharacterLength(nextLine);
+            var remainingLineCharacters = visibleCharacterLimit - state.CurrentProgramVisibleCharacterCount;
+            if (remainingLineCharacters <= 0)
             {
-                linesToReveal--;
-                linesAdded++;
+                CompleteCurrentLine(state, nextLine, ref linesAdded);
+            }
+            else
+            {
+                var revealedCharacters = Math.Min(charactersToReveal, remainingLineCharacters);
+                state.CurrentProgramVisibleCharacterCount += revealedCharacters;
+                charactersToReveal -= revealedCharacters;
+                charactersAdded += revealedCharacters;
+
+                if (state.CurrentProgramVisibleCharacterCount < visibleCharacterLimit)
+                {
+                    continue;
+                }
+
+                CompleteCurrentLine(state, nextLine, ref linesAdded);
             }
 
             if (state.CurrentProgramVisibleLineCount < program.CodeLines.Count)
@@ -715,10 +739,11 @@ public static class PortfolioWorkspace
 
             state.CurrentProgramIndex++;
             state.CurrentProgramVisibleLineCount = 0;
+            state.CurrentProgramVisibleCharacterCount = 0;
             startedFileName ??= GetCurrentProgram(state).FileName;
         }
 
-        return new PortfolioWriteResult(linesAdded, completedFileName, startedFileName);
+        return new PortfolioWriteResult(linesAdded, charactersAdded, completedFileName, startedFileName);
     }
 
     public static void SynchronizeToLinesOfCode(RunState state)
@@ -726,6 +751,7 @@ public static class PortfolioWorkspace
         var remainingLines = Math.Max(0, state.CurrentPortfolioLinesOfCode);
         state.CurrentProgramIndex = 0;
         state.CurrentProgramVisibleLineCount = 0;
+        state.CurrentProgramVisibleCharacterCount = 0;
 
         var programIndex = 0;
         while (true)
@@ -742,6 +768,7 @@ public static class PortfolioWorkspace
                     {
                         state.CurrentProgramIndex = programIndex;
                         state.CurrentProgramVisibleLineCount = visibleLineCount;
+                        state.CurrentProgramVisibleCharacterCount = 0;
                         return;
                     }
 
@@ -753,6 +780,7 @@ public static class PortfolioWorkspace
                 {
                     state.CurrentProgramIndex = programIndex;
                     state.CurrentProgramVisibleLineCount = visibleLineCount;
+                    state.CurrentProgramVisibleCharacterCount = 0;
                     return;
                 }
             }
@@ -762,11 +790,27 @@ public static class PortfolioWorkspace
             {
                 state.CurrentProgramIndex = programIndex;
                 state.CurrentProgramVisibleLineCount = program.CodeLines.Count;
+                state.CurrentProgramVisibleCharacterCount = 0;
                 return;
             }
 
             programIndex++;
         }
+    }
+
+    private static void CompleteCurrentLine(RunState state, string line, ref int linesAdded)
+    {
+        state.CurrentProgramVisibleLineCount++;
+        state.CurrentProgramVisibleCharacterCount = 0;
+        if (!string.IsNullOrWhiteSpace(line))
+        {
+            linesAdded++;
+        }
+    }
+
+    private static int GetRevealCharacterLength(string line)
+    {
+        return Math.Max(1, line.Length);
     }
 
     private static PortfolioProgramDefinition GetProgramAt(RunState state, int programIndex)

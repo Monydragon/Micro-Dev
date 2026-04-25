@@ -25,4 +25,5 @@ public enum IncidentType
     IndieFundingSwing,
     FounderNaming,
     FirstCoinDilemma,
+    RentInvoice,
 }

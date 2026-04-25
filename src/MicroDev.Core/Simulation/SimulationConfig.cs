@@ -42,9 +42,9 @@ public sealed record class SimulationConfig
 
     public double PassiveFocusDrainPerInGameMinute { get; init; } = 0.025;
 
-    public int WriteCodeLinesGain { get; init; } = 1;
+    public int WriteCodeCharactersGain { get; init; } = 1;
 
-    public double WriteCodeFocusCost { get; init; } = 2;
+    public double WriteCodeFocusCost { get; init; } = 0.08;
 
     public double WriteCodeQualityGain { get; init; } = 0.15;
 
@@ -52,17 +52,17 @@ public sealed record class SimulationConfig
 
     public double SluggishQualityMultiplier { get; init; } = 0.5;
 
-    public double SluggishFocusCostPenalty { get; init; } = 0.75;
+    public double SluggishFocusCostPenalty { get; init; } = 0.04;
 
     public double DeepWorkDurationMinutes { get; init; } = 90;
 
-    public int DeepWorkBonusLinesPerClick { get; init; } = 1;
+    public int DeepWorkBonusCharactersPerClick { get; init; } = 1;
 
     public double DeepWorkBonusQualityGain { get; init; } = 0.15;
 
     public double ContextSwitchDurationMinutes { get; init; } = 75;
 
-    public double ContextSwitchFocusCostPenalty { get; init; } = 0.6;
+    public double ContextSwitchFocusCostPenalty { get; init; } = 0.03;
 
     public double ContextSwitchPassiveFocusDrainPerInGameMinute { get; init; } = 0.02;
 
@@ -334,6 +334,14 @@ public sealed record class SimulationConfig
 
     public double DailyBillAmount { get; init; } = 40;
 
+    public int RentInvoiceIntervalDays { get; init; } = 30;
+
+    public int RentInvoiceWarningDays { get; init; } = 1;
+
+    public double MonthlyRentInvoiceAmount { get; init; } = 800;
+
+    public double FirstCoinBuyBackCost { get; init; } = 800;
+
     public int InterviewDeadlineDays { get; init; } = 7;
 
     public double FreelanceMinimumFocusRequired { get; init; } = 12;
@@ -444,7 +452,7 @@ public sealed record class SimulationConfig
 
     public double FirstCoinBreakSanityLoss { get; init; } = 8;
 
-    public double FirstCoinEmergencyFundsGain { get; init; } = 25;
+    public double FirstCoinEmergencyFundsGain { get; init; } = 800;
 
     public static SimulationConfig Create(GameDifficulty difficulty, GameplayLoopMode gameplayMode, bool realisticMode)
     {

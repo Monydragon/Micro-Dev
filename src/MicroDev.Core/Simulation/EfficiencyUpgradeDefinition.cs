@@ -14,7 +14,7 @@ public sealed class EfficiencyUpgradeDefinition
 
     public required string SummaryEffect { get; init; }
 
-    public int BonusLinesPerClick { get; init; }
+    public int BonusCharactersPerClick { get; init; }
 
     public double FocusCostReduction { get; init; }
 
@@ -42,9 +42,9 @@ public sealed class EfficiencyUpgradeDefinition
         }
 
         var parts = new List<string>();
-        if (BonusLinesPerClick > 0)
+        if (BonusCharactersPerClick > 0)
         {
-            parts.Add($"+{BonusLinesPerClick * tier} lines per click");
+            parts.Add($"+{BonusCharactersPerClick * tier} CPC");
         }
 
         if (FocusCostReduction > 0)

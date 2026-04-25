@@ -225,10 +225,10 @@ public sealed class SimulationEngineTests
 
         var visibleLines = PortfolioWorkspace.GetVisibleLines(state);
         Assert.True(applied);
-        Assert.Equal(1, state.LinesOfCode);
-        Assert.Equal(68, state.Focus, 3);
+        Assert.Equal(0, state.LinesOfCode);
+        Assert.Equal(69.92, state.Focus, 3);
         Assert.NotEmpty(visibleLines);
-        Assert.Contains(visibleLines, line => line.StartsWith("using ", StringComparison.Ordinal));
+        Assert.Equal("u", visibleLines[0]);
     }
 
     [Fact]
@@ -241,8 +241,8 @@ public sealed class SimulationEngineTests
         var applied = _engine.ApplyAction(state, PlayerAction.WriteCode);
 
         Assert.True(applied);
-        Assert.Equal(1, state.LinesOfCode);
-        Assert.Equal(97.25, state.Focus, 3);
+        Assert.Equal(0, state.LinesOfCode);
+        Assert.Equal(99.88, state.Focus, 3);
         Assert.Equal(100, state.CodeQuality, 3);
     }
 
@@ -251,16 +251,16 @@ public sealed class SimulationEngineTests
     {
         var state = _engine.CreateNewRun();
         var firstFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
-        state.Focus = 200;
+        state.Focus = 1000;
         var safety = 0;
 
-        while (state.CurrentProgramIndex == 0 && safety < 60)
+        while (state.CurrentProgramIndex == 0 && safety < 5000)
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
             safety++;
         }
 
-        Assert.True(safety < 60);
+        Assert.True(safety < 5000);
         var secondFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
         Assert.NotEqual(firstFileName, secondFileName);
         Assert.Equal(0, state.CurrentProgramVisibleLineCount);
@@ -324,7 +324,7 @@ public sealed class SimulationEngineTests
         Assert.True(purchased);
         Assert.Equal(1, _engine.GetUpgradeTier(state, EfficiencyUpgradeType.MechanicalKeyboard));
         Assert.Equal(165, state.Funds, 3);
-        Assert.Equal(2, _engine.GetCurrentWriteLinesPerClick(state));
+        Assert.Equal(2, _engine.GetCurrentWriteCharactersPerClick(state));
     }
 
     [Fact]
@@ -337,7 +337,8 @@ public sealed class SimulationEngineTests
         var applied = _engine.ApplyAction(state, PlayerAction.WriteCode);
 
         Assert.True(applied);
-        Assert.Equal(2, state.LinesOfCode);
+        Assert.Equal(0, state.LinesOfCode);
+        Assert.Equal("us", PortfolioWorkspace.GetVisibleLines(state)[0]);
     }
 
     [Fact]
@@ -353,7 +354,7 @@ public sealed class SimulationEngineTests
         }
 
         Assert.False(_engine.PurchaseUpgrade(state, EfficiencyUpgradeType.MechanicalKeyboard));
-        Assert.Equal(6, _engine.GetCurrentWriteLinesPerClick(state));
+        Assert.Equal(6, _engine.GetCurrentWriteCharactersPerClick(state));
     }
 
     [Fact]
@@ -363,14 +364,14 @@ public sealed class SimulationEngineTests
 
         var taken = _engine.TakeFreelanceGig(state, FreelanceGigType.PipelineRescue);
         var safety = 0;
-        while (state.ActiveFreelanceGig is not null && safety < 80)
+        while (state.ActiveFreelanceGig is not null && safety < 5000)
         {
             Assert.True(_engine.WorkOnFreelanceGig(state));
             safety++;
         }
 
         Assert.True(taken);
-        Assert.True(safety < 80);
+        Assert.True(safety < 5000);
         Assert.Null(state.ActiveFreelanceGig);
         Assert.Equal(143, state.Funds, 3);
         Assert.Equal("09:45", state.ClockText);
@@ -573,20 +574,27 @@ public sealed class SimulationEngineTests
     public void ComputerFreeze_RollsBackUncommittedProgressToLastCommit()
     {
         var state = _engine.CreateNewRun();
-        state.Focus = 200;
+        state.Focus = 10000;
         var safety = 0;
-        while (state.RecentCompletedFileName is null && safety < 120)
+        while (state.RecentCompletedFileName is null && safety < 5000)
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
             safety++;
         }
 
-        Assert.True(safety < 120);
+        Assert.True(safety < 5000);
         var committedLines = state.CurrentPortfolioLinesOfCode;
         Assert.True(_engine.CommitChanges(state));
         Assert.Equal(committedLines, state.VersionControl.CommittedPortfolioLinesOfCode);
 
-        Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+        var dirtySafety = 0;
+        while (state.VersionControl.PendingChangeLines == 0 && dirtySafety < 5000)
+        {
+            Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            dirtySafety++;
+        }
+
+        Assert.True(dirtySafety < 5000);
         var linesBeforeFreeze = state.CurrentPortfolioLinesOfCode;
         Assert.True(state.VersionControl.PendingChangeLines > 0);
 
@@ -654,12 +662,13 @@ public sealed class SimulationEngineTests
     public void WritingCode_UnlocksWorkContactsOverTime()
     {
         var state = _engine.CreateNewRun();
-        state.Focus = 200;
+        state.Focus = 10000;
         var safety = 0;
 
-        while (safety < 120 && _engine.CanApplyAction(state, PlayerAction.WriteCode))
+        while (safety < 20000 && _engine.CanApplyAction(state, PlayerAction.WriteCode))
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            state.Focus = 10000;
             if (state.KnownContacts.Any(contact => contact.Role == SocialContactRole.Friend) &&
                 state.KnownContacts.Any(contact => contact.Role == SocialContactRole.Mentor))
             {
@@ -738,19 +747,26 @@ public sealed class SimulationEngineTests
     public void CatTimeout_RollsBackOnlyUncommittedProgressWhenIgnored()
     {
         var state = _engine.CreateNewRun();
-        state.Focus = 200;
+        state.Focus = 10000;
         var safety = 0;
-        while (state.RecentCompletedFileName is null && safety < 120)
+        while (state.RecentCompletedFileName is null && safety < 5000)
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
             safety++;
         }
 
-        Assert.True(safety < 120);
+        Assert.True(safety < 5000);
         var committedLines = state.CurrentPortfolioLinesOfCode;
         Assert.True(_engine.CommitChanges(state));
 
-        Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+        var dirtySafety = 0;
+        while (state.VersionControl.PendingChangeLines == 0 && dirtySafety < 5000)
+        {
+            Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
+            dirtySafety++;
+        }
+
+        Assert.True(dirtySafety < 5000);
         var linesBeforeTimeout = state.CurrentPortfolioLinesOfCode;
         _engine.QueueIncidents(state, [new QueuedIncident("cat-1", IncidentType.CatInterruption, "Cat!")]);
 
@@ -974,13 +990,13 @@ public sealed class SimulationEngineTests
     public void ModifierIncidents_ChangeWritingStats()
     {
         var state = _engine.CreateNewRun();
-        var baseLines = _engine.GetCurrentWriteLinesPerClick(state);
+        var baseCharacters = _engine.GetCurrentWriteCharactersPerClick(state);
         var baseFocusCost = _engine.GetCurrentWriteFocusCost(state);
 
         _engine.QueueIncidents(state, [new QueuedIncident("flow-1", IncidentType.DeepWorkWindow, "Deep work.")]);
 
         Assert.True(_engine.IsDeepWorkActive(state));
-        Assert.True(_engine.GetCurrentWriteLinesPerClick(state) > baseLines);
+        Assert.True(_engine.GetCurrentWriteCharactersPerClick(state) > baseCharacters);
 
         _engine.QueueIncidents(state, [new QueuedIncident("chaos-1", IncidentType.ContextSwitch, "Chaos.")]);
 
@@ -1005,7 +1021,7 @@ public sealed class SimulationEngineTests
         var safety = 0;
         while (state.ActiveJobApplication is not null &&
                !state.ActiveJobApplication.TakeHomeComplete &&
-               safety < 100)
+               safety < 5000)
         {
             Assert.True(_engine.WorkOnJobApplication(state));
             safety++;
@@ -1063,7 +1079,7 @@ public sealed class SimulationEngineTests
         var safety = 0;
         while (state.ActiveJobApplication is not null &&
                !state.ActiveJobApplication.TakeHomeComplete &&
-               safety < 100)
+               safety < 5000)
         {
             Assert.True(_engine.WorkOnJobApplication(state));
             safety++;
@@ -1132,8 +1148,54 @@ public sealed class SimulationEngineTests
         Assert.True(used);
         Assert.False(state.HasFirstCoin);
         Assert.False(state.FirstCoinDecisionPending);
-        Assert.Equal(5, state.Funds, 3);
+        Assert.Equal(780, state.Funds, 3);
         Assert.Equal(61.28, state.Sanity, 3);
+    }
+
+    [Fact]
+    public void AdvanceTime_MonthlyRentDue_CreatesBlockingInvoice()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false), () => 4242);
+        var state = engine.CreateNewRun();
+        state.Funds = 3_000;
+        state.Day = state.NextRentInvoiceDay - 1;
+        state.TimeOfDayMinutes = 23 * 60;
+        state.MinutesSinceLastMeal = 0;
+        state.MinutesSinceLastSleep = 0;
+
+        engine.AdvanceTime(state, 60);
+
+        Assert.Equal(30, state.Day);
+        Assert.NotNull(state.PendingLifeEvent);
+        Assert.Equal(IncidentType.RentInvoice, state.PendingLifeEvent.Type);
+        Assert.True(engine.CanResolveLifeEventOption(state, 0));
+        Assert.False(engine.CanApplyAction(state, PlayerAction.WriteCode));
+    }
+
+    [Fact]
+    public void ResolveRentInvoice_WithFirstCoin_ClearsInvoiceAndAllowsBuyBack()
+    {
+        var engine = new SimulationEngine(SimulationConfig.Create(GameDifficulty.Normal, GameplayLoopMode.Indie, realisticMode: false), () => 4242);
+        var state = engine.CreateNewRun();
+        state.Funds = 2_000;
+        state.Day = state.NextRentInvoiceDay - 1;
+        state.TimeOfDayMinutes = 23 * 60;
+        state.MinutesSinceLastMeal = 0;
+        state.MinutesSinceLastSleep = 0;
+
+        engine.AdvanceTime(state, 60);
+
+        Assert.Equal(IncidentType.RentInvoice, state.PendingLifeEvent?.Type);
+        state.Funds = 100;
+        Assert.False(engine.CanResolveLifeEventOption(state, 0));
+        Assert.True(engine.ResolveLifeEventOption(state, 1));
+        Assert.False(state.HasFirstCoin);
+        Assert.Null(state.PendingLifeEvent);
+
+        state.Funds = engine.Config.FirstCoinBuyBackCost;
+        Assert.True(engine.BuyBackFirstCoin(state));
+        Assert.True(state.HasFirstCoin);
+        Assert.Equal(0, state.Funds, 3);
     }
 
     [Fact]
@@ -1158,7 +1220,7 @@ public sealed class SimulationEngineTests
 
         Assert.True(_engine.ApplyAction(state, PlayerAction.Freelance));
         var safety = 0;
-        while (state.ActiveFreelanceGig is not null && safety < 80)
+        while (state.ActiveFreelanceGig is not null && safety < 5000)
         {
             Assert.True(_engine.WorkOnFreelanceGig(state));
             safety++;
@@ -1272,13 +1334,13 @@ public sealed class SimulationEngineTests
         var state = _engine.CreateNewRun();
         state.Focus = 200;
         var safety = 0;
-        while (state.RecentCompletedFileName is null && safety < 120)
+        while (state.RecentCompletedFileName is null && safety < 5000)
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
             safety++;
         }
 
-        Assert.True(safety < 120);
+        Assert.True(safety < 5000);
         Assert.True(state.VersionControl.PendingChangeLines > 0);
         Assert.Equal(1, state.VersionControl.PendingCompletedFileCount);
 
@@ -1298,13 +1360,13 @@ public sealed class SimulationEngineTests
         var firstFileName = PortfolioWorkspace.GetCurrentProgram(state).FileName;
         var safety = 0;
 
-        while (state.RecentCompletedFileName is null && safety < 120)
+        while (state.RecentCompletedFileName is null && safety < 5000)
         {
             Assert.True(engine.ApplyAction(state, PlayerAction.WriteCode));
             safety++;
         }
 
-        Assert.True(safety < 120);
+        Assert.True(safety < 5000);
         Assert.Equal(firstFileName, state.RecentCompletedFileName);
         Assert.True(state.Funds > startingFunds);
         Assert.Contains(state.EventLog, entry => entry.Contains("Indie project progress pays out", StringComparison.Ordinal));
@@ -1446,13 +1508,13 @@ public sealed class SimulationEngineTests
         state.Focus = 200;
         var safety = 0;
 
-        while (state.RecentCompletedFileName is null && safety < 120)
+        while (state.RecentCompletedFileName is null && safety < 5000)
         {
             Assert.True(_engine.ApplyAction(state, PlayerAction.WriteCode));
             safety++;
         }
 
-        Assert.True(safety < 120);
+        Assert.True(safety < 5000);
         Assert.True(_engine.CommitChanges(state));
 
         Assert.True(state.Stats.TotalLinesTyped > 0);

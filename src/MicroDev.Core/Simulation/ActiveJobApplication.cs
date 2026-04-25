@@ -30,6 +30,8 @@ public sealed class ActiveJobApplication
 
     public int VisibleLineCount { get; set; }
 
+    public int VisibleCharacterCount { get; set; }
+
     public int CurrentQuestionIndex { get; set; }
 
     public int CorrectAnswers { get; set; }
@@ -64,6 +66,7 @@ public sealed class ActiveJobApplication
             ResumeTrack = ResumeTrack,
             ResumeProofSnapshot = ResumeProofSnapshot,
             VisibleLineCount = VisibleLineCount,
+            VisibleCharacterCount = VisibleCharacterCount,
             CurrentQuestionIndex = CurrentQuestionIndex,
             CorrectAnswers = CorrectAnswers,
             MinimumCorrectAnswers = MinimumCorrectAnswers,

@@ -10,8 +10,8 @@ public static class EfficiencyUpgradeCatalog
             Name = "Mechanical Keyboard",
             FundsCost = 35,
             Description = "Sharper keys and less hesitation. Typing feels noticeably faster the moment it lands on the desk.",
-            SummaryEffect = "+1 line per click.",
-            BonusLinesPerClick = 1,
+            SummaryEffect = "+1 CPC.",
+            BonusCharactersPerClick = 1,
         },
         new()
         {
@@ -19,8 +19,8 @@ public static class EfficiencyUpgradeCatalog
             Name = "Snippet Library",
             FundsCost = 55,
             Description = "Common patterns are saved and ready. Boilerplate stops eating the whole evening.",
-            SummaryEffect = "+1 line per click.",
-            BonusLinesPerClick = 1,
+            SummaryEffect = "+1 CPC.",
+            BonusCharactersPerClick = 1,
         },
         new()
         {
@@ -73,8 +73,8 @@ public static class EfficiencyUpgradeCatalog
             Name = "Macro Pad",
             FundsCost = 92,
             Description = "Tiny repeatable shortcuts add up fast. Common editor actions stop taking a whole extra breath every time.",
-            SummaryEffect = "+1 line per click.",
-            BonusLinesPerClick = 1,
+            SummaryEffect = "+1 CPC.",
+            BonusCharactersPerClick = 1,
         },
         new()
         {
@@ -137,8 +137,8 @@ public static class EfficiencyUpgradeCatalog
             Name = "Dual Monitor Arm",
             FundsCost = 72,
             Description = "Docs, logs, and code finally live side by side. Context stops hiding behind tabs.",
-            SummaryEffect = "+1 line per click.",
-            BonusLinesPerClick = 1,
+            SummaryEffect = "+1 CPC.",
+            BonusCharactersPerClick = 1,
         },
         new()
         {
@@ -146,8 +146,8 @@ public static class EfficiencyUpgradeCatalog
             Name = "Search Indexer",
             FundsCost = 86,
             Description = "Fast project-wide lookup turns guesswork into a quick jump straight to the right file.",
-            SummaryEffect = "+1 line per click.",
-            BonusLinesPerClick = 1,
+            SummaryEffect = "+1 CPC.",
+            BonusCharactersPerClick = 1,
         },
         new()
         {
