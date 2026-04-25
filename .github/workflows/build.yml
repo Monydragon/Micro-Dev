@@ -1,0 +1,187 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-prototype:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install Android workload
+        run: dotnet workload install android
+
+      - name: Restore core tests
+        run: dotnet restore tests/MicroDev.Core.Tests/MicroDev.Core.Tests.csproj
+
+      - name: Test core
+        run: dotnet test tests/MicroDev.Core.Tests/MicroDev.Core.Tests.csproj -c Release --no-restore
+
+      - name: Build Web target
+        run: ./scripts/build-platform.ps1 -Platform web -Configuration Release
+
+      - name: Build Windows target
+        run: ./scripts/build-platform.ps1 -Platform windows -Configuration Release
+
+      - name: Build Android target
+        run: ./scripts/build-platform.ps1 -Platform android -Configuration Release
+
+      - name: Publish Web prototype artifact
+        run: dotnet publish src/MicroDev.WebGL/MicroDev.WebGL.csproj -c Release -o ${{ github.workspace }}\artifacts\web
+
+      - name: Upload Web prototype artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-web-prototype
+          path: ${{ github.workspace }}\artifacts\web
+
+      - name: Publish Windows prototype artifact
+        run: >
+          dotnet publish src/MicroDev.DesktopGL/MicroDev.DesktopGL.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishAot=false
+          -p:PublishTrimmed=false
+          -o ${{ github.workspace }}\artifacts\windows
+
+      - name: Upload Windows prototype artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-windows-prototype
+          path: ${{ github.workspace }}\artifacts\windows
+
+      - name: Publish Android APK prototype artifact
+        run: >
+          dotnet publish src/MicroDev.AndroidGL/MicroDev.AndroidGL.csproj
+          -c Release
+          -f net10.0-android
+          -p:AndroidPackageFormat=apk
+          -o ${{ github.workspace }}\artifacts\android\apk
+
+      - name: Clean Android intermediates before AAB publish
+        run: dotnet clean src/MicroDev.AndroidGL/MicroDev.AndroidGL.csproj -c Release -f net10.0-android
+
+      - name: Publish Android AAB prototype artifact
+        run: >
+          dotnet publish src/MicroDev.AndroidGL/MicroDev.AndroidGL.csproj
+          -c Release
+          -f net10.0-android
+          -p:AndroidPackageFormat=aab
+          -o ${{ github.workspace }}\artifacts\android\aab
+
+      - name: Upload Android prototype artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-android-prototype
+          path: ${{ github.workspace }}\artifacts\android
+
+  linux-prototype:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore Linux target
+        run: dotnet restore src/MicroDev.DesktopGL/MicroDev.DesktopGL.csproj
+
+      - name: Build Linux target
+        run: pwsh ./scripts/build-platform.ps1 -Platform linux -Configuration Release
+
+      - name: Publish Linux prototype artifact
+        run: >
+          dotnet publish src/MicroDev.DesktopGL/MicroDev.DesktopGL.csproj
+          -c Release
+          -r linux-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishAot=false
+          -p:PublishTrimmed=false
+          -o ${{ github.workspace }}/artifacts/linux
+
+      - name: Upload Linux prototype artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-linux-prototype
+          path: ${{ github.workspace }}/artifacts/linux
+
+  macos-prototype:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      - name: Select iOS simulator runtime identifier
+        shell: bash
+        run: |
+          if [[ "$(uname -m)" == "arm64" ]]; then
+            echo "IOS_RUNTIME_IDENTIFIER=iossimulator-arm64" >> "$GITHUB_ENV"
+          else
+            echo "IOS_RUNTIME_IDENTIFIER=iossimulator-x64" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build MacOSX target
+        run: pwsh ./scripts/build-platform.ps1 -Platform macosx -Configuration Release
+
+      - name: Build iOS target
+        run: >
+          dotnet build src/MicroDev.iOSGL/MicroDev.iOSGL.csproj
+          -c Release
+          -f net10.0-ios
+          -r ${{ env.IOS_RUNTIME_IDENTIFIER }}
+          -p:CodesignKey=
+
+      - name: Publish MacOSX prototype artifact
+        run: >
+          dotnet publish src/MicroDev.DesktopGL/MicroDev.DesktopGL.csproj
+          -c Release
+          -r osx-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishAot=false
+          -p:PublishTrimmed=false
+          -o ${{ github.workspace }}/artifacts/macosx
+
+      - name: Upload MacOSX prototype artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-macosx-prototype
+          path: ${{ github.workspace }}/artifacts/macosx
+
+      - name: Publish iOS simulator prototype artifact
+        run: >
+          dotnet publish src/MicroDev.iOSGL/MicroDev.iOSGL.csproj
+          -c Release
+          -f net10.0-ios
+          -r ${{ env.IOS_RUNTIME_IDENTIFIER }}
+          -p:CodesignKey=
+          -o ${{ github.workspace }}/artifacts/ios
+
+      - name: Upload iOS prototype artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-ios-prototype
+          path: ${{ github.workspace }}/artifacts/ios

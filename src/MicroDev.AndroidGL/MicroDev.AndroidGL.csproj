@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsTrimmable>true</IsTrimmable>
+    <TrimMode>partial</TrimMode>
+    <DefineConstants>$(DefineConstants);ANDROID</DefineConstants>
+    <KniPlatform>Android</KniPlatform>
+    <ApplicationId>$(MicroDevAndroidApplicationId)</ApplicationId>
+    <ApplicationVersion>$(MicroDevAndroidVersionCode)</ApplicationVersion>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+    <AndroidStoreUncompressedFileExtensions>.m4a</AndroidStoreUncompressedFileExtensions>
+    <RunAOTCompilation>false</RunAOTCompilation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="nkast.Kni.Platform.Android.GL" Version="$(KniMobilePlatformVersion)" />
+    <PackageReference Include="nkast.Xna.Framework.Content.Pipeline.Builder" Version="$(KniVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MicroDev.Core\MicroDev.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="AndroidManifest.xml" />
+    <AndroidResource Include="Resources\Values\Strings.xml" />
+    <AndroidResource Include="Resources\Values\Styles.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <KniContentReference Include="Content\Content.mgcb" />
+  </ItemGroup>
+</Project>

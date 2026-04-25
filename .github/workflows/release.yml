@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish, for example 0.1.1. Leave blank to use Directory.Build.props.
+        required: false
+        type: string
+      platforms:
+        description: Space-separated platforms: web windows linux macosx android ios
+        required: false
+        default: web windows linux macosx android ios
+        type: string
+
+jobs:
+  package-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install Android workload
+        run: dotnet workload install android
+
+      - name: Restore core tests
+        run: dotnet restore tests/MicroDev.Core.Tests/MicroDev.Core.Tests.csproj
+
+      - name: Test core
+        run: dotnet test tests/MicroDev.Core.Tests/MicroDev.Core.Tests.csproj -c Release --no-restore
+
+      - name: Publish release packages
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_EXPECTED_SHA1: ${{ secrets.ANDROID_EXPECTED_SHA1 }}
+        run: |
+          $requestedPlatforms = '${{ inputs.platforms }}' -split '[,\s]+'
+          $requestedPlatforms = $requestedPlatforms | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          $platforms = $requestedPlatforms | Where-Object { $_ -ne 'ios' }
+          if ($platforms.Count -eq 0) {
+            Write-Host 'No Windows-hosted release platforms requested.'
+            return
+          }
+
+          $args = @('-Platforms') + $platforms
+          if ('${{ inputs.version }}') {
+            $args += @('-Version', '${{ inputs.version }}')
+          }
+
+          if ($platforms -contains 'android') {
+            if (-not $env:ANDROID_KEYSTORE_BASE64) {
+              throw 'ANDROID_KEYSTORE_BASE64 secret is required when publishing Android.'
+            }
+
+            New-Item -ItemType Directory -Force -Path artifacts/signing | Out-Null
+            $keystorePath = Join-Path $PWD 'artifacts/signing/microdev-upload.keystore'
+            [IO.File]::WriteAllBytes($keystorePath, [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+            $args += @(
+              '-AndroidKeystorePath', $keystorePath,
+              '-AndroidStorePassword', $env:ANDROID_STORE_PASSWORD,
+              '-AndroidKeyAlias', $env:ANDROID_KEY_ALIAS,
+              '-AndroidKeyPassword', $env:ANDROID_KEY_PASSWORD
+            )
+
+            if ($env:ANDROID_EXPECTED_SHA1) {
+              $args += @('-AndroidExpectedSha1', $env:ANDROID_EXPECTED_SHA1)
+            }
+          }
+
+          ./scripts/publish-releases.ps1 @args
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-release-packages
+          path: artifacts/releases
+
+  package-ios-release:
+    if: contains(inputs.platforms, 'ios')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      - name: Select iOS simulator runtime identifier
+        shell: bash
+        run: |
+          if [[ "$(uname -m)" == "arm64" ]]; then
+            echo "IOS_RUNTIME_IDENTIFIER=iossimulator-arm64" >> "$GITHUB_ENV"
+          else
+            echo "IOS_RUNTIME_IDENTIFIER=iossimulator-x64" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publish iOS release package
+        shell: pwsh
+        run: |
+          $args = @('-Platforms', 'ios', '-IosRuntimeIdentifier', $env:IOS_RUNTIME_IDENTIFIER)
+          if ('${{ inputs.version }}') {
+            $args += @('-Version', '${{ inputs.version }}')
+          }
+
+          ./scripts/publish-releases.ps1 @args
+
+      - name: Upload iOS release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: microdev-ios-release-package
+          path: artifacts/releases
